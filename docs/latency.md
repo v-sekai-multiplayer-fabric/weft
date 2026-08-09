@@ -11,9 +11,9 @@ native planes. A scheduler is never parked on slow work, so control-plane calls
 stay in the low microseconds. A long NIF would park a scheduler for milliseconds;
 we never do that.
 
-## iceoryx for IPC
+## iceoryx2 for IPC
 
-Planes talk over iceoryx (zero-copy). A message is a pointer, not a copy and not a
+Planes talk over iceoryx2 (zero-copy). A message is a pointer, not a copy and not a
 serialize step. This is the lowest-latency IPC available: sub-microsecond, no kernel
 round trip, no socket. A socket or a Port would add copies and system calls.
 

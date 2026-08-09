@@ -2,8 +2,8 @@
 
 The game data plane is one instance of the general rule in `planes.md`: the BEAM
 runs only the control plane, and every heavy plane is a native process outside the
-VM reached across shared memory. This document details that boundary for the game
-hot path (a **ring**); the asset baker uses the same pattern with a **queue**.
+VM reached over iceoryx2. This document details that boundary for the game hot path,
+a **ring**.
 
 weft is the **control plane**. It decides _which_ node owns a zone, keeps one
 writer per id, hands zones off on node loss, and holds durable state. It must
@@ -20,9 +20,9 @@ the two halves can be built independently.
 flowchart TD
     NIC["NIC / SmartNIC-DPU<br/>15M+ pps, kernel bypass"]
     Seastar["Seastar (C++ / DPDK)<br/>thread-per-core, lock-free<br/>decode WebTransport/QUIC datagrams"]
-    Iceoryx["Eclipse iceoryx (C++)<br/>zero-copy shared-memory IPC (&lt;1 microsecond)"]
+    Iceoryx["Eclipse iceoryx2<br/>zero-copy IPC (&lt;1 microsecond)"]
     Jolt["Jolt Physics (C++, own process)<br/>60Hz spatial hash, broadphase, raycast, collision"]
-    Ring[("shared-memory ring<br/>digested snapshots")]
+    Ring[("ring<br/>digested snapshots")]
     BEAM["Elixir / BEAM = control plane<br/>placement, lifecycle, state, chat, accounts"]
 
     NIC --> Seastar
@@ -36,24 +36,24 @@ flowchart TD
 | Tier      | Tech                                     | Owns                                                                           | Peak           |
 | --------- | ---------------------------------------- | ------------------------------------------------------------------------------ | -------------- |
 | Network   | **Seastar (C++/DPDK)**                   | Datagram ingest + decode, kernel bypass, thread-per-core                       | 15M+ pps       |
-| IPC       | **Eclipse iceoryx (C++)**                | Zero-copy shared-memory handoff, network → physics                             | <1 microsecond |
+| IPC       | **Eclipse iceoryx2**                     | Zero-copy handoff, network → physics                                           | <1 microsecond |
 | Game loop | **Jolt Physics (C++, separate process)** | 60Hz spatial hash, broadphase culling, raycast, collision                      | multi-core     |
 | Control   | **Elixir / BEAM (weft)**                 | Placement, single-writer, failover, durable state, chat, accounts, matchmaking | —              |
 
 ## The three contracts across the boundary
 
-1. **Network → Physics (iceoryx, zero-copy).** Seastar decodes datagrams and
-   publishes decrypted player inputs into an iceoryx pool; Jolt subscribes. Pure
-   shared memory, no copy, sub-microsecond. weft is not involved.
+1. **Network → Physics (iceoryx2, zero-copy).** Seastar decodes datagrams and
+   publishes decrypted player inputs into an iceoryx2 pool; Jolt subscribes.
+   Zero-copy over iceoryx2, sub-microsecond. weft is not involved.
 
-2. **Physics → BEAM (shared-memory ring, read at tick rate).** Jolt writes
-   _digested_ world state (not packets) into a shared-memory ring. BEAM reads the
-   latest snapshot at its tick rate through a thin **dirty NIF** or a **C-Node /
-   Port**. The BEAM side is **event-driven or tick-scheduled, never a busy-poll**.
+2. **Physics → BEAM (ring, read at tick rate).** Jolt writes _digested_ world state
+   (not packets) into a ring, delivered over iceoryx2 publish-subscribe. The BEAM
+   reads the latest snapshot at its tick rate through a small iceoryx2 NIF. The BEAM
+   side is **event-driven or tick-scheduled, never a busy-poll**.
 
-3. **BEAM → Data plane (control channel).** weft issues lifecycle commands:
-   spawn a zone's data-plane worker on this node, despawn it, migrate it. These
-   ride a Port/NIF control path, low-rate, request/response.
+3. **BEAM → Data plane (control channel).** weft issues lifecycle commands: spawn a
+   zone's data-plane worker on this node, despawn it, migrate it. These ride an
+   iceoryx2 request-response control path, low-rate.
 
 ## Hard rules
 
@@ -62,8 +62,8 @@ flowchart TD
   extreme tail; the BEAM should leave the hot path two orders of magnitude earlier.
 - **Never busy-poll inside a NIF.** A long-running NIF blocks a scheduler thread
   and wrecks whole-VM latency. The data plane owns the busy-poll on pinned cores in
-  a _separate OS process_; the BEAM reads pre-assembled state off a ring via a
-  dirty NIF / Port at tick rate.
+  a _separate OS process_; the BEAM reads pre-assembled state off the ring via a
+  small iceoryx2 NIF at tick rate.
 - **Data plane owns pinned cores.** DPDK/Seastar reactor cores run at 100%
   permanently and are excluded from the BEAM scheduler set.
 - **Interest management before hardware.** A server only faces 15M pps if it is
@@ -88,32 +88,12 @@ server ingests. They compose through placement:
 - `Horde` single-writer + handoff (already built) tells the data plane **which box
   owns a zone's socket**. When a node dies, weft re-places the zone; the new
   owner's data-plane worker binds the socket.
-- The FoundationDB store (already built) holds the zone's durable state so the new
-  owner can resume it after handoff — no filesystem affinity.
-- The zone's hot loop (Seastar/iceoryx/Jolt) is spawned and reaped by weft as
+- The store (see `store.md`) holds the zone's durable state so the new owner can
+  resume it after handoff, with no filesystem affinity.
+- The zone's hot loop (Seastar/iceoryx2/Jolt) is spawned and reaped by weft as
   part of that zone's lifecycle, but runs entirely outside the BEAM.
 
 The next step is a thin, honest prototype of contract (2) and (3): a `Weft.Zone`
 whose control/durable state lives in the BEAM, with a stubbed data-plane worker
 behind a behaviour, so the seam is exercised before the C++ exists. See
 `Weft.DataPlane`.
-
-## Open questions
-
-This document predates the iceoryx and no-Port rules in `planes.md` and conflicts
-with them.
-
-1. **One IPC name.** This document calls the transport "shared memory" and iceoryx
-   "shared-memory IPC", and names the baker path a "queue." The one IPC name is
-   iceoryx. The one streaming name is a ring (publish-subscribe); the one job name is
-   request-response. Rewrite this document to those names?
-2. **No Ports.** Contracts (2) and (3) say the BEAM reads the ring "through a thin
-   dirty NIF or a C-Node / Port" and control "rides a Port/NIF control path." Ports
-   and C-Nodes are banned. The BEAM side is one small iceoryx NIF (`planes.md` rule
-   4). Rewrite both contracts to iceoryx-only?
-3. **SUMO plane versus asset baker.** Line 4 says the asset baker uses this pattern
-   with a queue. The task list swapped the asset baker for a SUMO plane. Same open
-   question as `planes.md`: does SUMO replace the baker or feed the game data plane?
-4. **Store status.** "The FoundationDB store (already built)" is stale. `store.md`
-   redesigns it to a local SQLite WAL primary with an async FoundationDB replica,
-   which is not built yet.

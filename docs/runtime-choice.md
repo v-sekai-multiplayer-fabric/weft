@@ -44,7 +44,7 @@ stays on the client.
 So the layering the benchmark points to:
 
 1. **Hot path (>15M/s):** native Jolt/Seastar → `Weft.DataPlane.Ring`.
-2. **Stage/world representation:** OpenUSD (fabric-stage-runtime) via Elixir, server-side.
+2. **Stage/world representation:** OpenUSD (fabric-stage-runtime), server-side (under question, see below).
 3. **Control plane:** weft (placement, single-writer, lifecycle, durable state).
 4. **Client:** Godot.
 
@@ -55,11 +55,12 @@ on the 15M path.
 
 ## Open questions
 
-1. **Does weft still consume OpenUSD?** The task list swapped the asset baker plane
-   (OpenUSD + Adobe glTF) for a SUMO plane. If the OpenUSD plane is dropped, this
-   document's layer 2 (OpenUSD via Elixir, server-side) is stale and the stage tier
-   needs a new answer.
-2. **OpenUSD is a plane, not a NIF.** This document says fabric-stage-runtime is
-   "packaged for the BEAM" and consumed "via Elixir" NIFs. `planes.md` forbids heavy
-   C++ in the BEAM: OpenUSD must run as a separate plane over iceoryx if it is kept
-   at all. Reconcile with `planes.md`.
+The asset baker plane (OpenUSD + Adobe glTF, request-response) is deleted (YAGNI).
+The hot-path conclusion above stands: the >15M producer is native Jolt/Seastar, not
+OpenUSD or Godot.
+
+1. **Is the OpenUSD stage tier (layer 2) also YAGNI?** With the baker gone and SUMO
+   the focus, weft's only remaining OpenUSD use is the server-side stage tier. Keep
+   it or drop it too. If kept, it runs as a plane over iceoryx2, not an in-BEAM NIF
+   (`planes.md` forbids heavy C++ in the BEAM), so "via Elixir" above is wrong and
+   must be reworded.

@@ -3,7 +3,7 @@
 The main rule of weft's architecture:
 
 > **The BEAM runs only the control plane. Every other plane is a native process
-> outside the BEAM. The BEAM reaches it through Eclipse iceoryx (zero-copy IPC).**
+> outside the BEAM. The BEAM reaches it through Eclipse iceoryx2 (zero-copy IPC).**
 
 The BEAM does coordination: placement, lifecycle, supervision, routing,
 backpressure, and caching. It is good at coordination and bad at heavy compute.
@@ -31,21 +31,20 @@ Every plane that is not the control plane follows the same rules:
 2. **It is sandboxed and crash-isolated.** Each plane runs in a
    [bubblewrap](https://github.com/containers/bubblewrap) sandbox: restricted
    filesystem, namespaces, and seccomp. It can reach only what it is given — the
-   iceoryx segment, its own binary, and its data — not the host, the BEAM, or other
-   planes. Because planes talk over iceoryx, not the network, **networking is off by
+   iceoryx2 segment, its own binary, and its data — not the host, the BEAM, or other
+   planes. Because planes talk over iceoryx2, not the network, **networking is off by
    default** (`--unshare-net`). The one exception is the plane that ingests from the
-   network (the game data plane). This matters for planes that handle untrusted
-   input: the baker parses arbitrary glb files, so with no network a broken or
-   exploited baker cannot reach out. It is also
+   network (the game data plane). This matters for a plane that handles untrusted
+   input: with no network, a broken or exploited plane cannot reach out. It is also
    crash-isolated: if it crashes, the BEAM keeps running and the plane is restarted
    on its own. The BEAM checks liveness only. On Fly this is a second layer inside
    the machine's container.
-3. **It talks to the BEAM only through Eclipse iceoryx** (zero-copy IPC). Never a
-   Port. Never a socket on the hot path. Two iceoryx patterns cover all cases:
+3. **It talks to the BEAM only through Eclipse iceoryx2** (zero-copy IPC). Never a
+   Port. Never a socket on the hot path. Two iceoryx2 patterns cover all cases:
    - **Publish-subscribe** for streaming state. The plane publishes samples; the
      BEAM subscribes and takes the latest.
    - **Request-response** for jobs. The BEAM sends a request; the plane responds.
-4. **The BEAM side is a small iceoryx NIF.** It takes a sample or sends a request,
+4. **The BEAM side is a small iceoryx2 NIF.** It takes a sample or sends a request,
    copies the bytes into a BEAM binary, and returns at once. No long work, no
    busy-poll, no blocked scheduler. The hard rules in `data-plane.md` apply to
    every plane.
@@ -58,56 +57,37 @@ Every plane that is not the control plane follows the same rules:
 
 ## Planes today
 
-| Plane       | Native stack                                       | iceoryx pattern   | Isolation                   |
-| ----------- | -------------------------------------------------- | ----------------- | --------------------------- |
-| Control     | BEAM (weft)                                        | —                 | supervised (OTP)            |
-| Game data   | Seastar/DPDK + Jolt                                | publish-subscribe | out of BEAM                 |
-| Asset baker | OpenUSD + Adobe glTF plugin (fabric-stage-runtime) | request-response  | out of BEAM, crash-isolated |
+| Plane     | Native stack                         | iceoryx2 pattern   | Isolation        |
+| --------- | ------------------------------------ | ----------------- | ---------------- |
+| Control   | BEAM (weft)                          | —                 | supervised (OTP) |
+| Game data | Seastar/DPDK + Jolt                  | publish-subscribe | out of BEAM      |
+| SUMO      | Eclipse SUMO traffic microsimulation | publish-subscribe | out of BEAM      |
+
+The SUMO plane is the current focus. It streams per-step entity movement into the
+ring, the game data plane's publish-subscribe pattern.
 
 New planes (physics, ML inference, video/audio transcode) use the same contract: a
-native process plus iceoryx publish-subscribe or request-response. There is nothing
+native process plus iceoryx2 publish-subscribe or request-response. There is nothing
 new to design per plane.
-
-## Open questions
-
-These are unresolved conflicts between this document and the current task list.
-
-1. **SUMO plane versus asset baker.** The task list swapped the asset baker plane
-   for a SUMO plane, but the "Planes today" table above still lists the asset baker.
-   SUMO streams per-step entity movement, which is the game data plane's
-   publish-subscribe pattern, not the baker's request-response. So does SUMO replace
-   the asset baker as a third plane, or is SUMO the producer for the game data plane
-   used to prove benchmarks? If SUMO replaces the baker, weft has no request-response
-   plane and no glb baking path. Decide one.
-2. **OpenUSD as a plane, not a NIF.** `runtime-choice.md` and the asset baker row
-   describe OpenUSD (fabric-stage-runtime) consumed through Elixir NIFs inside the
-   BEAM. That conflicts with rules 1 and 4 here: heavy C++ runs as a separate plane
-   over iceoryx, never as a NIF in the BEAM. If weft still uses OpenUSD, must it be a
-   plane rather than an in-BEAM NIF?
-3. **Store status.** This document and `data-plane.md` call the FoundationDB store
-   "already built." `store.md` redesigns it to a local SQLite WAL primary with an
-   async FoundationDB replica, and that redesign is not built yet. The built
-   FoundationDB key-value store is being replaced, so "already built" is stale.
-   Confirm the store is the local-WAL-plus-async-replica design.
 
 Seastar is the event loop every plane runs on, not a plane by itself. In the game
 data plane, Seastar runs the loop, drives Jolt (physics), and reaches the control
-plane and other planes through iceoryx. Every plane uses Seastar the same way.
+plane and other planes through iceoryx2. Every plane uses Seastar the same way.
 
 ## Durable state: FoundationDB
 
-iceoryx is a local bus. It connects planes on the same machine with zero copy. It
+iceoryx2 is a local bus. It connects planes on the same machine with zero copy. It
 does not cross machines and it does not store anything.
 
 Durable, cross-machine state lives in **FoundationDB**. The control plane reads and
 writes it with the FoundationDB client (`erlfdb`) over the network. FoundationDB holds actor state,
 zone state, and entity ownership. It survives crashes, and it lets an actor or zone
 move to another machine and still find its data. FoundationDB is not a plane and is
-not on iceoryx. It is the shared source of truth below the planes.
+not on iceoryx2. It is the shared source of truth below the planes.
 
 Two boundaries, two jobs:
 
-- **iceoryx**: same machine, zero-copy, hot path, between planes.
+- **iceoryx2**: same machine, zero-copy, hot path, between planes.
 - **FoundationDB**: across machines, durable state, over the network.
 
 ## Results
