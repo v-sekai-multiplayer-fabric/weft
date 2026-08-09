@@ -34,17 +34,30 @@ put above), not by the actor/GenServer overhead. Cold actor start (~0.6 ms) is
 spawn + SQLite open + state restore; scale-to-zero pays this on wake, so tune the
 idle window against wake frequency.
 
-## Data-plane ingestion ceiling (`bench/data_plane.exs`)
+## Data-plane ingestion (`bench/data_plane.exs`, `bench/data_plane_ring.exs`)
 
-Flooding a single zone with digested snapshots (8 entities each) and measuring the
-drain rate:
+Two mechanisms for getting digested snapshots (8 entities each) into the BEAM:
 
-| Metric | Value |
+| Mechanism | snapshots/sec |
 | --- | --- |
-| snapshots/sec into one zone | ~1.38 M |
+| Per-message (naive: full `%Snapshot{}` copied into the mailbox) | 1.38 M |
+| Shared ring (`:atomics` seqlock), 1 core | 2.85 M |
+| Shared ring, 2 cores | 5.68 M |
+| Shared ring, 4 cores | 11.2 M |
+| Shared ring, 8 cores | **21.6 M** |
+| Shared ring, 16 cores | **27.7 M** |
+| Ring sample (read) cost | ~3 µs/read |
 
-**Takeaway.** The BEAM absorbs ~1.4M digested snapshots/sec **per zone**. At 60 Hz
-that is headroom for ~23,000 zones per core-equivalent of digestion. This confirms
-the boundary in `docs/data-plane.md`: the control plane handles digested state
-comfortably, so the raw packet flood (the 15M+ pps path) stays in the C++ data
-plane and never enters the BEAM.
+**Takeaway.** Passing one Erlang message per snapshot copies a full term into the
+mailbox and caps out around 1.4M/s — the wrong tool at this rate. The
+contract-2 mechanism from `docs/data-plane.md` is a lock-free shared slot
+(`Weft.DataPlane.Ring`, backed by `:atomics`): the worker overwrites it, the BEAM
+samples it. That alone doubles single-core throughput (no copy, no mailbox), and
+because each zone has its own ring it scales across cores: **>15M snapshots/sec is
+reached at 8 cores (21.6M), and 27.7M at 16.** Sampling costs ~3 µs, so reading at
+60 Hz is free.
+
+The real producers are the C++ Seastar/iceoryx/Jolt workers writing the same ring
+through a NIF (faster than an Elixir producer), and the BEAM only samples the
+latest — so the raw 15M+ pps packet flood never enters the VM, and the digested
+snapshot rate is not BEAM-bound either.
