@@ -81,9 +81,12 @@ Every plane that is not the control plane follows the same rules:
    copies the bytes into a BEAM binary, and returns at once. No long work, no
    busy-poll, no blocked scheduler. The hard rules in `data-plane.md` apply to
    every plane.
-5. **A plane is a Seastar app.** Every plane runs on Seastar (thread-per-core,
-   shared-nothing). There is one runtime model for all planes, not a choice per
-   plane.
+5. **A plane is a thread-per-core process over iceoryx2.** Every plane runs a thin
+   Rust harness. The harness pins one thread per core and runs a poll loop on an
+   iceoryx2 `WaitSet`. It replaces Seastar, so a plane builds natively on Windows and
+   Linux. There is one runtime model for all planes, not a choice per plane. A
+   CPU-bound plane busy-polls. An I/O-bound plane runs blocking worker threads over
+   the same iceoryx2 transport. See `runtime-choice.md` for the measured basis.
 6. **The control plane orchestrates.** It decides where a plane runs, its lifecycle,
    backpressure, and result caching. The BEAM owns _what_ and _where_. The plane
    owns _how fast_.
@@ -93,7 +96,7 @@ Every plane that is not the control plane follows the same rules:
 | Plane       | Native stack                                       | iceoryx2 pattern  | Isolation                   |
 | ----------- | -------------------------------------------------- | ----------------- | --------------------------- |
 | Control     | BEAM (weft)                                        | —                 | supervised (OTP)            |
-| Game data   | Seastar/DPDK + Jolt                                | publish-subscribe | out of BEAM                 |
+| Game data   | thread-per-core Rust harness + Jolt                | publish-subscribe | out of BEAM                 |
 | SUMO        | Eclipse SUMO traffic microsimulation               | publish-subscribe | out of BEAM                 |
 | Asset baker | OpenUSD + Adobe glTF plugin (fabric-stage-runtime) | request-response  | out of BEAM, crash-isolated |
 | Store       | native SQLite (WAL) + FoundationDB replica         | request-response  | out of BEAM, crash-isolated |
@@ -111,9 +114,11 @@ New planes (physics, ML inference, video/audio transcode) use the same contract:
 native process plus iceoryx2 publish-subscribe or request-response. There is nothing
 new to design per plane.
 
-Seastar is the event loop every plane runs on, not a plane by itself. In the game
-data plane, Seastar runs the loop, drives Jolt (physics), and reaches the control
-plane and other planes through iceoryx2. Every plane uses Seastar the same way.
+The thread-per-core harness is the loop every plane runs, not a plane by itself. In
+the game data plane, the harness runs the loop, drives Jolt (physics), and reaches the
+control plane and other planes through iceoryx2. Every plane uses the harness the same
+way. The harness is a thin Rust layer over iceoryx2, not Seastar. So a plane builds and
+runs natively on Windows and Linux. See `runtime-choice.md` for the measured basis.
 
 ## Durable state: FoundationDB
 
