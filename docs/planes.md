@@ -28,8 +28,13 @@ Every plane that is not the control plane follows the same rules:
 
 1. **It is a separate native OS process.** The container image (Docker / Fly)
    starts it. The BEAM does not start it as a Port.
-2. **It is crash-isolated.** If it crashes, the BEAM node keeps running. The plane
-   is restarted on its own. The BEAM checks liveness only.
+2. **It is sandboxed and crash-isolated.** Each plane runs in a
+   [bubblewrap](https://github.com/containers/bubblewrap) sandbox: restricted
+   filesystem, namespaces, and seccomp. It can reach only what it is given — the
+   iceoryx shared-memory path, its own binary, and its data — not the host, the
+   BEAM, or other planes. It is also crash-isolated: if it crashes, the BEAM node
+   keeps running and the plane is restarted on its own. The BEAM checks liveness
+   only. On Fly this is a second layer inside the machine's container.
 3. **It talks to the BEAM only through Eclipse iceoryx** (zero-copy IPC). Never a
    Port. Never a socket on the hot path. Two iceoryx patterns cover all cases:
    - **Publish-subscribe** for streaming state. The plane publishes samples; the
