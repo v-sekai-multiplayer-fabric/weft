@@ -32,10 +32,11 @@ Every plane that is not the control plane follows the same rules:
    [bubblewrap](https://github.com/containers/bubblewrap) sandbox: restricted
    filesystem, namespaces, and seccomp. It can reach only what it is given — the
    iceoryx segment, its own binary, and its data — not the host, the BEAM, or other
-   planes. Because planes talk over iceoryx, not the network, a plane that does not
-   need the network runs with networking off (`--unshare-net`). This matters for
-   planes that handle untrusted input: the baker parses arbitrary glb files, so with
-   no network a broken or exploited baker cannot reach out. It is also
+   planes. Because planes talk over iceoryx, not the network, **networking is off by
+   default** (`--unshare-net`). The one exception is the plane that ingests from the
+   network (the game data plane). This matters for planes that handle untrusted
+   input: the baker parses arbitrary glb files, so with no network a broken or
+   exploited baker cannot reach out. It is also
    crash-isolated: if it crashes, the BEAM keeps running and the plane is restarted
    on its own. The BEAM checks liveness only. On Fly this is a second layer inside
    the machine's container.
@@ -48,10 +49,9 @@ Every plane that is not the control plane follows the same rules:
    copies the bytes into a BEAM binary, and returns at once. No long work, no
    busy-poll, no blocked scheduler. The hard rules in `data-plane.md` apply to
    every plane.
-5. **If a plane needs an event loop, it uses Seastar** (thread-per-core,
-   shared-nothing). Not every plane needs one. A plane that does async I/O,
-   networking, or many concurrent tasks uses Seastar. A simple stateless converter
-   can be a plain loop.
+5. **A plane is a Seastar app.** Every plane runs on Seastar (thread-per-core,
+   shared-nothing). There is one runtime model for all planes, not a choice per
+   plane.
 6. **The control plane orchestrates.** It decides where a plane runs, its lifecycle,
    backpressure, and result caching. The BEAM owns _what_ and _where_. The plane
    owns _how fast_.
@@ -68,9 +68,9 @@ New planes (physics, ML inference, video/audio transcode) use the same contract:
 native process plus iceoryx publish-subscribe or request-response. There is nothing
 new to design per plane.
 
-Seastar is the event loop, not a plane by itself. In the game data plane, Seastar
-runs the loop, drives Jolt (physics), and reaches the control plane and other
-planes through iceoryx. A plane that needs an event loop uses Seastar the same way.
+Seastar is the event loop every plane runs on, not a plane by itself. In the game
+data plane, Seastar runs the loop, drives Jolt (physics), and reaches the control
+plane and other planes through iceoryx. Every plane uses Seastar the same way.
 
 ## Durable state: FoundationDB
 

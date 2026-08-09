@@ -90,11 +90,11 @@ rises — the DRAM-bound number below is the honest version.
 Random writes into a 2 GB entity table (64M entities, far beyond the 32 MiB L3):
 
 | cores | packets/sec | ns/op/core |
-| --- | --- | --- |
-| 1 | 41.2 M | 24.2 |
-| 4 | 102.7 M | 38.9 |
-| 8 | 115.5 M | 69.3 |
-| 16 | 117.5 M | 136.1 |
+| ----- | ----------- | ---------- |
+| 1     | 41.2 M      | 24.2       |
+| 4     | 102.7 M     | 38.9       |
+| 8     | 115.5 M     | 69.3       |
+| 16    | 117.5 M     | 136.1      |
 
 **Takeaway.** Random DRAM access is ~20× slower than cache-hot (41M vs 826M per
 core), and the aggregate **plateaus at ~117M pps — the DRAM bandwidth wall** (8→16
@@ -108,19 +108,19 @@ not compute, is the ultimate apply ceiling on this machine.
 
 The other wall is bytes on the wire (server → client fanout, and cloud egress $).
 A state frame is 256 entities × 20 B = 5 KB; consecutive frames differ only where
-entities moved, so compressing frame *n* with frame *n-1* as the zstd dictionary
+entities moved, so compressing frame _n_ with frame _n-1_ as the zstd dictionary
 sends only the deltas. At 30% of entities moving per frame:
 
-| Scheme | bytes/frame | ratio | compress | decompress |
-| --- | --- | --- | --- | --- |
-| no dictionary (level 1) | 5130 | 1.0× | 0.3M f/s | — |
-| **last-frame dictionary (level 1)** | **787** | **6.5×** | 0.1M f/s | 0.1M f/s |
+| Scheme                              | bytes/frame | ratio    | compress | decompress |
+| ----------------------------------- | ----------- | -------- | -------- | ---------- |
+| no dictionary (level 1)             | 5130        | 1.0×     | 0.3M f/s | —          |
+| **last-frame dictionary (level 1)** | **787**     | **6.5×** | 0.1M f/s | 0.1M f/s   |
 
 **Takeaway.** Using the previous frame as the dictionary cuts replication bandwidth
 **~6.5× at 30% churn** (more for calmer scenes), at ~100K frames/s/core — plenty for
 60 Hz fanout to thousands of clients. This multiplies effective throughput against
 the bandwidth/egress wall and cuts cloud egress cost by the same factor. Level 1 ≈
-level 3 on ratio here, so use level 1 for latency. Note this is a *replication*
+level 3 on ratio here, so use level 1 for latency. Note this is a _replication_
 optimization (large, coherent frames); it does nothing for the tiny, independent
 24-byte input packets on the ingest side.
 
