@@ -52,12 +52,12 @@ defmodule Weft.MixProject do
     ]
   end
 
-  # Standard OTP release. It bundles ERTS, so it is self-contained. Each runner builds
-  # the release for its own operating system. No Burrito, no zig.
+  # Standard OTP release. It bundles ERTS, so it is self-contained. Linux is the only
+  # release target, because FoundationDB has no Windows build. No Burrito, no zig.
   defp releases do
     [
       weft: [
-        include_executables_for: [:unix, :windows]
+        include_executables_for: [:unix]
       ]
     ]
   end
