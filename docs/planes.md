@@ -3,7 +3,7 @@
 The main rule of weft's architecture:
 
 > **The BEAM runs only the control plane. Every other plane is a native process
-> outside the VM. The BEAM reaches it through Eclipse iceoryx (zero-copy IPC).**
+> outside the BEAM. The BEAM reaches it through Eclipse iceoryx (zero-copy IPC).**
 
 The BEAM does coordination: placement, lifecycle, supervision, routing,
 backpressure, and caching. It is good at coordination and bad at heavy compute.
@@ -15,9 +15,9 @@ a large C++ library runs as its own native process. We call each one a **plane**
 A NIF, even a dirty one, still runs inside the BEAM OS process. That has two
 problems:
 
-- **A crash kills the whole node.** NIF crashes cannot be caught. Supervision does
-  not help. A bad input or a library bug must not take down the VM.
-- **The NIF's memory and threads mix with the VM's.**
+- **A crash kills the whole BEAM.** NIF crashes cannot be caught. Supervision does
+  not help. A bad input or a library bug must not take down the BEAM.
+- **The NIF's memory and threads mix with the BEAM's.**
 
 So heavy planes run as separate processes. A plane can crash on its own and be
 restarted without touching the BEAM.
@@ -31,10 +31,14 @@ Every plane that is not the control plane follows the same rules:
 2. **It is sandboxed and crash-isolated.** Each plane runs in a
    [bubblewrap](https://github.com/containers/bubblewrap) sandbox: restricted
    filesystem, namespaces, and seccomp. It can reach only what it is given — the
-   iceoryx shared-memory path, its own binary, and its data — not the host, the
-   BEAM, or other planes. It is also crash-isolated: if it crashes, the BEAM node
-   keeps running and the plane is restarted on its own. The BEAM checks liveness
-   only. On Fly this is a second layer inside the machine's container.
+   iceoryx segment, its own binary, and its data — not the host, the BEAM, or other
+   planes. Because planes talk over iceoryx, not the network, a plane that does not
+   need the network runs with networking off (`--unshare-net`). This matters for
+   planes that handle untrusted input: the baker parses arbitrary glb files, so with
+   no network a broken or exploited baker cannot reach out. It is also
+   crash-isolated: if it crashes, the BEAM keeps running and the plane is restarted
+   on its own. The BEAM checks liveness only. On Fly this is a second layer inside
+   the machine's container.
 3. **It talks to the BEAM only through Eclipse iceoryx** (zero-copy IPC). Never a
    Port. Never a socket on the hot path. Two iceoryx patterns cover all cases:
    - **Publish-subscribe** for streaming state. The plane publishes samples; the
@@ -48,7 +52,7 @@ Every plane that is not the control plane follows the same rules:
    shared-nothing). Not every plane needs one. A plane that does async I/O,
    networking, or many concurrent tasks uses Seastar. A simple stateless converter
    can be a plain loop.
-6. **The BEAM orchestrates.** It decides where a plane runs, its lifecycle,
+6. **The control plane orchestrates.** It decides where a plane runs, its lifecycle,
    backpressure, and result caching. The BEAM owns _what_ and _where_. The plane
    owns _how fast_.
 
@@ -74,9 +78,9 @@ iceoryx is a local bus. It connects planes on the same machine with zero copy. I
 does not cross machines and it does not store anything.
 
 Durable, cross-machine state lives in **FoundationDB**. The control plane reads and
-writes it with the FDB client (`erlfdb`) over the network. FDB holds actor state,
+writes it with the FoundationDB client (`erlfdb`) over the network. FoundationDB holds actor state,
 zone state, and entity ownership. It survives crashes, and it lets an actor or zone
-move to another machine and still find its data. FDB is not a compute plane and is
+move to another machine and still find its data. FoundationDB is not a plane and is
 not on iceoryx. It is the shared source of truth below the planes.
 
 Two boundaries, two jobs:
