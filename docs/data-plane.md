@@ -1,10 +1,10 @@
 # Data plane boundary
 
-weft is the **control plane**. It decides *which* node owns a zone, keeps one
+weft is the **control plane**. It decides _which_ node owns a zone, keeps one
 writer per id, hands zones off on node loss, and holds durable state. It must
 never touch a game packet.
 
-The **data plane** decides *how fast* one node ingests. At MMOG scale the hot path
+The **data plane** decides _how fast_ one node ingests. At MMOG scale the hot path
 (datagram ingest, decode, spatial physics) runs outside the BEAM, in C/C++/Rust on
 pinned cores or on NIC silicon. This document fixes the boundary between them so
 the two halves can be built independently.
@@ -28,12 +28,12 @@ flowchart TD
     BEAM -->|"control: spawn/despawn/place zone"| Jolt
 ```
 
-| Tier | Tech | Owns | Peak |
-| --- | --- | --- | --- |
-| Network | **Seastar (C++/DPDK)** | Datagram ingest + decode, kernel bypass, thread-per-core | 15M+ pps |
-| IPC | **Eclipse iceoryx (C++)** | Zero-copy shared-memory handoff, network → physics | <1 microsecond |
-| Game loop | **Jolt Physics (C++, separate process)** | 60Hz spatial hash, broadphase culling, raycast, collision | multi-core |
-| Control | **Elixir / BEAM (weft)** | Placement, single-writer, failover, durable state, chat, accounts, matchmaking | — |
+| Tier      | Tech                                     | Owns                                                                           | Peak           |
+| --------- | ---------------------------------------- | ------------------------------------------------------------------------------ | -------------- |
+| Network   | **Seastar (C++/DPDK)**                   | Datagram ingest + decode, kernel bypass, thread-per-core                       | 15M+ pps       |
+| IPC       | **Eclipse iceoryx (C++)**                | Zero-copy shared-memory handoff, network → physics                             | <1 microsecond |
+| Game loop | **Jolt Physics (C++, separate process)** | 60Hz spatial hash, broadphase culling, raycast, collision                      | multi-core     |
+| Control   | **Elixir / BEAM (weft)**                 | Placement, single-writer, failover, durable state, chat, accounts, matchmaking | —              |
 
 ## The three contracts across the boundary
 
@@ -42,7 +42,7 @@ flowchart TD
    shared memory, no copy, sub-microsecond. weft is not involved.
 
 2. **Physics → BEAM (shared-memory ring, read at tick rate).** Jolt writes
-   *digested* world state (not packets) into a shared-memory ring. BEAM reads the
+   _digested_ world state (not packets) into a shared-memory ring. BEAM reads the
    latest snapshot at its tick rate through a thin **dirty NIF** or a **C-Node /
    Port**. The BEAM side is **event-driven or tick-scheduled, never a busy-poll**.
 
@@ -57,12 +57,12 @@ flowchart TD
   extreme tail; the BEAM should leave the hot path two orders of magnitude earlier.
 - **Never busy-poll inside a NIF.** A long-running NIF blocks a scheduler thread
   and wrecks whole-VM latency. The data plane owns the busy-poll on pinned cores in
-  a *separate OS process*; the BEAM reads pre-assembled state off a ring via a
+  a _separate OS process_; the BEAM reads pre-assembled state off a ring via a
   dirty NIF / Port at tick rate.
 - **Data plane owns pinned cores.** DPDK/Seastar reactor cores run at 100%
   permanently and are excluded from the BEAM scheduler set.
 - **Interest management before hardware.** A server only faces 15M pps if it is
-  *interested* in 15M pps. Spatial sharding + area-of-interest culling (one zone =
+  _interested_ in 15M pps. Spatial sharding + area-of-interest culling (one zone =
   one actor, placed on one node) keeps per-server pps bounded. Reach for AF_XDP →
   DPDK → SmartNIC only for a single zone that cannot be sharded further.
 
@@ -77,7 +77,7 @@ Climb only when the tier below is genuinely saturated, and cull first.
 
 ## Where weft fits
 
-weft decides *where* a zone runs; the data plane decides *how fast* that one
+weft decides _where_ a zone runs; the data plane decides _how fast_ that one
 server ingests. They compose through placement:
 
 - `Horde` single-writer + handoff (already built) tells the data plane **which box
