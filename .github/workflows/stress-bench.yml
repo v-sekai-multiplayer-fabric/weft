@@ -39,6 +39,12 @@ jobs:
 
       - run: mix deps.get
 
+      - name: cache pip (eclipse-sumo)
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/pip
+          key: pip-eclipse-sumo
+
       - name: generate a SUMO trace
         run: |
           python3 -m pip install --quiet eclipse-sumo
