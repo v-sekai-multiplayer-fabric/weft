@@ -14,15 +14,15 @@ defmodule Weft.ZoneTest do
     {:ok, zone} = Zone.start_link(zone_id: zone_id, worker_opts: [tick_ms: 5, entities: 4])
 
     # Snapshots arrive as messages; the zone never polls. Wait for the first tick.
-    assert eventually(fn -> Zone.tick(zone) > 0 end)
+    assert eventually(fn -> Zone.tick(zone_id) > 0 end)
 
-    snapshot = Zone.latest(zone)
+    snapshot = Zone.latest(zone_id)
     assert snapshot.zone_id == zone_id
     assert length(snapshot.entities) == 4
 
-    before = Zone.tick(zone)
+    before = Zone.tick(zone_id)
     Process.sleep(30)
-    assert Zone.tick(zone) > before
+    assert Zone.tick(zone_id) > before
 
     GenServer.stop(zone)
   end
@@ -31,17 +31,17 @@ defmodule Weft.ZoneTest do
     zone_id = "z-#{System.unique_integer([:positive])}"
     {:ok, zone} = Zone.start_link(zone_id: zone_id, worker_opts: [tick_ms: 5])
 
-    assert eventually(fn -> Zone.tick(zone) > 0 end)
+    assert eventually(fn -> Zone.tick(zone_id) > 0 end)
 
-    :ok = Zone.command(zone, :pause)
+    :ok = Zone.command(zone_id, :pause)
     # Let any in-flight tick settle, then confirm the tick stops advancing.
     Process.sleep(25)
-    paused_at = Zone.tick(zone)
+    paused_at = Zone.tick(zone_id)
     Process.sleep(30)
-    assert Zone.tick(zone) == paused_at
+    assert Zone.tick(zone_id) == paused_at
 
-    :ok = Zone.command(zone, :resume)
-    assert eventually(fn -> Zone.tick(zone) > paused_at end)
+    :ok = Zone.command(zone_id, :resume)
+    assert eventually(fn -> Zone.tick(zone_id) > paused_at end)
 
     GenServer.stop(zone)
   end
