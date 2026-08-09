@@ -1,0 +1,66 @@
+# YAGNI pass
+
+Reference:
+[RFD 0071, yagni times structure to need](https://v-sekai-multiplayer-fabric.github.io/multiplayer-fabric-manuals/rfd/0071-yagni-times-structure-to-need/index.html).
+YAGNI is a timing rule, not a thrift rule: building structure ahead of the feature
+that needs it spends an option and delays a return. Build structure only when a real
+near-term need arrives.
+
+## Result: the pass converged
+
+The items that looked like structure ahead of need are one coherent near-term
+product with one consumer, so they are load-bearing, not speculative:
+
+> **Observe the SUMO simulation from a Godot VR headset. VR first.**
+
+Data flow:
+
+- The **SUMO game data plane** plays back the traffic simulation. Its entity movement
+  is the world we observe. Playback of the SUMO data is a game data plane.
+- The **asset CDN** stores the SUMO simulation (world stage plus recorded data) and
+  delivers the world to the client.
+- The **interest feed** serves the headset its area-of-interest replicas
+  (`CH_INTEREST`), per the authority/interest split.
+- The **gateway** routes the headset to its zone over WebTransport.
+- The **Godot VR headset client** observes: drop-stale datagrams for live world state,
+  reliable streams for pulling the stored world from the asset CDN.
+- The **store** holds durable control-plane state, with compaction so it does not grow
+  without bound.
+
+## Build now
+
+VR first. All of these serve the product above.
+
+- **VR headset client** (Godot plus OpenXR/SteamVR). The priority.
+- **SUMO game data plane** (live playback into the ring). The observed world.
+- **Interest feed** (`CH_INTEREST` to the headset).
+- **Asset CDN** (stores the SUMO simulation; delivers the world to the client).
+- **Gateway** (routes the headset to its zone).
+- **Store with compaction.** Compaction (DELTA to SHARD) is required, not optional:
+  without cleanup the DELTA rows grow without bound and the system halts on
+  resources.
+
+## The proof
+
+The proof is not an abstract transport microbenchmark. It is the product working:
+
+> **Can we carry our players without motion sickness, with presence, at scale?**
+
+- **No motion sickness.** Head and hand pose render locally at headset rate with
+  reprojection, so the network never gates motion-to-photon. The network carries world
+  state; drop-stale datagrams keep it fresh so it never stalls or judders.
+- **Presence.** World state stays fresh and stable, no rubber-banding, no stale pops.
+- **Scale.** Many entities and many headsets.
+
+The SUMO-in-VR pipeline is the testbed for this proof.
+
+## Still gated: open questions
+
+1. **Dedicated spectator plane.** Trigger: at least 1000 headsets. Below that, the
+   game data plane's interest output feeds observers directly. Open until 1000-headset
+   scale.
+
+## Note on the docs
+
+The plane and CDN designs stay documented. Documenting a design is cheap and keeps
+the road not taken. The rule bites on building the structure, not on describing it.

@@ -10,6 +10,22 @@ backpressure, and caching. It is good at coordination and bad at heavy compute.
 So no heavy compute runs in it. Any work that parses, simulates, crunches, or links
 a large C++ library runs as its own native process. We call each one a **plane**.
 
+## Terms
+
+One name per concept.
+
+- **actor**: a weft runtime process with a single writer. The control-plane
+  primitive.
+- **zone**: an actor that owns one spatial partition and simulates the entities in
+  it. A zone is a kind of actor. The whole set of zones is the shard.
+- **entity**: one simulated thing inside a zone, with position and velocity. The unit
+  the game data plane moves, thousands per zone. An entity is not an actor.
+- **player entity**: the entity that represents a connected player. We do not use the
+  word avatar.
+
+Authority is per entity: each entity is authoritative on exactly one zone. A zone
+owns many entities, so it is not one zone per entity.
+
 ## Why not a dirty NIF
 
 A NIF, even a dirty one, still runs inside the BEAM OS process. That has two
@@ -125,11 +141,11 @@ A HMD player is both an authority and an interest subscriber. This is the
 authority/interest split, formalized in
 [`lean-interest-mgmt`](https://github.com/v-sekai-multiplayer-fabric/lean-interest-mgmt).
 
-- **Authority (upstream).** The player is the authority for their own avatar's tracked
-  pose: head and hands. The tracker is the only source of that pose, so it originates
-  at the HMD and flows upstream as authoritative data. World and physics authority
-  stays server-side, one zone per entity (proven single-owner); the avatar pose is the
-  part the client owns.
+- **Authority (upstream).** Each entity is authoritative on exactly one zone (the game
+  data plane, proven single-owner), which advances its world and physics state. The
+  exception is a player entity's tracked pose, head and hands: that comes only from the
+  HMD tracker, so the client is the source and sends it upstream. The zone owns
+  everything else about the player entity.
 - **Interest (downstream).** The player has interest in the surrounding world and
   receives read-only area-of-interest replicas, served as `CH_INTEREST` snapshots. A
   peer can hold interest in an entity without authority over it; interest replicas do
@@ -137,8 +153,8 @@ authority/interest split, formalized in
   staleness and k-tick lookahead.
 
 A pure observer is the degenerate case: interest only, zero authority. The "observe
-from SteamVR" ask is this case; a full VR player adds the avatar-pose authority
-upstream.
+from SteamVR" ask is this case; a full VR player adds the player-entity pose
+authority upstream.
 
 ### Transport
 
