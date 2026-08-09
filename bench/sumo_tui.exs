@@ -42,8 +42,8 @@ ring = Ring.new(max_entities)
 {:ok, pid} = Sumo.start_link("bench", ring, frames, interval_ms: 0)
 
 opts = [
-  width: 74,
-  height: 20,
+  width: 36,
+  height: 8,
   x_range: {0, 5_000_000},
   y_range: {0, 5_000_000},
   z_range: {0, 5_000_000}
