@@ -65,11 +65,12 @@ defmodule Weft.Zone do
   ## Handoff: an entity crosses the AOI boundary from one zone to another
 
   @doc """
-  Move an entity from `from_zone_id` to `to_zone_id`, cluster-wide. The source
-  zone gives up authority and the destination takes it, so exactly one zone owns
-  the entity throughout (barring a crash between the two steps; production hardens
-  this with an entity-owner pointer in FoundationDB updated in one transaction,
-  the way rivet does it).
+  Move an entity from `from_zone_id` to `to_zone_id`, cluster-wide. This is the
+  fast in-memory view; it gives up authority on the source and takes it on the
+  destination, so exactly one zone owns the entity (barring a crash between the two
+  steps). For a durable, crash-safe crossing use `Weft.Entities.handoff/3`, which
+  moves the entity-owner pointer in a single FoundationDB transaction, the way
+  rivet does it.
   """
   @spec handoff(term(), term(), term()) :: :ok | {:error, :not_found}
   def handoff(from_zone_id, to_zone_id, entity_id) do
