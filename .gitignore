@@ -27,3 +27,5 @@ rivet_ex-*.tar
 /priv/plts/
 /priv/*.cluster
 /bench_results/
+
+/priv/*.so

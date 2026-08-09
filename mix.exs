@@ -7,6 +7,8 @@ defmodule Weft.MixProject do
       version: "0.1.0",
       elixir: "~> 1.20",
       start_permanent: Mix.env() == :prod,
+      compilers: [:elixir_make | Mix.compilers()],
+      make_clean: ["clean"],
       deps: deps(),
       dialyzer: [
         plt_local_path: "priv/plts",
@@ -31,6 +33,7 @@ defmodule Weft.MixProject do
       {:erlfdb, "~> 0.3"},
       {:horde, "~> 0.9"},
       {:telemetry, "~> 1.2"},
+      {:elixir_make, "~> 0.8", runtime: false},
       {:stream_data, "~> 1.1", only: :test},
       {:benchee, "~> 1.3", only: :dev},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false}
