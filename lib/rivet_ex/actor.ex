@@ -13,7 +13,9 @@ defmodule RivetEx.Actor do
   (SQLite/CubDB per actor) plugs in behind the same call interface later.
   """
 
-  use GenServer
+  # :transient so a crashed actor is restarted (durable state restored) but an
+  # idle actor that stops :normal stays down until the next request wakes it.
+  use GenServer, restart: :transient
 
   @type id :: {name :: String.t(), key :: String.t()}
 
@@ -43,30 +45,39 @@ defmodule RivetEx.Actor do
     # one left off. This is the wake-from-sleep / restart-after-crash path.
     kv = store.load_all(handle)
 
-    {:ok,
-     %{
-       name: name,
-       key: key,
-       store: store,
-       handle: handle,
-       kv: kv,
-       created_at: System.system_time(:millisecond)
-     }}
+    state = %{
+      name: name,
+      key: key,
+      store: store,
+      handle: handle,
+      kv: kv,
+      idle_ms: Application.get_env(:rivet_ex, :actor_idle_ms, :infinity),
+      created_at: System.system_time(:millisecond)
+    }
+
+    {:ok, state, state.idle_ms}
   end
 
   @impl true
   def handle_call({:put, k, v}, _from, state) do
     # Write through to durable storage before acknowledging, then update the cache.
     :ok = state.store.put(state.handle, k, v)
-    {:reply, :ok, %{state | kv: Map.put(state.kv, k, v)}}
+    {:reply, :ok, %{state | kv: Map.put(state.kv, k, v)}, state.idle_ms}
   end
 
   def handle_call({:get, k}, _from, state) do
-    {:reply, Map.get(state.kv, k), state}
+    {:reply, Map.get(state.kv, k), state, state.idle_ms}
   end
 
   def handle_call(:info, _from, state) do
-    {:reply, Map.take(state, [:name, :key, :created_at]), state}
+    {:reply, Map.take(state, [:name, :key, :created_at]), state, state.idle_ms}
+  end
+
+  # No activity within the idle window: sleep by stopping normally. Durable state
+  # is already on disk, so the next request wakes a fresh process that restores it.
+  @impl true
+  def handle_info(:timeout, state) do
+    {:stop, :normal, state}
   end
 
   @impl true

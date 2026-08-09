@@ -20,8 +20,10 @@ defmodule RivetEx.Actor.Store.Sqlite do
     File.mkdir_p!(dir)
     path = Path.join(dir, sanitize(key) <> ".db")
 
+    # Default rollback journal (not WAL): each write commits to the main database
+    # file, so the fresh connection a woken actor opens always sees what the
+    # previous one wrote, with no WAL-checkpoint handoff to race.
     with {:ok, conn} <- Sqlite3.open(path),
-         :ok <- Sqlite3.execute(conn, "PRAGMA journal_mode=WAL"),
          :ok <-
            Sqlite3.execute(
              conn,

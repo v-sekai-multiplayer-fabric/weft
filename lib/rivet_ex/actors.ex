@@ -10,20 +10,39 @@ defmodule RivetEx.Actors do
   """
 
   @spec get_or_create(String.t(), String.t()) :: {:ok, pid()} | {:error, term()}
-  def get_or_create(name, key) do
+  def get_or_create(name, key), do: get_or_create(name, key, 50)
+
+  # Resolve a live actor or start one. A just-slept actor may still be in the
+  # registry as a dead pid until the registry processes its :DOWN, and the
+  # supervisor may briefly still hold the terminating child; both windows are
+  # transient, so we treat a dead/absent entry as "start" and retry through the
+  # cleanup rather than hand back a dead pid.
+  defp get_or_create(_name, _key, 0), do: {:error, :registry_contended}
+
+  defp get_or_create(name, key, tries) do
     id = {name, key}
 
     case whereis(name, key) do
+      pid when is_pid(pid) ->
+        if Process.alive?(pid), do: {:ok, pid}, else: retry(name, key, tries)
+
       nil ->
         case DynamicSupervisor.start_child(RivetEx.ActorSupervisor, {RivetEx.Actor, id}) do
           {:ok, pid} -> {:ok, pid}
-          {:error, {:already_started, pid}} -> {:ok, pid}
+          {:error, {:already_started, pid}} -> if_alive(pid, name, key, tries)
+          {:error, :already_present} -> retry(name, key, tries)
           other -> other
         end
-
-      pid ->
-        {:ok, pid}
     end
+  end
+
+  defp if_alive(pid, name, key, tries) do
+    if Process.alive?(pid), do: {:ok, pid}, else: retry(name, key, tries)
+  end
+
+  defp retry(name, key, tries) do
+    Process.sleep(1)
+    get_or_create(name, key, tries - 1)
   end
 
   @spec whereis(String.t(), String.t()) :: pid() | nil
