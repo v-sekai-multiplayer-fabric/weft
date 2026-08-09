@@ -1,8 +1,7 @@
 defmodule Weft.DataPlane.AsciiScopeTest do
   @moduledoc """
-  The scope renders a 3D entity cloud as four ASCII panels (top, front, side, iso)
-  plus a stats line. Covers the panel labels, one mark per panel per point, and the
-  ring reader with tick and count stats.
+  The scope renders a 3D entity cloud as four braille panels (top, front, side, iso)
+  plus a text stats line. The panels are pixel scale; the labels and stats stay text.
   """
 
   use ExUnit.Case, async: true
@@ -10,22 +9,24 @@ defmodule Weft.DataPlane.AsciiScopeTest do
   alias Weft.DataPlane.AsciiScope
   alias Weft.DataPlane.Ring
 
-  @opts [width: 4, height: 4, x_range: {0, 3000}, y_range: {0, 3000}, z_range: {0, 3000}]
+  @opts [width: 4, height: 2, x_range: {0, 3000}, y_range: {0, 3000}, z_range: {0, 3000}]
 
-  test "render draws four labelled panels and a mark per panel per point" do
+  defp has_braille_dot?(out) do
+    Enum.any?(String.to_charlist(out), fn c -> c > 0x2800 and c <= 0x28FF end)
+  end
+
+  test "render draws four labelled panels, a stats line, and braille dots" do
     out = AsciiScope.render([1500, 0, 3000], @opts ++ [stats: ["hello 1"]])
     for label <- ["top", "front", "side", "iso"], do: assert(out =~ label)
     assert out =~ "hello 1"
-    # One point appears once in each of the four panels.
-    assert out |> String.graphemes() |> Enum.count(&(&1 == "O")) == 4
+    assert has_braille_dot?(out)
   end
 
-  test "origin padding is skipped" do
-    out = AsciiScope.render([0, 0, 0], @opts)
-    assert out |> String.graphemes() |> Enum.count(&(&1 == "O")) == 0
+  test "empty coords give only blank braille cells" do
+    refute has_braille_dot?(AsciiScope.render([0, 0, 0], @opts))
   end
 
-  test "of_ring reads the snapshot and reports tick and entity count" do
+  test "of_ring reports tick and entity count" do
     ring = Ring.new(2)
     Ring.write(ring, 8, [1500, 0, 3000, 0, 0, 0])
     assert {8, out} = AsciiScope.of_ring(ring, @opts)
