@@ -1,0 +1,35 @@
+# Keep host build output out of the image. The host may be Windows, so a copied
+# _build holds beam files and a NIF for the wrong operating system. The image runs
+# `mix deps.get` and `mix compile` itself.
+_build/
+deps/
+priv/plts/
+priv/*.so
+cover/
+doc/
+tmp/
+.sumo-venv/
+erl_crash.dump
+
+# Build output of the native planes and the benches.
+native/**/build/
+bench/pps_dram
+bench/pps_native
+bench/ring_native
+bench/udp_recv
+bench/zstd_frames
+bench/sumo/replay
+bench/sumo/scenario/
+bench/fly/netbench
+
+# Packages and their staging trees.
+*.msi
+*.deb
+*.rpm
+pkgroot/
+stage/
+
+# Not needed to build or run weft.
+.git/
+.github/
+docs/

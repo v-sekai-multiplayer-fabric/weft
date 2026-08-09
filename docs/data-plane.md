@@ -36,7 +36,7 @@ flowchart TD
 | Tier      | Tech                                     | Owns                                                                           | Peak           |
 | --------- | ---------------------------------------- | ------------------------------------------------------------------------------ | -------------- |
 | Network   | **Seastar (C++/DPDK)**                   | Datagram ingest + decode, kernel bypass, thread-per-core                       | 15M+ pps       |
-| IPC       | **Eclipse iceoryx**                     | Zero-copy handoff, network → physics                                           | <1 microsecond |
+| IPC       | **Eclipse iceoryx**                      | Zero-copy handoff, network → physics                                           | <1 microsecond |
 | Game loop | **Jolt Physics (C++, separate process)** | 60Hz spatial hash, broadphase culling, raycast, collision                      | multi-core     |
 | Control   | **Elixir / BEAM (weft)**                 | Placement, single-writer, failover, durable state, chat, accounts, matchmaking | —              |
 

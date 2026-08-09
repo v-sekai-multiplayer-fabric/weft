@@ -89,12 +89,12 @@ measures the round-trip latency of the zero-copy path. The machine is a Ryzen 7 
 The pinning uses `iceoryx2_bb_posix::thread::ThreadBuilder::affinity()`, an iceoryx2
 building block. Each run does 10 million A to B to A round trips.
 
-| Path | 12 B | 768 B | 8192 B |
-| --- | --- | --- | --- |
+| Path                          | 12 B   | 768 B  | 8192 B |
+| ----------------------------- | ------ | ------ | ------ |
 | IPC zero-copy (cross-process) | 236 ns | 233 ns | 239 ns |
-| Process-local (same process) | 254 ns | 239 ns | — |
-| IPC, thread-safe variant | 282 ns | 269 ns | 268 ns |
-| IPC, `--send-copy` (768 B) | — | 226 ns | — |
+| Process-local (same process)  | 254 ns | 239 ns | —      |
+| IPC, thread-safe variant      | 282 ns | 269 ns | 268 ns |
+| IPC, `--send-copy` (768 B)    | —      | 226 ns | —      |
 
 ### What the numbers show
 

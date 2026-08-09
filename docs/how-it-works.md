@@ -10,9 +10,12 @@ You do not need to know Elixir. You do not need to know game engines.
 weft runs one shared 3D world. Many people join that world at the same time. Each
 person controls an avatar. Each person sees the other people move.
 
-The goal is 1000 people or more in one world. The goal is also low latency. When you
-move your hand, the other people must see it almost at once. A slow world makes a
-headset user sick. So speed is the first rule.
+Low latency is the first rule. When you move your hand, the other people must see it
+almost at once. A slow world makes a headset user sick. So every design choice below
+protects latency first.
+
+How many people can join one world? We do not know yet. Read "What we have not proven"
+at the end of this page before you quote a number.
 
 ## The usual way: one main loop
 
@@ -99,7 +102,8 @@ Follow one movement through the mesh. You wear a headset and you move your hand.
 
 1. Your headset measures the new hand position.
 2. Your client sends a small message, about 24 bytes, over the network.
-3. The game data plane reads the message and decodes it. This costs about 1 nanosecond.
+3. The game data plane reads the message and decodes it. This step is measured in
+   nanoseconds.
 4. The physics part applies the movement to your avatar and writes the result in the ring.
 5. The interest plane reads the ring. It finds the players near you.
 6. The interest plane sends your new hand position to those players only.
@@ -122,13 +126,14 @@ crash. weft keeps each part in its own program for two reasons.
 
 Yes. These numbers come from `benchmarks.md`, measured on one developer machine.
 
-| Question | Answer |
-| --- | --- |
-| How long does one movement message take to apply? | About 1.2 nanoseconds |
-| How many can one core apply each second? | 826 million |
-| How many does the target need? | 15 million |
-| How many world updates reach the manager each second? | 27.7 million on 16 cores |
-| How much does the ring cost to read? | About 3 microseconds |
+| Question                                              | Answer                   | Note            |
+| ----------------------------------------------------- | ------------------------ | --------------- |
+| How long does one movement message take to apply?     | 1.2 nanoseconds          | Data in cache   |
+| The same, with the data spread over 2 GB of memory?   | 24 nanoseconds           | The honest case |
+| How many can one core apply each second?              | 41 million               | The honest case |
+| How many does the target need?                        | 15 million               |                 |
+| How many world updates reach the manager each second? | 27.7 million on 16 cores |                 |
+| How much does the ring cost to read?                  | About 3 microseconds     |                 |
 
 The last row matters most. Reading the ring 60 times each second costs almost nothing.
 The manager stays free for decisions.
@@ -136,19 +141,43 @@ The manager stays free for decisions.
 The work is not the limit. Moving the bytes in and out of the machine is the limit. So
 the heavy parts sit close to the network card. The manager stays away from the packets.
 
+## What we have not proven
+
+Be careful with this page. It describes a design and some measured parts. It does not
+describe a finished system. Do not quote a player count from it.
+
+**We have never run this with real players.** Not 1000 people. Not 100 people. Not one
+person in a headset. The client is not built yet. The number of people one world can
+hold is an open question, and `tasks.md` records it as unstarted work.
+
+**The measured numbers test parts, not the whole.** They come from one developer
+machine. They show that the physics work and the ring are fast enough. They do not show
+that the whole mesh holds together under a real load.
+
+**Some parts of the mesh are not built yet.** The store plane and the asset baker still
+run as prototypes, not as native planes. The interest plane is a design.
+
+**One number is real, and it is a real workload.** weft replays a traffic simulation of
+11,947 vehicles, with 8,637 of them moving at the same time. Each vehicle is an entity,
+the same as an avatar. That load is real movement, and the mesh handles it. Vehicles
+are not players, so this does not answer the player question.
+
+So: the parts are fast, and the shape of the design holds up on a real workload. The
+system is early. `tasks.md` lists what remains.
+
 ## Words you will see
 
-| Word | Meaning |
-| --- | --- |
-| plane | One part of the mesh. One program with one job. |
-| control plane | The manager. The Elixir program named weft. |
-| zone | One region of the world. It simulates the things inside it. |
-| entity | One thing in the world with a position, such as an avatar or a vehicle. |
-| authority | The one part that may change an entity. Exactly one part per entity. |
-| interest | A read-only copy of the world near a player. |
-| ring | The shared memory slot that holds the newest state. |
-| iceoryx | The method the parts use to share memory on one machine. |
-| FoundationDB | The shared database that remembers state across machines. |
+| Word          | Meaning                                                                 |
+| ------------- | ----------------------------------------------------------------------- |
+| plane         | One part of the mesh. One program with one job.                         |
+| control plane | The manager. The Elixir program named weft.                             |
+| zone          | One region of the world. It simulates the things inside it.             |
+| entity        | One thing in the world with a position, such as an avatar or a vehicle. |
+| authority     | The one part that may change an entity. Exactly one part per entity.    |
+| interest      | A read-only copy of the world near a player.                            |
+| ring          | The shared memory slot that holds the newest state.                     |
+| iceoryx       | The method the parts use to share memory on one machine.                |
+| FoundationDB  | The shared database that remembers state across machines.               |
 
 ## Read more
 
