@@ -1,0 +1,95 @@
+# Build the native artifacts for both Windows and Linux: the Rust data plane and the
+# Elixir Burrito. Each runner builds its own operating system natively. The artifacts
+# upload to the workflow run, never to git.
+name: release-native
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+
+concurrency:
+  group: release-native-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  dataplane:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: native/dataplane
+      - name: Test and build the data plane
+        working-directory: native/dataplane
+        run: |
+          cargo test --release
+          cargo build --release
+      - name: Collect the binary
+        shell: bash
+        run: |
+          mkdir -p out
+          cp native/dataplane/target/release/weft-dataplane* out/ 2>/dev/null || true
+      - uses: actions/upload-artifact@v7
+        with:
+          name: weft-dataplane-${{ matrix.os }}
+          path: out/*
+          if-no-files-found: error
+
+  burrito:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: linux
+          - os: windows-latest
+            target: windows
+    runs-on: ${{ matrix.os }}
+    env:
+      FDB_VERSION: "7.3.76"
+      BURRITO_TARGET: ${{ matrix.target }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: "29"
+          elixir-version: "1.20"
+      - uses: mlugg/setup-zig@v2
+      - name: Install the FoundationDB client (Linux, official)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          curl -fsSL -o /tmp/fdb.deb \
+            "https://github.com/apple/foundationdb/releases/download/${FDB_VERSION}/foundationdb-clients_${FDB_VERSION}-1_amd64.deb"
+          sudo dpkg -i /tmp/fdb.deb
+      - name: Install the FoundationDB client (Windows, community)
+        if: matrix.os == 'windows-latest'
+        shell: bash
+        env:
+          FDB_WINDOWS_CLIENT_URL: ${{ vars.FDB_WINDOWS_CLIENT_URL }}
+        run: |
+          if [ -z "${FDB_WINDOWS_CLIENT_URL}" ]; then
+            echo "Set the repository variable FDB_WINDOWS_CLIENT_URL to the community FoundationDB Windows client installer."
+            exit 1
+          fi
+          curl -fsSL -o fdb-client.exe "${FDB_WINDOWS_CLIENT_URL}"
+          ./fdb-client.exe /quiet || ./fdb-client.exe
+      - name: Build the Burrito
+        run: |
+          mix local.hex --force
+          mix local.rebar --force
+          mix deps.get
+          MIX_ENV=prod mix release weft
+      - uses: actions/upload-artifact@v7
+        with:
+          name: weft-burrito-${{ matrix.target }}
+          path: burrito_out/*
+          if-no-files-found: error

@@ -34,3 +34,11 @@ rivet_ex-*.tar
 .sumo-venv/
 bench/sumo/scenario/
 bench/sumo/replay
+
+# Rust native planes: build output and lock file are not committed.
+target/
+native/**/target/
+native/**/Cargo.lock
+
+# Burrito release output.
+/burrito_out/

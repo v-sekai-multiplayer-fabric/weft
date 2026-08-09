@@ -18,10 +18,10 @@ Rules and conventions for the weft repo. Follow them.
 
 - The BEAM runs only the control plane. Every heavy plane is a native process outside the BEAM.
 - Planes talk over Eclipse iceoryx2, zero-copy. Never a Port. Networking is off by default.
-- A plane always uses Seastar (thread-per-core). There is one runtime model for all planes.
+- A plane runs a thin Rust thread-per-core harness over iceoryx2, not Seastar. One runtime model for all planes, native on Windows and Linux.
 - Durable state is FoundationDB, over the network with `erlfdb`. iceoryx2 does not cross machines.
-- The store is a native plane. It is a local SQLite WAL primary with an async FoundationDB replica.
-- The asset CDN uses casync through the `desync` fork. Chunks go into SQLite to FoundationDB, not S3.
+- The store is a native plane. It tiers a local SQLite WAL primary to a FoundationDB replica to S3-compatible object storage.
+- The asset CDN uses casync through the `desync` fork. Chunks go into SQLite to FoundationDB to the S3-compatible tier, not a naive S3 CDN.
 - The client transport is HTTP/3 and WebTransport. Never HTTP/1.1.
 - Authority is the single writer of an entity. Interest is a read-only `CH_INTEREST` replica.
 
