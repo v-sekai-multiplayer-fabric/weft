@@ -58,7 +58,7 @@ because each zone has its own ring it scales across cores: **>15M snapshots/sec 
 reached at 8 cores (21.6M), and 27.7M at 16.** Sampling costs ~3 µs, so reading at
 60 Hz is free.
 
-The real producers are the C++ Seastar/iceoryx/Jolt workers writing the same ring
+The real producers are the C++ Seastar/iceoryx2/Jolt workers writing the same ring
 through a NIF (faster than an Elixir producer), and the BEAM only samples the
 latest — so the raw 15M+ pps packet flood never enters the VM, and the digested
 snapshot rate is not BEAM-bound either.
