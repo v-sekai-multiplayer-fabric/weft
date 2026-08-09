@@ -211,7 +211,10 @@ engine build is
 [`fabric-godot-core`](https://github.com/v-sekai-multiplayer-fabric/fabric-godot-core)
 (the Godot fork), tagged by
 [`fabric-godot-assembly`](https://github.com/v-sekai-multiplayer-fabric/fabric-godot-assembly)
-(the multiplayer-fabric merge/assembly).
+(the multiplayer-fabric merge/assembly). Prebuilt binaries, the editor and the export
+templates for Linux and Windows, come from
+[`godot-images`](https://github.com/v-sekai-multiplayer-fabric/godot-images) release
+assets, so the client needs no source compile of Godot.
 
 ### Desktop mode
 
