@@ -1,0 +1,52 @@
+# Sim the stress bench on CI and record it for local playback. The SUMO plane feeds
+# the ring and prints an ASCII grid each tick (bench/sumo_tui.exs). asciinema records
+# the terminal to a .cast artifact; replay it locally with `asciinema play <file>`.
+name: stress bench
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+
+jobs:
+  sumo-tui:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: "27"
+          elixir-version: "1.18" # keep in sync with mix.exs
+
+      - run: mix deps.get
+
+      - name: install asciinema
+        run: pipx install asciinema
+
+      - name: record the SUMO console playback
+        run: asciinema rec -c "mix run bench/sumo_tui.exs 300 40" --overwrite bench-sumo-tui.cast
+
+      - name: upload the recording
+        uses: actions/upload-artifact@v4
+        with:
+          name: stress-bench-cast
+          path: bench-sumo-tui.cast
+
+  benches:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: build and run the native benches
+        run: |
+          cc -O3 -march=native -pthread bench/pps_native.c -o pps_native
+          cc -O3 -march=native -pthread bench/pps_dram.c -o pps_dram
+          ./pps_native | tee -a bench-results.txt
+          ./pps_dram | tee -a bench-results.txt
+
+      - name: upload the numbers
+        uses: actions/upload-artifact@v4
+        with:
+          name: stress-bench-numbers
+          path: bench-results.txt

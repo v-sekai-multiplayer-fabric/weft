@@ -1,0 +1,67 @@
+# Dev-stage release of weft (RFD 0067: dev, then beta, then rc). Test, wrap the BEAM
+# release as a single Burrito executable, package an RPM with fpm, and chunk it with
+# desync. In production the chunk store is SQLite to FoundationDB served over an
+# on-demand H3/WebTransport endpoint; here the chunks back the release assets.
+name: dev release
+
+on:
+  push:
+    tags: ["v*-dev.*", "v*-beta.*", "v*-rc.*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: "27"
+          elixir-version: "1.18" # keep in sync with mix.exs
+      - run: mix deps.get
+      # :fdb and :desync tests auto-exclude when the tools are absent.
+      - run: mix test
+
+  release:
+    needs: test
+    runs-on: ubuntu-24.04
+    env:
+      MIX_ENV: prod
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: "27"
+          elixir-version: "1.18"
+
+      # Burrito wraps the release into one executable, using zig.
+      - uses: mlugg/setup-zig@v1
+
+      - run: mix deps.get
+
+      - name: build the Burrito executable
+        run: mix release
+
+      - name: package an RPM with fpm
+        run: |
+          sudo gem install --no-document fpm
+          version="${GITHUB_REF_NAME#v}"
+          exe=$(ls burrito_out/weft_* | head -1)
+          fpm -s dir -t rpm -n weft -v "${version:-0.0.0-dev}" "${exe}=/usr/bin/weft"
+
+      - name: chunk the release with desync
+        run: |
+          go install github.com/folbricht/desync/cmd/desync@latest
+          exe=$(ls burrito_out/weft_* | head -1)
+          "$(go env GOPATH)/bin/desync" make --store chunks weft.caibx "${exe}"
+
+      - name: publish the release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            *.rpm
+            weft.caibx
