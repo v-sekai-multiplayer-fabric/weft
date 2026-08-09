@@ -4,6 +4,7 @@
 name: stress bench
 
 on:
+  pull_request:
   workflow_dispatch:
   push:
     tags: ["v*"]
@@ -16,8 +17,13 @@ jobs:
 
       - uses: erlef/setup-beam@v1
         with:
-          otp-version: "27"
-          elixir-version: "1.18" # keep in sync with mix.exs
+          otp-version: "29"
+          elixir-version: "1.20"
+
+      - name: Install FoundationDB client
+        run: |
+          curl -fsSL -o /tmp/fdb-clients.deb "https://github.com/apple/foundationdb/releases/download/7.3.76/foundationdb-clients_7.3.76-1_amd64.deb"
+          sudo dpkg -i /tmp/fdb-clients.deb
 
       - run: mix deps.get
 
