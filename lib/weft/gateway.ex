@@ -48,10 +48,12 @@ defmodule Weft.Gateway do
   end
 
   defp do_dispatch(%Request{target: {:zone, zone_id}, op: op, args: args}) do
-    apply_zone(zone_id, op, args)
-  catch
-    # No zone registered for this id (unregistered :via call exits with :noproc).
-    :exit, _ -> {:error, :no_zone}
+    # Resolve the zone by lookup rather than catching an exit: no exceptions for
+    # the expected "no such zone" case.
+    case Horde.Registry.lookup(Weft.Registry, {:zone, zone_id}) do
+      [{_pid, _}] -> apply_zone(zone_id, op, args)
+      [] -> {:error, :no_zone}
+    end
   end
 
   defp apply_actor(pid, :put, [k, v]), do: {:ok, Actor.put(pid, k, v)}
