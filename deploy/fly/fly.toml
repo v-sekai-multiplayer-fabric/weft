@@ -1,0 +1,39 @@
+# weft on Fly machines. See README.md in this directory.
+#
+#   fly deploy --config deploy/fly/fly.toml
+app = "weft"
+primary_region = "sea"
+
+[build]
+  dockerfile = "../Containerfile"
+  # The OTP release, with no Elixir and no sources. The same artifact the .deb and the
+  # .rpm hold.
+  build-target = "release"
+
+[env]
+  # Discovery. libcluster polls this name, which the Fly private network serves with one
+  # record for each machine of the app.
+  WEFT_CLUSTER_QUERY = "weft.internal"
+  WEFT_NODE_BASENAME = "weft"
+
+  # A BEAM node is named when the VM starts, before any application runs, so libcluster
+  # cannot name it. FLY_PRIVATE_IP comes from the machine.
+  RELEASE_DISTRIBUTION = "name"
+  RELEASE_NODE = "weft@$FLY_PRIVATE_IP"
+
+  # The Fly private network is IPv6 only. BEAM distribution uses IPv4 by default, so
+  # without this the nodes never connect.
+  ERL_AFLAGS = "-proto_dist inet6_tcp"
+
+# The client transport is HTTP/3 and WebTransport, which is UDP. See docs/protocol.md.
+[[services]]
+  internal_port = 4000
+  protocol = "udp"
+
+  [[services.ports]]
+    port = 4000
+
+[[vm]]
+  # A world is bound by bytes to the client, not by compute. The simulation of 1000
+  # entities is 0.15 percent of one core. See docs/topology.md.
+  size = "performance-1x"

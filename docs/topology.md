@@ -35,11 +35,20 @@ At 9.8 microseconds for each kilometre of fibre, round trip, 80 ms gives a radiu
 A world runs in one region. A person joins a world in a region, the same as VRChat. No
 world spans two regions, so no state crosses a region on the hot path.
 
-## One Pod for one world
+## A world does not cross a machine
 
-The Pod is the machine, because iceoryx does not cross machines. So one world is one Pod:
-the control plane, the game data plane, the interest plane, the store plane, and the
+iceoryx does not cross machines, so all of one world stays on one machine. That machine
+runs the control plane, the game data plane, the interest plane, the store plane, and the
 edges.
+
+This is not one world for each machine. A machine holds many worlds, because a world
+costs little. See "Machines hold many worlds" below. The rule is only that a world does
+not split.
+
+A world could split, but the cost is a proof, not a configuration change. Handing an
+entity across machines inside one frame needs a predictive method, such as the n-frame
+predictive BVH in the Lean repositories. Until that is in weft, treat a world as one
+machine.
 
 ### Zones: one is enough
 
@@ -50,7 +59,7 @@ Take N entities at speed v in a square zone of side L. The boundary crossing rat
 R_z = 4 N v / (pi W sqrt(Z))
 ```
 
-A cross-Pod handoff costs about 0.65 ms: BEAM distribution near 0.2 ms, plus the
+A cross-machine handoff costs about 0.65 ms: BEAM distribution near 0.2 ms, plus the
 measured 0.448 ms FoundationDB read. Hold that below 1 percent of a 16.67 ms frame and
 each machine gets 15 handoffs each second. Solve for Z:
 
@@ -92,8 +101,8 @@ horizontal direction: a world is the unit, and worlds are independent.
 ## Above the crossover
 
 Past `B/(K b f 8)` clients, one machine cannot send to all of them. That is near 2712 on
-1 Gbit/s. The interest plane reads the ring in the authority Pod. A second Pod has no
-access to that memory. So the authority Pod must send the state to interest replicas over
+1 Gbit/s. The interest plane reads the ring in the authority machine. A second machine has no
+access to that memory. So the authority machine must send the state to interest replicas over
 the network.
 
 This is the one path where a plane on one machine sends to a plane on a different
@@ -105,11 +114,11 @@ each second. Build it when the client count passes the crossover, and not before
 | Tier | Count | Why |
 | --- | --- | --- |
 | FoundationDB | 3 machines | `triple` redundancy keeps 3 copies and accepts 2 losses. Coordinators must be an odd number: `n = 2f+1` accepts `f` losses. |
-| front door (login, matchmaking, directory) | 2 or 3 Pods | It holds no world state, so it replicates freely. Use 3 for a rolling update with no loss of capacity. |
-| world Pod | 1 | An entity is authoritative on exactly one zone. Two live copies of a world are two writers. |
+| front door (login, matchmaking, directory) | 2 or 3 machines | It holds no world state, so it replicates freely. Use 3 for a rolling update with no loss of capacity. |
+| world machine | 1 | An entity is authoritative on exactly one zone. Two live copies of a world are two writers. |
 
-A world Pod cannot be two. That is the single-writer rule, not a limit of the deploy.
-When a world Pod is lost, the persons in it are disconnected and they join again. The
+A world machine cannot be two. That is the single-writer rule, not a limit of the deploy.
+When a world machine is lost, the persons in it are disconnected and they join again. The
 world state rebuilds from FoundationDB, a measured 0.448 ms read. VRChat accepts the same
 loss.
 

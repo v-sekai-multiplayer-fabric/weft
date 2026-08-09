@@ -32,25 +32,30 @@ defmodule Weft.Application do
   # Node discovery for the BEAM cluster. Horde uses `members: :auto`, so it makes every
   # connected node a member. Nothing connected the nodes, so the cluster was one node.
   #
-  # libcluster's Kubernetes.DNS strategy reads the A records of a headless Service and
-  # connects to each address. The Service must set `publishNotReadyAddresses: true`, so
-  # a node joins the cluster before it reports ready.
+  # `WEFT_CLUSTER_QUERY` holds a DNS name that resolves to every node of the cluster.
+  # libcluster polls it and connects to each address. On Fly that name is
+  # `<app>.internal`, which the private network serves. On a plain virtual machine it is
+  # any name with one record for each node.
   #
-  # Discovery starts only when `WEFT_K8S_SERVICE` is set. A local run and a test run
-  # have no Kubernetes, so they get no strategy and stay on one node. This keeps one
-  # code path: the cluster is always Horde, and only the discovery is configured.
+  # Discovery starts only when the variable is set. A local run and a test run stay on
+  # one node. This keeps one code path: the cluster is always Horde, and only the
+  # discovery is configured.
+  #
+  # A world runs on one machine, so a world needs no cluster at all. This is for the
+  # front door, which holds no world state and runs on more than one machine. See
+  # `docs/topology.md`.
   defp cluster_children do
-    case System.get_env("WEFT_K8S_SERVICE") do
+    case System.get_env("WEFT_CLUSTER_QUERY") do
       nil ->
         []
 
-      service ->
+      query ->
         topologies = [
           weft: [
-            strategy: Cluster.Strategy.Kubernetes.DNS,
+            strategy: Cluster.Strategy.DNSPoll,
             config: [
-              service: service,
-              application_name: System.get_env("WEFT_K8S_APP_NAME", "weft"),
+              query: query,
+              node_basename: System.get_env("WEFT_NODE_BASENAME", "weft"),
               polling_interval: 5_000
             ]
           ]
