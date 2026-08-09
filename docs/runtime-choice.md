@@ -148,3 +148,33 @@ Recommendation: if native Windows is a product requirement, adopt iceoryx2 plus 
 thread-per-core harness, in Rust, and drop Seastar. The native planes are not built yet,
 so the switch is cheap now and expensive later. This change rewrites `planes.md` rule 5.
 Treat that rewrite as an open question until we decide.
+
+## Decision: iceoryx v1 in C++, because Rust is blocklisted
+
+The target environment blocklists Rust. So the plane cannot use Rust or iceoryx2, since
+iceoryx2 is Rust-first. The decision is iceoryx v1 (the C++ implementation) with a thin
+C++ thread-per-core harness. This is the current design in `planes.md` rule 5.
+
+The cost of this decision, versus iceoryx2:
+
+- iceoryx v1 needs the RouDi central daemon. iceoryx2 is brokerless.
+- iceoryx v1 Windows support is experimental. iceoryx2 Windows support is better. So
+  Linux is the primary target.
+- The steady-state data path of both is zero-copy shared memory. So the latency is about
+  the same, hundreds of ns to about 1 µs.
+
+The C++ data plane meets the throughput goal with a wide margin. The ring is
+`native/dataplane` (a seqlock ring, the same method as `bench/ring_native.c`). Measured
+on a Ryzen 7 3800X, single writer per core:
+
+| Threads (cores) | Aggregate snapshots/sec | Per core |
+| --------------- | ----------------------- | -------- |
+| 1               | 189.4 M                 | 189.4 M  |
+| 2               | 379.1 M                 | 189.5 M  |
+| 4               | 754.1 M                 | 188.5 M  |
+| 8               | 1498.9 M                | 187.4 M  |
+| 16 (with SMT)   | 2507.8 M                | 156.7 M  |
+
+The pattern scales near-linearly to 8 physical cores, 7.9 times the single-core rate.
+Each core owns its ring, so the planes share nothing. The 15M snapshots/sec goal is met
+per core by more than 12 times.
