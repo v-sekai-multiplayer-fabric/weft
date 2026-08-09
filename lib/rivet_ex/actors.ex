@@ -1,22 +1,27 @@
 defmodule RivetEx.Actors do
   @moduledoc """
-  Facade for addressing actors, the OTP analogue of pegboard's `get_or_create`.
+  Facade for addressing actors across the cluster, the OTP analogue of pegboard's
+  `get_or_create` plus its exclusivity guarantee.
 
-  `get_or_create/2` resolves an existing actor for `{name, key}` or starts one
-  under the actor supervisor, race-safe: if two callers create the same id
-  concurrently, the registry admits exactly one and the loser reuses it. This is
-  the single-writer guarantee, enforced by the registry rather than by a
-  distributed exclusivity protocol.
+  `get_or_create/2` resolves an existing actor for `{name, key}` anywhere in the
+  cluster or starts one under the distributed supervisor. `Horde.Registry`
+  admits exactly one owner per id cluster-wide, so this is the single-writer
+  guarantee without a lease. When a node leaves, `Horde.DynamicSupervisor` hands
+  its actors to a surviving node (pegboard failover).
+
+  Note on consistency: Horde is CRDT-based and chooses availability. During a
+  network partition each side may briefly run its own instance; Horde resolves the
+  conflict when the cluster heals. Strict single-writer *through* a partition needs
+  a consensus/storage layer (what rivet gets from FoundationDB); see the store
+  roadmap.
   """
 
   @spec get_or_create(String.t(), String.t()) :: {:ok, pid()} | {:error, term()}
   def get_or_create(name, key), do: get_or_create(name, key, 50)
 
-  # Resolve a live actor or start one. A just-slept actor may still be in the
-  # registry as a dead pid until the registry processes its :DOWN, and the
-  # supervisor may briefly still hold the terminating child; both windows are
-  # transient, so we treat a dead/absent entry as "start" and retry through the
-  # cleanup rather than hand back a dead pid.
+  # Resolve a live actor or start one. A just-slept or just-lost actor may linger
+  # in the registry as a dead pid until Horde converges; we treat a dead/absent
+  # entry as "start" and retry through the window rather than return a dead pid.
   defp get_or_create(_name, _key, 0), do: {:error, :registry_contended}
 
   defp get_or_create(name, key, tries) do
@@ -24,10 +29,10 @@ defmodule RivetEx.Actors do
 
     case whereis(name, key) do
       pid when is_pid(pid) ->
-        if Process.alive?(pid), do: {:ok, pid}, else: retry(name, key, tries)
+        if alive?(pid), do: {:ok, pid}, else: retry(name, key, tries)
 
       nil ->
-        case DynamicSupervisor.start_child(RivetEx.ActorSupervisor, {RivetEx.Actor, id}) do
+        case Horde.DynamicSupervisor.start_child(RivetEx.ActorSupervisor, child_spec(id)) do
           {:ok, pid} -> {:ok, pid}
           {:ok, pid, _info} -> {:ok, pid}
           {:error, {:already_started, pid}} -> if_alive(pid, name, key, tries)
@@ -38,8 +43,21 @@ defmodule RivetEx.Actors do
     end
   end
 
+  @spec whereis(String.t(), String.t()) :: pid() | nil
+  def whereis(name, key) do
+    case Horde.Registry.lookup(RivetEx.Registry, {name, key}) do
+      [{pid, _value}] -> pid
+      [] -> nil
+    end
+  end
+
+  # Unique child id per actor so Horde tracks and redistributes each distinctly.
+  defp child_spec({_name, _key} = id) do
+    %{id: {RivetEx.Actor, id}, start: {RivetEx.Actor, :start_link, [id]}, restart: :transient}
+  end
+
   defp if_alive(pid, name, key, tries) do
-    if Process.alive?(pid), do: {:ok, pid}, else: retry(name, key, tries)
+    if alive?(pid), do: {:ok, pid}, else: retry(name, key, tries)
   end
 
   defp retry(name, key, tries) do
@@ -47,11 +65,14 @@ defmodule RivetEx.Actors do
     get_or_create(name, key, tries - 1)
   end
 
-  @spec whereis(String.t(), String.t()) :: pid() | nil
-  def whereis(name, key) do
-    case Registry.lookup(RivetEx.Registry, {name, key}) do
-      [{pid, _value}] -> pid
-      [] -> nil
+  # Liveness that works for both local and remote pids. `Process.alive?/1` only
+  # accepts local pids, so a pid on another node is probed over RPC; a downed node
+  # answers as not-alive.
+  defp alive?(pid) do
+    if node(pid) == node() do
+      Process.alive?(pid)
+    else
+      :rpc.call(node(pid), Process, :alive?, [pid], 1_000) == true
     end
   end
 end

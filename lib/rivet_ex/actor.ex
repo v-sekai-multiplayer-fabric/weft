@@ -24,9 +24,9 @@ defmodule RivetEx.Actor do
     GenServer.start_link(__MODULE__, id, name: via(id))
   end
 
-  @doc "The `:via` tuple that addresses this actor through the registry."
+  @doc "The `:via` tuple that addresses this actor through the distributed registry."
   @spec via(id()) :: {:via, module(), {module(), id()}}
-  def via({_name, _key} = id), do: {:via, Registry, {RivetEx.Registry, id}}
+  def via({_name, _key} = id), do: {:via, Horde.Registry, {RivetEx.Registry, id}}
 
   @spec put(GenServer.server(), term(), term()) :: :ok
   def put(server, k, v), do: GenServer.call(server, {:put, k, v})

@@ -6,12 +6,18 @@ defmodule RivetEx.Application do
   @impl true
   def start(_type, _args) do
     children = [
-      # Actor addressing: one process per {name, key}. This is the single-writer
-      # invariant (KV + SQLite) enforced by the runtime, replacing pegboard's
-      # distributed exclusivity protocol.
-      {Registry, keys: :unique, name: RivetEx.Registry},
-      # Actor lifecycle: the pegboard actor supervisor.
-      {DynamicSupervisor, name: RivetEx.ActorSupervisor, strategy: :one_for_one},
+      # Actor addressing: one process per {name, key}, cluster-wide. Horde's
+      # distributed registry is the single-writer invariant across a cluster,
+      # replacing pegboard's exclusivity + lost-timeout/ping fencing. `members:
+      # :auto` makes every connected node a member automatically.
+      {Horde.Registry, name: RivetEx.Registry, keys: :unique, members: :auto},
+      # Actor lifecycle, distributed: actors spread across the cluster and are
+      # handed off to survivors when a node leaves. This is pegboard failover.
+      {Horde.DynamicSupervisor,
+       name: RivetEx.ActorSupervisor,
+       strategy: :one_for_one,
+       members: :auto,
+       process_redistribution: :active},
       # Runner lifecycle: serverless runners started and drained by pool reconcilers.
       {DynamicSupervisor, name: RivetEx.RunnerSupervisor, strategy: :one_for_one}
     ]

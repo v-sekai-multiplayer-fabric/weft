@@ -28,6 +28,7 @@ defmodule RivetEx.MixProject do
   defp deps do
     [
       {:exqlite, "~> 0.27"},
+      {:horde, "~> 0.9"},
       {:stream_data, "~> 1.1", only: :test},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false}
     ]
