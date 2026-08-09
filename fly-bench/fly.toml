@@ -1,0 +1,8 @@
+app = "weft-netbench"
+primary_region = "sea"
+
+[build]
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "256mb"
