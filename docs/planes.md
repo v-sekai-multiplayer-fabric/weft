@@ -68,6 +68,28 @@ New planes (physics, ML inference, video/audio transcode) use the same contract:
 native process plus iceoryx publish-subscribe or request-response. There is nothing
 new to design per plane.
 
+## Open questions
+
+These are unresolved conflicts between this document and the current task list.
+
+1. **SUMO plane versus asset baker.** The task list swapped the asset baker plane
+   for a SUMO plane, but the "Planes today" table above still lists the asset baker.
+   SUMO streams per-step entity movement, which is the game data plane's
+   publish-subscribe pattern, not the baker's request-response. So does SUMO replace
+   the asset baker as a third plane, or is SUMO the producer for the game data plane
+   used to prove benchmarks? If SUMO replaces the baker, weft has no request-response
+   plane and no glb baking path. Decide one.
+2. **OpenUSD as a plane, not a NIF.** `runtime-choice.md` and the asset baker row
+   describe OpenUSD (fabric-stage-runtime) consumed through Elixir NIFs inside the
+   BEAM. That conflicts with rules 1 and 4 here: heavy C++ runs as a separate plane
+   over iceoryx, never as a NIF in the BEAM. If weft still uses OpenUSD, must it be a
+   plane rather than an in-BEAM NIF?
+3. **Store status.** This document and `data-plane.md` call the FoundationDB store
+   "already built." `store.md` redesigns it to a local SQLite WAL primary with an
+   async FoundationDB replica, and that redesign is not built yet. The built
+   FoundationDB key-value store is being replaced, so "already built" is stale.
+   Confirm the store is the local-WAL-plus-async-replica design.
+
 Seastar is the event loop every plane runs on, not a plane by itself. In the game
 data plane, Seastar runs the loop, drives Jolt (physics), and reaches the control
 plane and other planes through iceoryx. Every plane uses Seastar the same way.

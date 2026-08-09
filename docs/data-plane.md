@@ -97,3 +97,23 @@ The next step is a thin, honest prototype of contract (2) and (3): a `Weft.Zone`
 whose control/durable state lives in the BEAM, with a stubbed data-plane worker
 behind a behaviour, so the seam is exercised before the C++ exists. See
 `Weft.DataPlane`.
+
+## Open questions
+
+This document predates the iceoryx and no-Port rules in `planes.md` and conflicts
+with them.
+
+1. **One IPC name.** This document calls the transport "shared memory" and iceoryx
+   "shared-memory IPC", and names the baker path a "queue." The one IPC name is
+   iceoryx. The one streaming name is a ring (publish-subscribe); the one job name is
+   request-response. Rewrite this document to those names?
+2. **No Ports.** Contracts (2) and (3) say the BEAM reads the ring "through a thin
+   dirty NIF or a C-Node / Port" and control "rides a Port/NIF control path." Ports
+   and C-Nodes are banned. The BEAM side is one small iceoryx NIF (`planes.md` rule
+   4). Rewrite both contracts to iceoryx-only?
+3. **SUMO plane versus asset baker.** Line 4 says the asset baker uses this pattern
+   with a queue. The task list swapped the asset baker for a SUMO plane. Same open
+   question as `planes.md`: does SUMO replace the baker or feed the game data plane?
+4. **Store status.** "The FoundationDB store (already built)" is stale. `store.md`
+   redesigns it to a local SQLite WAL primary with an async FoundationDB replica,
+   which is not built yet.

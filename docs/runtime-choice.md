@@ -52,3 +52,14 @@ A true OpenUSD-vs-Godot head-to-head would measure the _stage_ tier (stage mutat
 and flatten rates), not the hot path; it needs the prebuilt OpenUSD archive and a
 headless Godot build. Worth doing only to size the authoring tier, since neither is
 on the 15M path.
+
+## Open questions
+
+1. **Does weft still consume OpenUSD?** The task list swapped the asset baker plane
+   (OpenUSD + Adobe glTF) for a SUMO plane. If the OpenUSD plane is dropped, this
+   document's layer 2 (OpenUSD via Elixir, server-side) is stale and the stage tier
+   needs a new answer.
+2. **OpenUSD is a plane, not a NIF.** This document says fabric-stage-runtime is
+   "packaged for the BEAM" and consumed "via Elixir" NIFs. `planes.md` forbids heavy
+   C++ in the BEAM: OpenUSD must run as a separate plane over iceoryx if it is kept
+   at all. Reconcile with `planes.md`.
