@@ -104,6 +104,33 @@ cores barely moves). Two conclusions: (1) even pessimistically, one core clears 
 hot arrays, spatial partitioning) matter at extreme scale, and why the ~117M wall,
 not compute, is the ultimate apply ceiling on this machine.
 
+## State-replication bandwidth — last-frame zstd dictionary (`bench/zstd_frames.c`)
+
+The other wall is bytes on the wire (server → client fanout, and cloud egress $).
+A state frame is 256 entities × 20 B = 5 KB; consecutive frames differ only where
+entities moved, so compressing frame *n* with frame *n-1* as the zstd dictionary
+sends only the deltas. At 30% of entities moving per frame:
+
+| Scheme | bytes/frame | ratio | compress | decompress |
+| --- | --- | --- | --- | --- |
+| no dictionary (level 1) | 5130 | 1.0× | 0.3M f/s | — |
+| **last-frame dictionary (level 1)** | **787** | **6.5×** | 0.1M f/s | 0.1M f/s |
+
+**Takeaway.** Using the previous frame as the dictionary cuts replication bandwidth
+**~6.5× at 30% churn** (more for calmer scenes), at ~100K frames/s/core — plenty for
+60 Hz fanout to thousands of clients. This multiplies effective throughput against
+the bandwidth/egress wall and cuts cloud egress cost by the same factor. Level 1 ≈
+level 3 on ratio here, so use level 1 for latency. Note this is a *replication*
+optimization (large, coherent frames); it does nothing for the tiny, independent
+24-byte input packets on the ingest side.
+
+## Real-NIC packet I/O (`fly-bench/netbench.c`) — pending, cost-gated
+
+Loopback cannot measure the receive ceiling. `netbench` (UDP server/client over
+IPv6/6PN) is ready to run between two Fly machines for the real number, but is held
+until a cost-bounded run (smallest shared-CPU machines, seconds of traffic, torn
+down immediately). Compressed payloads (above) also minimize egress during the run.
+
 ### On measuring the I/O ceiling here (`bench/udp_recv.c`)
 
 Attempting to measure the kernel receive ceiling on loopback gave ~0.16M pps with
