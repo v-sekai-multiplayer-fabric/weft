@@ -80,7 +80,7 @@ Every plane that is not the control plane follows the same rules:
    exploited baker cannot reach out. It is also
    crash-isolated: if it crashes, the BEAM keeps running and the plane is restarted
    on its own. The BEAM checks liveness only. In a container host this is a second
-   layer inside the machine's container.
+   layer inside the container of the machine.
 3. **It talks to the BEAM only through Eclipse iceoryx** (zero-copy IPC). Never a
    Port. Never a socket on the hot path. Two iceoryx patterns cover all cases:
    - **Publish-subscribe** for streaming state. The plane publishes samples; the
@@ -146,6 +146,69 @@ baker bakes a source glb Character into an OpenUSD stage
 (request-response), and the stage tier caches and distributes baked stages to clients
 like a CDN. Baking
 is off the game hot path. See `runtime-choice.md`.
+
+## The bake machine
+
+A bake is slow, large, and the same every time. That inverts each rule the hot path
+obeys, so a bake does not run in a world machine. It runs on its own machine, and that
+machine scales on its own.
+
+| | hot path | bake |
+| --- | --- | --- |
+| budget | 16.67 ms | seconds to minutes |
+| result | 20 bytes for each entity | megabytes to gigabytes |
+| repeated work | each frame | one time, forever |
+
+`bake(source, tool version)` gives the same result every time, so weft addresses the
+result by content. The key is `hash(source)` with the tool version. A hit costs no
+compute and no upload.
+
+Zero copy is not why the bake machine uses iceoryx. One copy of a 200 MB result costs
+near 20 ms at 10 GB/s. That is 0.07 percent of a 30 s bake. The reason is the sandbox. A
+baker parses a file from a person we do not trust. So the baker must not have the
+network:
+
+```
+bake machine
+├── fetcher edge   has the network. It gets the source and writes the chunks.
+└── baker plane    has no network. It parses the source and converts it.
+```
+
+The edge does each read and each write. The plane does each parse. iceoryx carries the
+result between them, and the parser never opens a socket.
+
+FoundationDB holds the chunks and the manifest, not the artifact. A value has a 100 kB
+limit, and a transaction has a 10 MB and 5 s limit. So the edge cuts the artifact into
+casync chunks near 64 kB, which fit a value, and writes many transactions. See
+`store.md`.
+
+### How a person uses a bake
+
+1. The client sends the hash to the gateway edge, on a reliable stream.
+2. The control plane reads the manifest for that hash from FoundationDB.
+   - A hit returns the manifest. There is no upload and no bake. This is the usual case.
+   - A miss takes the upload, then starts a bake.
+3. The bake machine gets the source, converts it, cuts it into chunks, and writes the
+   manifest.
+4. The control plane tells the client that the asset is ready.
+
+A bake starts only when a person asks for the asset. weft does not bake ahead of the
+request. The first person to ask waits. An eager bake spends compute on an asset that
+nobody wears.
+
+### The world machine does not carry an asset
+
+An avatar of 20 MB, sent to 100 persons who join across 60 s, is 267 Mbit each second.
+The interest fanout needs 0.37 Gbit each second, so the asset would take most of a
+1 Gbit link and starve the work the world machine exists to do.
+
+So the interest snapshot carries the hash, which is 32 bytes. The client then gets the
+chunks from the asset CDN, on a different connection to different machines. A world
+machine never sends a byte of an asset.
+
+Chunks are addressed by content, so the S3 tier is one tier for every region, and the
+FoundationDB of each region is a cache in front of it. A bake in one region serves a
+person in a different region. See `topology.md`.
 
 New planes (physics, ML inference, video/audio transcode) use the same contract: a
 native process plus iceoryx publish-subscribe or request-response. There is nothing

@@ -1,9 +1,21 @@
-# Build and run weft in a container. Docker on Windows and Podman on Fedora both use
-# this image. The versions match the CI: Elixir 1.20, OTP 29, and FoundationDB 7.3.76.
+# Build and run weft in a container. The versions match the CI: Elixir 1.20, OTP 29, and
+# FoundationDB 7.3.76.
+#
+# Two targets:
+#
+#   dev      Elixir plus the sources. It runs `mix`, so it runs the tests and the
+#            benches. Compose and the Quadlet units use it. This is the default.
+#   release  The OTP release, the same artifact `release-native.yml` builds. Kubernetes
+#            uses it, so the deployed thing is the built thing.
+#
+#   docker build -f deploy/Containerfile --target dev     -t weft:dev .
+#   docker build -f deploy/Containerfile --target release -t weft:release .
 ARG ELIXIR_IMAGE=hexpm/elixir:1.20.3-erlang-29.0.5-debian-bookworm-20260803
+ARG DEBIAN_IMAGE=debian:bookworm-slim
 ARG FDB_VERSION=7.3.76
 
-FROM ${ELIXIR_IMAGE}
+# ── base ────────────────────────────────────────────────────────────────────────
+FROM ${ELIXIR_IMAGE} AS base
 ARG FDB_VERSION
 
 # Build tools for the NIFs (exqlite, erlfdb, and the native data-plane NIF), plus the
@@ -19,9 +31,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /app
 RUN mix local.hex --force && mix local.rebar --force
 
-# Fetch and compile the dependencies first. A later code change does not refetch them.
+# Fetch the dependencies first. A later code change does not refetch them.
 COPY mix.exs mix.lock ./
 RUN mix deps.get
+
+# ── dev ─────────────────────────────────────────────────────────────────────────
+FROM base AS dev
 COPY . .
 RUN mix deps.compile && mix compile
 
@@ -32,3 +47,42 @@ ENV WEFT_FDB_CLUSTER_FILE=/etc/foundationdb/fdb.cluster
 # Run the control plane. Override the command to run the tests or the stress bench, for
 # example `mix test` or `mix run bench/sumo_tui.exs`.
 CMD ["mix", "run", "--no-halt"]
+
+# ── release builder ─────────────────────────────────────────────────────────────
+FROM base AS builder
+ENV MIX_ENV=prod
+RUN mix deps.compile
+COPY . .
+RUN mix compile && mix release weft
+
+# ── release ─────────────────────────────────────────────────────────────────────
+# A runtime image with no Elixir and no sources. The release bundles ERTS, so it needs
+# only the C libraries: libfdb_c for erlfdb, and the usual runtime bits.
+FROM ${DEBIAN_IMAGE} AS release
+ARG FDB_VERSION
+
+# libsctp1 stops the ESOCK warning: the socket layer probes for SCTP at start and logs
+# a failure when the library is absent.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      libstdc++6 openssl ncurses-bin locales ca-certificates curl libsctp1 \
+  && curl -fsSL -o /tmp/fdb-clients.deb \
+      "https://github.com/apple/foundationdb/releases/download/${FDB_VERSION}/foundationdb-clients_${FDB_VERSION}-1_amd64.deb" \
+  && dpkg -i /tmp/fdb-clients.deb \
+  && rm /tmp/fdb-clients.deb \
+  && apt-get purge -y curl \
+  && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+COPY --from=builder /app/_build/prod/rel/weft ./
+
+ENV WEFT_FDB_CLUSTER_FILE=/etc/foundationdb/fdb.cluster
+
+# The VM reads the locale to choose its filename encoding. A container with no locale
+# gives latin1, and Elixir warns that it expects utf8. C.UTF-8 is built into the image.
+ENV LANG=C.UTF-8
+ENV LC_ALL=C.UTF-8
+
+# `start` runs the release in the foreground, which is what a container wants. The
+# release reads deploy/rel/env.sh.eex, rendered into the release as env.sh, so it names
+# the node from POD_IP when Kubernetes sets it.
+CMD ["bin/weft", "start"]
