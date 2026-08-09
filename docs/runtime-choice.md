@@ -66,7 +66,12 @@ stage tier together form weft's **asset CDN**:
   clients like a CDN with casync, through the `desync` tool, the same format as
   `fabric-casync-central`. Content-defined chunking deduplicates at the chunk level, so
   a new stage version stores only its changed chunks, and a client pulls only the
-  chunks it needs. The control plane owns the chunk store and the indexes.
+  chunks it needs. The chunk store is not a plain directory or S3: the chunks are cut
+  up into weft's store, SQLite to FoundationDB (the store plane), and served over an
+  on-demand H3/WebTransport chunk endpoint, spawned when a client needs a stage and
+  torn down when the transfer is done (scale-to-zero). It is not an HTTP/1.1 store,
+  because the transport is H3/WebTransport. So the asset CDN and the actor store share
+  one durable substrate.
 
 Both run as planes over iceoryx2, not in-BEAM NIFs, since `planes.md` forbids heavy
 C++ in the BEAM. Baking is off the game hot path; the >15M path stays native.

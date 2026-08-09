@@ -10,7 +10,16 @@ defmodule Weft.Assets.StageTier do
   chunking deduplicates at the chunk level, so a new stage version stores only its
   changed chunks. A fetch runs `desync extract` to rebuild the stage from the index
   and the store, pulling only the chunks it needs. The index is the reference a client
-  receives; the chunk store is the CDN.
+  receives.
+
+  The chunk store is not a plain directory or S3. The chunks are cut up into weft's
+  store, SQLite to FoundationDB (the store plane in `docs/store.md`), and served over
+  an on-demand H3/WebTransport chunk endpoint, spawned when a client needs a stage and
+  torn down when the transfer is done (scale-to-zero, the actor lifecycle). It is not
+  an HTTP/1.1 store, because the transport is H3/WebTransport (`docs/protocol.md`).
+  desync gives the chunk format and dedup; the transport is ours. So the asset CDN and
+  the actor store share one durable substrate. In this prototype a local directory
+  stands in for that store.
 
   This is the control-plane half of the asset CDN. Baking (glb to OpenUSD) is the
   native baker plane. `desync` must be on the path (see
