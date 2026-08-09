@@ -58,8 +58,8 @@ restarted without touching the BEAM.
 
 Every plane that is not the control plane follows the same rules:
 
-1. **It is a separate native OS process.** The container image (Docker / Fly)
-   starts it. The BEAM does not start it as a Port.
+1. **It is a separate native OS process.** The container image starts it. The BEAM
+   does not start it as a Port.
 2. **It is sandboxed and crash-isolated.** Each plane runs in a
    [bubblewrap](https://github.com/containers/bubblewrap) sandbox: restricted
    filesystem, namespaces, and seccomp. It can reach only what it is given — the
@@ -70,8 +70,8 @@ Every plane that is not the control plane follows the same rules:
    input: the asset baker parses arbitrary glb files, so with no network a broken or
    exploited baker cannot reach out. It is also
    crash-isolated: if it crashes, the BEAM keeps running and the plane is restarted
-   on its own. The BEAM checks liveness only. On Fly this is a second layer inside
-   the machine's container.
+   on its own. The BEAM checks liveness only. In a container host this is a second
+   layer inside the machine's container.
 3. **It talks to the BEAM only through Eclipse iceoryx2** (zero-copy IPC). Never a
    Port. Never a socket on the hot path. Two iceoryx2 patterns cover all cases:
    - **Publish-subscribe** for streaming state. The plane publishes samples; the
@@ -139,20 +139,24 @@ Two boundaries, two jobs:
   cores.
 - A plane can be replaced, scaled, or crash without touching the control plane.
 - Deployment is the same for all planes: the container image holds the plane
-  binaries at fixed paths, so shared-library paths are known. Fly runs that image.
+  binaries at fixed paths, so shared-library paths are known. A container host runs
+  that image, chosen later.
 
-## Clients: desktop and VR
+## Clients: HMD, desktop, TUI
 
-Players join from one Godot client (`fabric-godot-core`) that runs in two display and
-input modes, not two separate clients: a **desktop** mode (flat window, keyboard and
-mouse) and a **VR** mode (a SteamVR headset with OpenXR). Both control an avatar in the
-same world, both connect to the Fly-hosted gateway over WebTransport, so a player can
-play on desktop or in a headset. Desktop is the easier mode to iterate and test; VR is
-the priority experience.
+Players and QA join from one Godot client (`fabric-godot-core`) that runs in three
+display modes, not three separate clients:
 
-The rest of this section works through the VR mode, which is the harder case. The
-desktop mode is the same client with input from keyboard and mouse instead of a
-tracker, and a flat window instead of a headset. Two separations apply.
+- **HMD**: a SteamVR headset with OpenXR. The priority experience.
+- **desktop**: a flat window with keyboard and mouse. Local play and QA.
+- **TUI**: a headless ASCII terminal. It needs no display and no GPU, so it runs on
+  GitHub Actions for automated QA. It prints the entity grid each tick and checks the
+  pipeline. See the headless-godot-tui-observer method.
+
+All three modes control an avatar in the same world and connect to the gateway over
+WebTransport. The rest of this section works through the HMD mode, the harder case. The
+desktop mode swaps the tracker for keyboard and mouse, and the headset for a window.
+The TUI mode swaps the render for printed text. Two separations apply.
 
 ### Client, not a plane
 
@@ -225,9 +229,10 @@ interest feed (`CH_INTEREST`) and pulls the same world from the asset CDN. Deskt
 is the easier mode to run, so it is the main way we get QA data on the live pipeline
 before putting a headset on.
 
-### Deployment: Fly.io
+### Build, test, release, and QA: GitHub Actions
 
-weft and its planes run on Fly.io. The container image holds the plane binaries at
-fixed paths. Both client modes connect to the Fly-hosted gateway over WebTransport, so
-a player joins the same world from desktop or a headset. Running both against the same
-Fly deployment gives comparable QA data across the two modes.
+The whole system builds, tests, releases, and runs QA in GitHub Actions. A release
+follows RFD 0067 (dev, then beta, then rc): Elixir apps as Burrito executables, the
+Godot client packaged, then fpm RPMs, and desync chunks pushed to the casync store.
+Automated QA runs the Godot client in TUI mode, which needs no display, so it runs on a
+CI worker. The runtime host is deferred.

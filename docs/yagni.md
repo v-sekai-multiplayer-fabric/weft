@@ -11,8 +11,9 @@ near-term need arrives.
 The items that looked like structure ahead of need are one coherent near-term
 product with one consumer, so they are load-bearing, not speculative:
 
-> **Play and observe the SUMO world from a Godot client, on desktop and VR, deployed
-> on Fly.io. VR is the priority experience; desktop is the QA path.**
+> **Play and observe the SUMO world from a Godot client, on HMD, desktop, and TUI.
+> The whole system builds, tests, and releases in GitHub Actions. VR is the priority
+> experience. TUI is automated CI QA. The runtime host is deferred.**
 
 Data flow:
 
@@ -33,7 +34,8 @@ Data flow:
 VR first. All of these serve the product above.
 
 - **Godot client**, desktop and VR modes (one client, two display and input paths).
-  Desktop is the QA path; VR is the priority experience. Deployed on Fly.io.
+  Desktop is local QA. VR is the priority experience. TUI runs on GitHub Actions for
+  automated QA.
 - **SUMO game data plane** (live playback into the ring). The observed world.
 - **Interest feed** (`CH_INTEREST` to the headset). One plane, one path from one
   headset to a thousand or more. No scale threshold and no second mode, which are hard
