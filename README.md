@@ -43,6 +43,13 @@ process semantics, and distribution for free.
   across the cluster, addressable from any node, handed off to a survivor when its
   host node dies. Proven with a real multi-node `:peer` cluster (`cluster_test.exs`),
   including durable state surviving the handoff.
+- **FoundationDB store backend**: node-independent durable state (no filesystem
+  affinity), so an actor that migrates machines still reads its data. Same choice
+  rivet makes. Selectable via `:actor_store`; tested against a live FDB (`:fdb`).
+- **Control/data-plane boundary** (`docs/data-plane.md`): a `RivetEx.Zone` owns a
+  per-zone data-plane worker behind a behaviour, receiving digested snapshots
+  event-driven and steering it, never polling or touching a packet. A stub worker
+  stands in for the C++ Seastar + iceoryx + Jolt stack; the contract is identical.
 - The level-triggered pool reconciler: `desired = clamp(margin + ceil(demand /
   slots), min, max)`, converging the live runner set with no counter; self-heals
   when a runner crashes.
@@ -70,19 +77,19 @@ Ordered by how load-bearing each piece is in rivet.
 1. ~~**Durable per-actor state**~~ — done: SQLite per actor.
 2. ~~**Lifecycle**~~ — done: idle sleep, wake on request, scale-to-zero.
 3. ~~**Distribution**~~ — done: cluster-wide single writer + handoff via Horde.
-4. **Distributed store backend** — the handoff test shares one filesystem, so
-   node-local SQLite is reachable everywhere. On real multi-machine clusters an
-   actor that moves nodes must still reach its data, so the `RivetEx.Actor.Store`
-   behaviour needs a shared/distributed implementation (shared-FS SQLite, a
-   replicated store, or a distributed DB). **This is exactly why rivet uses
-   FoundationDB**: storage that any node can reach so actors move freely. This is
-   now the load-bearing next step.
-5. **Gateway / routing** — address an actor and forward a request (Phoenix or plug).
-6. **Workflow engine** — durable multi-step operations (gasoline → Oban or a
+4. ~~**Distributed store backend**~~ — done: FoundationDB store, node-independent.
+5. ~~**Data-plane boundary**~~ — done (prototype): `RivetEx.Zone` + worker behaviour
+   + stub. See `docs/data-plane.md`.
+6. **Real data-plane worker** — implement `RivetEx.DataPlane.Worker` as a Port/NIF
+   to the C++ **Seastar (DPDK) + iceoryx + Jolt** stack: 15M+ pps ingest, zero-copy
+   IPC, 60Hz physics, pushing digested snapshots to the zone. The BEAM contract is
+   already fixed.
+7. **Gateway / routing** — address an actor/zone and forward a request.
+8. **Workflow engine** — durable multi-step operations (gasoline → Oban or a
    custom OTP saga) for anything needing replay/observability.
-7. **Data plane** — keep the real-time spatial plane (entity replication, interest
-   management, edge datagrams) on **Eclipse Zenoh**, not here. rivet_ex is the
-   control plane; Zenoh is the data plane.
+
+The real-time spatial data plane stays outside the BEAM (C/C++/Rust); rivet_ex is
+the control plane that places zones and holds their durable state.
 
 ## Non-goals
 
