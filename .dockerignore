@@ -1,6 +1,8 @@
-# Keep host build output out of the image. The host may be Windows, so a copied
-# _build holds beam files and a NIF for the wrong operating system. The image runs
-# `mix deps.get` and `mix compile` itself.
+# Keep host build output out of the image. The host can be Windows, so a copied
+# _build or priv holds beam files and a NIF for a different operating system. The
+# image runs `mix deps.get` and `mix compile` itself. Without this file, a Windows
+# NIF lands in priv/, make finds a target newer than the source, and the Linux build
+# keeps the wrong binary. The NIF then fails to load with :nif_not_loaded.
 _build/
 deps/
 priv/plts/
@@ -32,4 +34,3 @@ stage/
 # Not needed to build or run weft.
 .git/
 .github/
-docs/
