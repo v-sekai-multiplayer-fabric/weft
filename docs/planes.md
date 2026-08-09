@@ -93,7 +93,7 @@ Every plane that is not the control plane follows the same rules:
 
 ## Planes today
 
-| Plane       | Native stack                                       | iceoryx pattern  | Isolation                   |
+| Plane       | Native stack                                       | iceoryx pattern   | Isolation                   |
 | ----------- | -------------------------------------------------- | ----------------- | --------------------------- |
 | Control     | BEAM (weft)                                        | —                 | supervised (OTP)            |
 | Game data   | thread-per-core C++ harness + Jolt                 | publish-subscribe | out of BEAM                 |
