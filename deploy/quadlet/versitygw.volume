@@ -1,0 +1,3 @@
+# Podman Quadlet volume for the versitygw S3 cold tier.
+[Volume]
+VolumeName=weft-s3

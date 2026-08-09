@@ -91,3 +91,33 @@ the asset CDN and the FoundationDB rows the data plane writes, not this store.
 2. WAL tailer that ships frames to FoundationDB as DELTA rows.
 3. Hydrate on open from FoundationDB (SHARD plus DELTA).
 4. Background compaction (DELTA to SHARD).
+
+## The S3-compatible cold tier
+
+The store tiers in three levels. The write path is SQLite. The durable replica is
+FoundationDB. The cold tier below FoundationDB is S3-compatible object storage. So the
+full path is SQLite to FoundationDB to S3.
+
+FoundationDB reaches the cold tier through its own backup. `fdbbackup` writes to an
+S3-compatible endpoint with a `blobstore://` URL. This is a native FoundationDB
+feature, so weft adds no custom backup code.
+
+The S3 endpoint is [versitygw](https://github.com/versity/versitygw). versitygw is a
+Go gateway that turns a local directory into an S3 server. One command runs it:
+`versitygw --port :7070 posix /data`. The root credentials come from the
+`ROOT_ACCESS_KEY` and `ROOT_SECRET_KEY` environment variables. It builds on Linux and
+Windows.
+
+So the cold tier is FoundationDB backups, written by `fdbbackup` to versitygw's S3
+endpoint, stored on a plain directory. The deploy wires this. `deploy/compose.yaml`
+runs versitygw plus a continuous `backup_agent` and `fdbbackup start`. The Quadlet unit
+`deploy/quadlet/versitygw.container` runs the same gateway on Fedora.
+
+The backup destination URL is:
+
+```
+blobstore://weft:weftsecret@versitygw:7070/fdb?bucket=fdb-backup&secure_connection=0&region=us-east-1
+```
+
+This keeps the tiering simple. SQLite serves the write path. FoundationDB serves the
+durable replica. versitygw serves the cold S3 tier, with no cloud dependency.

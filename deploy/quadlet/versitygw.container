@@ -1,0 +1,24 @@
+# Podman Quadlet unit for versitygw, the S3-compatible cold tier. FoundationDB backs up
+# to it. Start the backup one time after the database runs:
+#   podman exec weft-fdb bash -lc 'backup_agent -C /var/fdb/fdb.cluster & sleep 3; \
+#     fdbbackup start -C /var/fdb/fdb.cluster \
+#     -d "blobstore://weft:weftsecret@weft-s3gw:7070/fdb?bucket=fdb-backup&secure_connection=0&region=us-east-1" -z'
+[Unit]
+Description=versitygw S3 cold tier for weft
+After=network-online.target
+
+[Container]
+Image=ghcr.io/versity/versitygw:latest
+ContainerName=weft-s3gw
+Network=weft.network
+Environment=ROOT_ACCESS_KEY=weft
+Environment=ROOT_SECRET_KEY=weftsecret
+Exec=--port :7070 posix /data
+Volume=versitygw.volume:/data
+PublishPort=7070:7070
+
+[Service]
+Restart=always
+
+[Install]
+WantedBy=default.target
