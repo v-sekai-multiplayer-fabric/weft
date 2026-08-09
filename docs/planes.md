@@ -140,10 +140,18 @@ Two boundaries, two jobs:
 - Deployment is the same for all planes: the container image holds the plane
   binaries at fixed paths, so shared-library paths are known. Fly runs that image.
 
-## VR headset
+## Clients: desktop and VR
 
-A SteamVR headset observing or playing a live world, with WebTransport in the HMD.
-Two separations apply.
+Players join from one Godot client (`fabric-godot-core`) that runs in two display and
+input modes, not two separate clients: a **desktop** mode (flat window, keyboard and
+mouse) and a **VR** mode (a SteamVR headset with OpenXR). Both control an avatar in the
+same world, both connect to the Fly-hosted gateway over WebTransport, so a player can
+play on desktop or in a headset. Desktop is the easier mode to iterate and test; VR is
+the priority experience.
+
+The rest of this section works through the VR mode, which is the harder case. The
+desktop mode is the same client with input from keyboard and mouse instead of a
+tracker, and a flat window instead of a headset. Two separations apply.
 
 ### Client, not a plane
 
@@ -203,3 +211,19 @@ engine build is
 (the Godot fork), tagged by
 [`fabric-godot-assembly`](https://github.com/v-sekai-multiplayer-fabric/fabric-godot-assembly)
 (the multiplayer-fabric merge/assembly).
+
+### Desktop mode
+
+The same Godot client runs on the desktop in a flat window. The player controls their
+avatar with keyboard and mouse, so the avatar pose comes from input, not a tracker;
+the zone holds authority over that avatar like any entity. It receives the same
+interest feed (`CH_INTEREST`) and pulls the same world from the asset CDN. Desktop mode
+is the easier mode to run, so it is the main way we get QA data on the live pipeline
+before putting a headset on.
+
+### Deployment: Fly.io
+
+weft and its planes run on Fly.io. The container image holds the plane binaries at
+fixed paths. Both client modes connect to the Fly-hosted gateway over WebTransport, so
+a player joins the same world from desktop or a headset. Running both against the same
+Fly deployment gives comparable QA data across the two modes.
