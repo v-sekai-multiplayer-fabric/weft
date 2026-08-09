@@ -41,9 +41,18 @@ max_entities = 64
 ring = Ring.new(max_entities)
 {:ok, pid} = Sumo.start_link("bench", ring, frames, interval_ms: 0)
 
+# Size the panels to the current terminal so the scope fills the window. Two panels
+# plus a three-column gap span the width; two panel rows plus labels, a blank line, and
+# the stats line span the height. The dither keeps the color smooth at any size.
+{cols, rows} =
+  case {:io.columns(), :io.rows()} do
+    {{:ok, c}, {:ok, r}} -> {c, r}
+    _ -> {80, 24}
+  end
+
 opts = [
-  width: 36,
-  height: 8,
+  width: max(10, div(cols - 3, 2)),
+  height: max(4, div(max(6, rows - 6), 2)),
   x_range: {0, 5_000_000},
   y_range: {0, 5_000_000},
   z_range: {0, 5_000_000}
