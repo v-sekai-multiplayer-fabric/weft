@@ -39,6 +39,10 @@ process semantics, and distribution for free.
   restored on restart. The single writer means no locking or lease.
 - **Scale-to-zero lifecycle**: an idle actor stops and releases its process, then
   the next request wakes a fresh process that restores state from disk.
+- **Cluster-wide single writer + failover** (Horde): one actor instance per id
+  across the cluster, addressable from any node, handed off to a survivor when its
+  host node dies. Proven with a real multi-node `:peer` cluster (`cluster_test.exs`),
+  including durable state surviving the handoff.
 - The level-triggered pool reconciler: `desired = clamp(margin + ceil(demand /
   slots), min, max)`, converging the live runner set with no counter; self-heals
   when a runner crashes.
@@ -65,13 +69,18 @@ Ordered by how load-bearing each piece is in rivet.
 
 1. ~~**Durable per-actor state**~~ — done: SQLite per actor.
 2. ~~**Lifecycle**~~ — done: idle sleep, wake on request, scale-to-zero.
-3. **Distribution** — multi-node single-writer via `Horde.Registry` +
-   `Horde.DynamicSupervisor` (or `:syn`), replacing pegboard's cross-node fencing.
-   This is the part that proves OTP can do pegboard's hardest job.
-4. **Gateway / routing** — address an actor and forward a request (Phoenix or plug).
-5. **Workflow engine** — durable multi-step operations (gasoline → Oban or a
+3. ~~**Distribution**~~ — done: cluster-wide single writer + handoff via Horde.
+4. **Distributed store backend** — the handoff test shares one filesystem, so
+   node-local SQLite is reachable everywhere. On real multi-machine clusters an
+   actor that moves nodes must still reach its data, so the `RivetEx.Actor.Store`
+   behaviour needs a shared/distributed implementation (shared-FS SQLite, a
+   replicated store, or a distributed DB). **This is exactly why rivet uses
+   FoundationDB**: storage that any node can reach so actors move freely. This is
+   now the load-bearing next step.
+5. **Gateway / routing** — address an actor and forward a request (Phoenix or plug).
+6. **Workflow engine** — durable multi-step operations (gasoline → Oban or a
    custom OTP saga) for anything needing replay/observability.
-6. **Data plane** — keep the real-time spatial plane (entity replication, interest
+7. **Data plane** — keep the real-time spatial plane (entity replication, interest
    management, edge datagrams) on **Eclipse Zenoh**, not here. rivet_ex is the
    control plane; Zenoh is the data plane.
 
