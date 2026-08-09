@@ -163,20 +163,19 @@ downstream use unreliable drop-stale datagrams for the latest state (see `protoc
 and `latency.md`). Control and pulling baked OpenUSD stages from the asset CDN use
 reliable streams.
 
-### The feed is interest, and when it needs its own plane
+### The interest feed is its own plane, always
 
-The interest feed is always an interest producer, never authority. A single headset
-can ride the game data plane's interest output directly. A dedicated spectator plane
-(still interest, never authority) is warranted when the interest view must scale or
-widen past per-peer area-of-interest culling:
+The interest feed is an interest producer, never authority. It is one plane, used the
+same way from one headset to a thousand or more. There is no scale threshold that
+switches to a different path, because two modes are hard to QA and add a branch (see
+the no-branching rule). The interest feed plane reads the game data plane's output and
+produces `CH_INTEREST` for headsets on its own cores, so headset fanout never steals
+cycles from the authority simulation, at any scale.
 
-- **Scale.** Many observers on a popular zone. The game data plane's reactor cores are
-  pinned at 100% for the authority simulation, so interest fanout and encoding must
-  not steal cycles from it. A spectator plane produces interest on its own cores.
-- **A wider or enriched interest view.** A whole-zone or director camera, or overlays
-  beyond per-peer area-of-interest culling (everyone's names and stats, event markers).
-- **Delay and replay.** Broadcast spectating runs on a delay with scrubbing and replay
-  to stop stream-sniping, a stateful interest buffer distinct from the live feed.
+A wider or enriched interest view (a whole-zone or director camera, overlays beyond
+per-peer area-of-interest culling such as everyone's names and stats or event markers)
+and delay-and-replay are added as capabilities of this one plane, never as a separate
+mode.
 
 ### Engine
 

@@ -33,7 +33,9 @@ VR first. All of these serve the product above.
 
 - **VR headset client** (Godot plus OpenXR/SteamVR). The priority.
 - **SUMO game data plane** (live playback into the ring). The observed world.
-- **Interest feed** (`CH_INTEREST` to the headset).
+- **Interest feed** (`CH_INTEREST` to the headset). One plane, one path from one
+  headset to a thousand or more. No scale threshold and no second mode, which are hard
+  to QA.
 - **Asset CDN** (stores the SUMO simulation; delivers the world to the client).
 - **Gateway** (routes the headset to its zone).
 - **Store with compaction.** Compaction (DELTA to SHARD) is required, not optional:
@@ -54,11 +56,11 @@ The proof is not an abstract transport microbenchmark. It is the product working
 
 The SUMO-in-VR pipeline is the testbed for this proof.
 
-## Still gated: open questions
+## Nothing is gated
 
-1. **Dedicated spectator plane.** Trigger: at least 1000 headsets. Below that, the
-   game data plane's interest output feeds observers directly. Open until 1000-headset
-   scale.
+The pass converged fully. There is no gated item and no open question. The interest
+feed is one plane at any scale, so there is no two-mode spectator path to defer. The
+1000-headset requirement sets the single design; we always use it.
 
 ## Note on the docs
 
