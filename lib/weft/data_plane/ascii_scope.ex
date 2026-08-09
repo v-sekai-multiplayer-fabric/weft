@@ -9,7 +9,16 @@ defmodule Weft.DataPlane.AsciiScope do
   """
 
   alias Weft.DataPlane.Braille
+  alias Weft.DataPlane.Dither
   alias Weft.DataPlane.Ring
+
+  # Intensity levels for the density dither, and the ANSI 256 color per level. Six
+  # levels echo the Spectra 6 palette that epdoptimize targets. The color runs cold to
+  # hot: navy, blue, green, yellow, orange, red. Dithering the density onto these few
+  # levels keeps the color smooth as the panel grows to the window size.
+  @level_palette [0, 51, 102, 153, 204, 255]
+  @level_colors %{0 => 17, 51 => 39, 102 => 46, 153 => 226, 204 => 208, 255 => 196}
+  @blank 0x2800
 
   @doc """
   Render `coords` (the ring's flat `[x, y, z, ...]`) as the four-panel scope string.
@@ -59,7 +68,9 @@ defmodule Weft.DataPlane.AsciiScope do
   defp entities([x, y, z | rest]), do: [{x, y, z} | entities(rest)]
 
   # One panel as h braille rows. Each character is a 2 by 4 dot cell, so the panel
-  # draws 2*w by 4*h pixels. Labels and stats stay as text; only the plot is braille.
+  # draws 2*w by 4*h pixels. The dots come from entity positions. The color comes from
+  # the per-cell density, dithered onto the level palette. Denser cells run hotter.
+  # Labels and stats stay as plain text; only the plot is braille and colored.
   defp panel(pts, w, h, proj) do
     pixels =
       Enum.map(pts, fn p ->
@@ -67,7 +78,41 @@ defmodule Weft.DataPlane.AsciiScope do
         {sc(a, ra, 2 * w), sc(b, rb, 4 * h)}
       end)
 
-    Braille.render(pixels, w, h) |> String.split("\n")
+    density = density_grid(pixels, w, h)
+    dithered = Dither.dither(density, @level_palette)
+    rows = Braille.render(pixels, w, h) |> String.split("\n")
+    color_rows(rows, dithered)
+  end
+
+  # Count the set pixels in each 2 by 4 cell and scale to the 0..255 intensity range.
+  # Eight pixels per cell, so each pixel adds 32.
+  defp density_grid(pixels, w, h) do
+    counts =
+      Enum.reduce(pixels, %{}, fn {px, py}, acc ->
+        Map.update(acc, {div(px, 2), div(py, 4)}, 1, &(&1 + 1))
+      end)
+
+    for cy <- 0..(h - 1) do
+      for cx <- 0..(w - 1), do: min(255, Map.get(counts, {cx, cy}, 0) * 32)
+    end
+  end
+
+  # Wrap each non-blank braille character in the ANSI color for its dithered level.
+  defp color_rows(rows, dithered) do
+    Enum.zip_with(rows, dithered, fn row, levels ->
+      row
+      |> String.to_charlist()
+      |> Enum.zip(levels)
+      |> Enum.map(fn {cp, level} -> colorize(cp, level) end)
+      |> Enum.join()
+    end)
+  end
+
+  defp colorize(@blank, _level), do: <<@blank::utf8>>
+
+  defp colorize(cp, level) do
+    color = Map.fetch!(@level_colors, level)
+    "\e[38;5;#{color}m" <> <<cp::utf8>> <> "\e[0m"
   end
 
   defp labeled(title, rows, w), do: [String.pad_trailing(title, w) | rows]

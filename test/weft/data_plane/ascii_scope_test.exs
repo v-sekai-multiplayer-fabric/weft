@@ -26,6 +26,14 @@ defmodule Weft.DataPlane.AsciiScopeTest do
     refute has_braille_dot?(AsciiScope.render([0, 0, 0], @opts))
   end
 
+  test "populated panels color the braille with ANSI, blank cells stay uncolored" do
+    out = AsciiScope.render([1500, 0, 3000], @opts)
+    # A colored dot carries an ANSI 256 foreground escape from the level palette.
+    assert out =~ "\e[38;5;"
+    # An empty scope carries no color escape.
+    refute AsciiScope.render([0, 0, 0], @opts) =~ "\e[38;5;"
+  end
+
   test "of_ring reports tick and entity count" do
     ring = Ring.new(2)
     Ring.write(ring, 8, [1500, 0, 3000, 0, 0, 0])
