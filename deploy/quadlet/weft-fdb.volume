@@ -1,0 +1,3 @@
+# Podman Quadlet volume for the FoundationDB data and cluster file.
+[Volume]
+VolumeName=weft-fdb

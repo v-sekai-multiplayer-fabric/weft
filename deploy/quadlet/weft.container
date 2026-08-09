@@ -1,0 +1,21 @@
+# Podman Quadlet unit for the weft control plane on Fedora. Build the image first:
+#   podman build -t weft:dev -f deploy/Containerfile .
+[Unit]
+Description=weft control plane
+Requires=weft-fdb.service
+After=weft-fdb.service
+
+[Container]
+Image=localhost/weft:dev
+ContainerName=weft
+Network=weft.network
+Environment=WEFT_FDB_CLUSTER_FILE=/var/fdb/fdb.cluster
+Volume=weft-fdb.volume:/var/fdb
+# The client WebTransport and HTTP/3 port.
+PublishPort=4000:4000
+
+[Service]
+Restart=always
+
+[Install]
+WantedBy=default.target

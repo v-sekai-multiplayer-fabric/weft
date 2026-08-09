@@ -1,0 +1,20 @@
+# Podman Quadlet unit for FoundationDB on Fedora. systemd generates a service from it.
+# After the first start, configure the database one time:
+#   podman exec weft-fdb fdbcli --exec 'configure new single memory'
+[Unit]
+Description=FoundationDB for weft
+After=network-online.target
+Wants=network-online.target
+
+[Container]
+Image=docker.io/foundationdb/foundationdb:7.3.76
+ContainerName=weft-fdb
+Network=weft.network
+Environment=FDB_NETWORKING_MODE=container
+Volume=weft-fdb.volume:/var/fdb
+
+[Service]
+Restart=always
+
+[Install]
+WantedBy=default.target

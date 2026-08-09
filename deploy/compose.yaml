@@ -1,0 +1,54 @@
+# Docker Compose for weft on Docker Desktop (Windows) or Docker on Linux.
+#
+#   docker compose -f deploy/compose.yaml up --build
+#
+# It starts FoundationDB, configures a single-node database once, then runs weft. The
+# three services share one volume that holds the FoundationDB cluster file.
+services:
+  fdb:
+    image: foundationdb/foundationdb:7.3.76
+    environment:
+      FDB_NETWORKING_MODE: container
+    volumes:
+      - fdb:/var/fdb
+    healthcheck:
+      test: ["CMD", "fdbcli", "-C", "/var/fdb/fdb.cluster", "--exec", "status minimal"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  # Configure the database one time. The step is safe to run again.
+  fdb-init:
+    image: foundationdb/foundationdb:7.3.76
+    depends_on:
+      fdb:
+        condition: service_healthy
+    volumes:
+      - fdb:/var/fdb
+    restart: "no"
+    entrypoint: ["/bin/bash", "-lc"]
+    command:
+      - |
+        for i in $(seq 1 30); do
+          fdbcli -C /var/fdb/fdb.cluster --exec 'configure new single memory' && exit 0
+          sleep 2
+        done
+        exit 1
+
+  weft:
+    build:
+      context: ..
+      dockerfile: deploy/Containerfile
+    depends_on:
+      fdb-init:
+        condition: service_completed_successfully
+    environment:
+      WEFT_FDB_CLUSTER_FILE: /var/fdb/fdb.cluster
+    volumes:
+      - fdb:/var/fdb
+    # The client WebTransport and HTTP/3 port.
+    ports:
+      - "4000:4000"
+
+volumes:
+  fdb: {}
