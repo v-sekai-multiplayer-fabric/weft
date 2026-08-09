@@ -1,5 +1,10 @@
 # Data plane boundary
 
+The game data plane is one instance of the general rule in `planes.md`: the BEAM
+runs only the control plane, and every heavy plane is a native process outside the
+VM reached across shared memory. This document details that boundary for the game
+hot path (a **ring**); the asset baker uses the same pattern with a **queue**.
+
 weft is the **control plane**. It decides _which_ node owns a zone, keeps one
 writer per id, hands zones off on node loss, and holds durable state. It must
 never touch a game packet.
