@@ -162,8 +162,12 @@ widen past per-peer area-of-interest culling:
 - **Delay and replay.** Broadcast spectating runs on a delay with scrubbing and replay
   to stop stream-sniping, a stateful interest buffer distinct from the live feed.
 
-### Open questions
+### Engine
 
-1. **Engine.** Godot already has OpenXR and SteamVR support, so the VR client may be
-   Godot plus OpenXR consuming WebTransport, consistent with "Godot stays on the
-   client." Or a custom WebTransport HMD client. Decide one.
+The VR client is **Godot**, not a custom HMD client, consistent with "Godot stays on
+the client." It uses Godot's OpenXR and SteamVR support and consumes WebTransport. The
+engine build is
+[`fabric-godot-core`](https://github.com/v-sekai-multiplayer-fabric/fabric-godot-core)
+(the Godot fork), tagged by
+[`fabric-godot-assembly`](https://github.com/v-sekai-multiplayer-fabric/fabric-godot-assembly)
+(the multiplayer-fabric merge/assembly).

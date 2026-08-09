@@ -46,7 +46,7 @@ So the layering the benchmark points to:
 1. **Hot path (>15M/s):** native Jolt/Seastar → `Weft.DataPlane.Ring`.
 2. **Stage/world representation:** OpenUSD (fabric-stage-runtime), server-side, as a plane over iceoryx2.
 3. **Control plane:** weft (placement, single-writer, lifecycle, durable state).
-4. **Client:** Godot.
+4. **Client:** Godot (`fabric-godot-core`, tagged by `fabric-godot-assembly`), including the VR client via OpenXR/SteamVR over WebTransport.
 
 A true OpenUSD-vs-Godot head-to-head would measure the _stage_ tier (stage mutation
 and flatten rates), not the hot path; it needs the prebuilt OpenUSD archive and a
