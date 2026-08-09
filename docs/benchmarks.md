@@ -61,3 +61,27 @@ The real producers are the C++ Seastar/iceoryx/Jolt workers writing the same rin
 through a NIF (faster than an Elixir producer), and the BEAM only samples the
 latest — so the raw 15M+ pps packet flood never enters the VM, and the digested
 snapshot rate is not BEAM-bound either.
+
+## Packet decode+apply — is 15M pps compute- or I/O-bound? (`bench/pps_native.c`)
+
+The true ">15M pps" unit is a *packet*: decode a 24-byte movement datagram and
+apply it to an entity slab. Native, packets replayed from a cache-hot batch:
+
+| cores | packets/sec | ns/pkt/core | ingress @24B |
+| --- | --- | --- | --- |
+| 1 | 826 M | 1.21 | 19.8 GB/s |
+| 4 | 2.56 B | 1.57 | 61 GB/s |
+| 8 | 5.09 B | 1.57 | 122 GB/s |
+| 16 | 9.32 B | 1.72 | 224 GB/s |
+
+**Takeaway.** Decode+apply costs ~1.2 ns/packet — **826M pps on one core, ~55× the
+15M target.** Compute is nowhere near the bottleneck; 15M pps needs ~2% of a single
+core. What actually caps 15M pps is **moving the packets** (NIC → memory), which is
+why the ladder is AF_XDP → DPDK → SmartNIC, not "faster decode logic." This is the
+empirical basis for keeping the hot path native and kernel-bypass, and the BEAM out
+of it entirely.
+
+Caveat: this is the cache-hot compute ceiling (packets and hot entities in L1/L2).
+Real traffic adds NIC DMA and scattered-entity cache misses, so per-packet cost
+rises — but it stays far above 15M pps, so the conclusion (I/O-bound, not
+compute-bound) holds.
