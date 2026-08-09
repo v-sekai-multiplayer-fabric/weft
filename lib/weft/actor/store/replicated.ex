@@ -47,9 +47,10 @@ defmodule Weft.Actor.Store.Replicated do
 
     # A fresh local file means first start or handoff: rebuild it once from the
     # durable replica. Continue the write log from the highest replicated seq.
-    if fresh? do
-      for {user_key, value} <- Replicator.hydrate(id), do: local_put(conn, user_key, value)
-    end
+    _ =
+      if fresh? do
+        for {user_key, value} <- Replicator.hydrate(id), do: local_put(conn, user_key, value)
+      end
 
     seq = :atomics.new(1, [])
     :atomics.put(seq, 1, Replicator.tip(id))

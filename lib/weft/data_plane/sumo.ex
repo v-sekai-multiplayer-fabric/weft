@@ -91,7 +91,7 @@ defmodule Weft.DataPlane.Sumo do
       interval: interval
     }
 
-    if interval > 0 and state.count > 0, do: Process.send_after(self(), :tick, interval)
+    _ = if interval > 0 and state.count > 0, do: Process.send_after(self(), :tick, interval)
     {:ok, state}
   end
 
