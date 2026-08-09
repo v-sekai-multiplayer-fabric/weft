@@ -29,17 +29,25 @@ defmodule Weft.Gateway do
   alias Weft.Gateway.Request
 
   @spec dispatch(Request.t()) :: {:ok, term()} | {:error, term()}
-  def dispatch(%Request{reliable: false, op: op}) when op in [:put, :add_entity] do
+  def dispatch(%Request{target: target, op: op} = req) do
+    kind = elem(target, 0)
+
+    :telemetry.span([:weft, :gateway, :dispatch], %{target: kind, op: op}, fn ->
+      {do_dispatch(req), %{}}
+    end)
+  end
+
+  defp do_dispatch(%Request{reliable: false, op: op}) when op in [:put, :add_entity] do
     {:error, {:requires_reliable, op}}
   end
 
-  def dispatch(%Request{target: {:actor, name, key}, op: op, args: args}) do
+  defp do_dispatch(%Request{target: {:actor, name, key}, op: op, args: args}) do
     with {:ok, pid} <- Actors.get_or_create(name, key) do
       apply_actor(pid, op, args)
     end
   end
 
-  def dispatch(%Request{target: {:zone, zone_id}, op: op, args: args}) do
+  defp do_dispatch(%Request{target: {:zone, zone_id}, op: op, args: args}) do
     apply_zone(zone_id, op, args)
   catch
     # No zone registered for this id (unregistered :via call exits with :noproc).

@@ -29,10 +29,16 @@ defmodule Weft.Actor do
   def via({_name, _key} = id), do: {:via, Horde.Registry, {Weft.Registry, id}}
 
   @spec put(GenServer.server(), term(), term()) :: :ok
-  def put(server, k, v), do: GenServer.call(server, {:put, k, v})
+  def put(server, k, v) do
+    :telemetry.span([:weft, :actor, :put], %{}, fn ->
+      {GenServer.call(server, {:put, k, v}), %{}}
+    end)
+  end
 
   @spec get(GenServer.server(), term()) :: term()
-  def get(server, k), do: GenServer.call(server, {:get, k})
+  def get(server, k) do
+    :telemetry.span([:weft, :actor, :get], %{}, fn -> {GenServer.call(server, {:get, k}), %{}} end)
+  end
 
   @spec info(GenServer.server()) :: map()
   def info(server), do: GenServer.call(server, :info)

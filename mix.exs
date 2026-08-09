@@ -30,6 +30,7 @@ defmodule Weft.MixProject do
       {:exqlite, "~> 0.27"},
       {:erlfdb, "~> 0.3"},
       {:horde, "~> 0.9"},
+      {:telemetry, "~> 1.2"},
       {:stream_data, "~> 1.1", only: :test},
       {:benchee, "~> 1.3", only: :dev},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false}

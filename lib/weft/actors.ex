@@ -17,7 +17,11 @@ defmodule Weft.Actors do
   """
 
   @spec get_or_create(String.t(), String.t()) :: {:ok, pid()} | {:error, term()}
-  def get_or_create(name, key), do: get_or_create(name, key, 50)
+  def get_or_create(name, key) do
+    :telemetry.span([:weft, :actors, :get_or_create], %{name: name}, fn ->
+      {get_or_create(name, key, 50), %{}}
+    end)
+  end
 
   # Resolve a live actor or start one. A just-slept or just-lost actor may linger
   # in the registry as a dead pid until Horde converges; we treat a dead/absent

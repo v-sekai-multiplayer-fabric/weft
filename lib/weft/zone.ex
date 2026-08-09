@@ -50,8 +50,11 @@ defmodule Weft.Zone do
 
   @doc "Add or update an entity this zone is authoritative for."
   @spec add_entity(term(), term(), term()) :: :ok
-  def add_entity(zone_id, entity_id, data),
-    do: GenServer.call(via(zone_id), {:add_entity, entity_id, data})
+  def add_entity(zone_id, entity_id, data) do
+    :telemetry.span([:weft, :zone, :add_entity], %{}, fn ->
+      {GenServer.call(via(zone_id), {:add_entity, entity_id, data}), %{}}
+    end)
+  end
 
   @doc "Remove an entity from this zone."
   @spec remove_entity(term(), term()) :: :ok
@@ -74,14 +77,19 @@ defmodule Weft.Zone do
   """
   @spec handoff(term(), term(), term()) :: :ok | {:error, :not_found}
   def handoff(from_zone_id, to_zone_id, entity_id) do
-    case GenServer.call(via(from_zone_id), {:take_entity, entity_id}) do
-      {:ok, data} ->
-        :ok = GenServer.call(via(to_zone_id), {:put_entity, entity_id, data})
-        :ok
+    :telemetry.span([:weft, :zone, :handoff], %{}, fn ->
+      result =
+        case GenServer.call(via(from_zone_id), {:take_entity, entity_id}) do
+          {:ok, data} ->
+            :ok = GenServer.call(via(to_zone_id), {:put_entity, entity_id, data})
+            :ok
 
-      :error ->
-        {:error, :not_found}
-    end
+          :error ->
+            {:error, :not_found}
+        end
+
+      {result, %{}}
+    end)
   end
 
   ## Fanout: subscribers get digested snapshots at tick rate

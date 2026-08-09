@@ -1,7 +1,10 @@
-// UDP packet-rate benchmark for real NICs (e.g. two Fly machines over 6PN).
-//   netbench server [port]            -> receives, prints pps once per second
-//   netbench client <host> [port] [threads]
-// Measures the real kernel receive ceiling that loopback cannot.
+// Bounded UDP functional check between two machines (e.g. Fly over 6PN).
+//   netbench server [port]                                 -> prints pps once per second
+//   netbench client <host> [port] [threads] [pps_cap] [seconds]
+// The client is HARD-RATE-CAPPED and time-bounded on purpose: this is a
+// non-abusive functional test, NOT a saturating flood. Fly's private network is a
+// WireGuard overlay and its AUP forbids negatively impacting shared infra, so we
+// never max the link. Defaults: 1 thread, 100000 pps total, 5 seconds.
 #define _GNU_SOURCE
 #include <stdio.h>
 #include <stdlib.h>
