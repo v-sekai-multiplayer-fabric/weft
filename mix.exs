@@ -20,6 +20,7 @@ defmodule Weft.MixProject do
       make_precompiler_filename: "weft_dataplane_nif",
       make_precompiler_nif_versions: [versions: ["2.16", "2.17", "2.18"]],
       deps: deps(),
+      releases: releases(),
       dialyzer: [
         plt_local_path: "priv/plts",
         plt_add_apps: [:mix, :ex_unit],
@@ -47,7 +48,22 @@ defmodule Weft.MixProject do
       {:cc_precompiler, "~> 0.1", runtime: false},
       {:stream_data, "~> 1.1", only: :test},
       {:benchee, "~> 1.3", only: :dev},
-      {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false}
+      {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
+      # Package the BEAM release as a single self-contained executable for the dev
+      # release (RFD 0067). Burrito uses zig at release time; plain `mix compile`
+      # does not need it.
+      {:burrito, "~> 1.3"}
+    ]
+  end
+
+  # Burrito wraps the release into one executable per target, for the fpm RPM and
+  # the desync chunk store. See the release workflow.
+  defp releases do
+    [
+      weft: [
+        steps: [:assemble, &Burrito.wrap/1],
+        burrito: [targets: [linux: [os: :linux, cpu: :x86_64]]]
+      ]
     ]
   end
 end
