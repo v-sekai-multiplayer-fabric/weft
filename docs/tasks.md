@@ -85,13 +85,13 @@ toolchain, which we do not have here yet.
 ## #48 native store plane
 
 Goal: port the store plane to native. It keeps a local SQLite WAL primary and an async
-FoundationDB replica. It runs over Eclipse iceoryx2.
+FoundationDB replica. It runs over Eclipse iceoryx.
 
 State: the Elixir prototype works. `Weft.Actor.Store.Replicated` and `.Replicator` pass the
 three FoundationDB tests against a live FoundationDB.
 
-Next: port the store plane to a native process over iceoryx2. This needs a native C++ and
-iceoryx2 toolchain, which we do not have here yet.
+Next: port the store plane to a native process over iceoryx. This needs a native C++ and
+iceoryx toolchain, which we do not have here yet.
 
 ## Buildable now
 
@@ -101,5 +101,5 @@ iceoryx2 toolchain, which we do not have here yet.
 ## Blocked on a native toolchain
 
 - #44 (OpenUSD baker)
-- #48 (native store over iceoryx2)
+- #48 (native store over iceoryx)
 - #49 (needs zig for Burrito; the Godot part is buildable)

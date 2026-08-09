@@ -1,4 +1,4 @@
-# Build the native artifacts for both Windows and Linux: the Rust data plane and the
+# Build the native artifacts for both Windows and Linux: the C++ data plane and the
 # Elixir Burrito. Each runner builds its own operating system natively. The artifacts
 # upload to the workflow run, never to git.
 name: release-native
@@ -24,20 +24,16 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v5
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: native/dataplane
-      - name: Test and build the data plane
-        working-directory: native/dataplane
+      - name: Build the data plane (C++)
         run: |
-          cargo test --release
-          cargo build --release
+          cmake -B native/dataplane/build -S native/dataplane -DCMAKE_BUILD_TYPE=Release
+          cmake --build native/dataplane/build --config Release
       - name: Collect the binary
         shell: bash
         run: |
           mkdir -p out
-          cp native/dataplane/target/release/weft-dataplane* out/ 2>/dev/null || true
+          cp native/dataplane/build/weft-dataplane out/ 2>/dev/null || true
+          cp native/dataplane/build/Release/weft-dataplane.exe out/ 2>/dev/null || true
       - uses: actions/upload-artifact@v7
         with:
           name: weft-dataplane-${{ matrix.os }}

@@ -35,10 +35,8 @@ rivet_ex-*.tar
 bench/sumo/scenario/
 bench/sumo/replay
 
-# Rust native planes: build output and lock file are not committed.
-target/
-native/**/target/
-native/**/Cargo.lock
+# Native planes (C++): build output is not committed.
+native/**/build/
 
 # Burrito release output.
 /burrito_out/

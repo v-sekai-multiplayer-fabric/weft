@@ -2,7 +2,7 @@
 
 The game data plane is one instance of the general rule in `planes.md`: the BEAM
 runs only the control plane, and every heavy plane is a native process outside the
-VM reached over iceoryx2. This document details that boundary for the game hot path,
+VM reached over iceoryx. This document details that boundary for the game hot path,
 a **ring**.
 
 weft is the **control plane**. It decides _which_ node owns a zone, keeps one
@@ -10,7 +10,7 @@ writer per id, hands zones off on node loss, and holds durable state. It must
 never touch a game packet.
 
 The **data plane** decides _how fast_ one node ingests. At MMOG scale the hot path
-(datagram ingest, decode, spatial physics) runs outside the BEAM, in C/C++/Rust on
+(datagram ingest, decode, spatial physics) runs outside the BEAM, in C or C++ on
 pinned cores or on NIC silicon. This document fixes the boundary between them so
 the two halves can be built independently.
 
@@ -20,7 +20,7 @@ the two halves can be built independently.
 flowchart TD
     NIC["NIC / SmartNIC-DPU<br/>15M+ pps, kernel bypass"]
     Seastar["Seastar (C++ / DPDK)<br/>thread-per-core, lock-free<br/>decode WebTransport/QUIC datagrams"]
-    Iceoryx["Eclipse iceoryx2<br/>zero-copy IPC (&lt;1 microsecond)"]
+    Iceoryx["Eclipse iceoryx<br/>zero-copy IPC (&lt;1 microsecond)"]
     Jolt["Jolt Physics (C++, own process)<br/>60Hz spatial hash, broadphase, raycast, collision"]
     Ring[("ring<br/>digested snapshots")]
     BEAM["Elixir / BEAM = control plane<br/>placement, lifecycle, state, chat, accounts"]
@@ -36,24 +36,24 @@ flowchart TD
 | Tier      | Tech                                     | Owns                                                                           | Peak           |
 | --------- | ---------------------------------------- | ------------------------------------------------------------------------------ | -------------- |
 | Network   | **Seastar (C++/DPDK)**                   | Datagram ingest + decode, kernel bypass, thread-per-core                       | 15M+ pps       |
-| IPC       | **Eclipse iceoryx2**                     | Zero-copy handoff, network → physics                                           | <1 microsecond |
+| IPC       | **Eclipse iceoryx**                     | Zero-copy handoff, network → physics                                           | <1 microsecond |
 | Game loop | **Jolt Physics (C++, separate process)** | 60Hz spatial hash, broadphase culling, raycast, collision                      | multi-core     |
 | Control   | **Elixir / BEAM (weft)**                 | Placement, single-writer, failover, durable state, chat, accounts, matchmaking | —              |
 
 ## The three contracts across the boundary
 
-1. **Network → Physics (iceoryx2, zero-copy).** Seastar decodes datagrams and
-   publishes decrypted player inputs into an iceoryx2 pool; Jolt subscribes.
-   Zero-copy over iceoryx2, sub-microsecond. weft is not involved.
+1. **Network → Physics (iceoryx, zero-copy).** Seastar decodes datagrams and
+   publishes decrypted player inputs into an iceoryx pool; Jolt subscribes.
+   Zero-copy over iceoryx, sub-microsecond. weft is not involved.
 
 2. **Physics → BEAM (ring, read at tick rate).** Jolt writes _digested_ world state
-   (not packets) into a ring, delivered over iceoryx2 publish-subscribe. The BEAM
-   reads the latest snapshot at its tick rate through a small iceoryx2 NIF. The BEAM
+   (not packets) into a ring, delivered over iceoryx publish-subscribe. The BEAM
+   reads the latest snapshot at its tick rate through a small iceoryx NIF. The BEAM
    side is **event-driven or tick-scheduled, never a busy-poll**.
 
 3. **BEAM → Data plane (control channel).** weft issues lifecycle commands: spawn a
    zone's data-plane worker on this node, despawn it, migrate it. These ride an
-   iceoryx2 request-response control path, low-rate.
+   iceoryx request-response control path, low-rate.
 
 ## Hard rules
 
@@ -63,7 +63,7 @@ flowchart TD
 - **Never busy-poll inside a NIF.** A long-running NIF blocks a scheduler thread
   and wrecks whole-VM latency. The data plane owns the busy-poll on pinned cores in
   a _separate OS process_; the BEAM reads pre-assembled state off the ring via a
-  small iceoryx2 NIF at tick rate.
+  small iceoryx NIF at tick rate.
 - **Data plane owns pinned cores.** DPDK/Seastar reactor cores run at 100%
   permanently and are excluded from the BEAM scheduler set.
 - **Interest management before hardware.** A server only faces 15M pps if it is
@@ -90,7 +90,7 @@ server ingests. They compose through placement:
   owner's data-plane worker binds the socket.
 - The store (see `store.md`) holds the zone's durable state so the new owner can
   resume it after handoff, with no filesystem affinity.
-- The zone's hot loop (Seastar/iceoryx2/Jolt) is spawned and reaped by weft as
+- The zone's hot loop (Seastar/iceoryx/Jolt) is spawned and reaped by weft as
   part of that zone's lifecycle, but runs entirely outside the BEAM.
 
 The next step is a thin, honest prototype of contract (2) and (3): a `Weft.Zone`

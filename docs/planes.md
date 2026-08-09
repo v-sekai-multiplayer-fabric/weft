@@ -3,7 +3,7 @@
 The main rule of weft's architecture:
 
 > **The BEAM runs only the control plane. Every other plane is a native process
-> outside the BEAM. The BEAM reaches it through Eclipse iceoryx2 (zero-copy IPC).**
+> outside the BEAM. The BEAM reaches it through Eclipse iceoryx (zero-copy IPC).**
 
 The BEAM does coordination: placement, lifecycle, supervision, routing,
 backpressure, and caching. It is good at coordination and bad at heavy compute.
@@ -63,8 +63,8 @@ Every plane that is not the control plane follows the same rules:
 2. **It is sandboxed and crash-isolated.** Each plane runs in a
    [bubblewrap](https://github.com/containers/bubblewrap) sandbox: restricted
    filesystem, namespaces, and seccomp. It can reach only what it is given — the
-   iceoryx2 segment, its own binary, and its data — not the host, the BEAM, or other
-   planes. Because planes talk over iceoryx2, not the network, **networking is off by
+   iceoryx segment, its own binary, and its data — not the host, the BEAM, or other
+   planes. Because planes talk over iceoryx, not the network, **networking is off by
    default** (`--unshare-net`). The one exception is the plane that ingests from the
    network (the game data plane). This matters for a plane that handles untrusted
    input: the asset baker parses arbitrary glb files, so with no network a broken or
@@ -72,31 +72,31 @@ Every plane that is not the control plane follows the same rules:
    crash-isolated: if it crashes, the BEAM keeps running and the plane is restarted
    on its own. The BEAM checks liveness only. In a container host this is a second
    layer inside the machine's container.
-3. **It talks to the BEAM only through Eclipse iceoryx2** (zero-copy IPC). Never a
-   Port. Never a socket on the hot path. Two iceoryx2 patterns cover all cases:
+3. **It talks to the BEAM only through Eclipse iceoryx** (zero-copy IPC). Never a
+   Port. Never a socket on the hot path. Two iceoryx patterns cover all cases:
    - **Publish-subscribe** for streaming state. The plane publishes samples; the
      BEAM subscribes and takes the latest.
    - **Request-response** for jobs. The BEAM sends a request; the plane responds.
-4. **The BEAM side is a small iceoryx2 NIF.** It takes a sample or sends a request,
+4. **The BEAM side is a small iceoryx NIF.** It takes a sample or sends a request,
    copies the bytes into a BEAM binary, and returns at once. No long work, no
    busy-poll, no blocked scheduler. The hard rules in `data-plane.md` apply to
    every plane.
-5. **A plane is a thread-per-core process over iceoryx2.** Every plane runs a thin
-   Rust harness. The harness pins one thread per core and runs a poll loop on an
-   iceoryx2 `WaitSet`. It replaces Seastar, so a plane builds natively on Windows and
-   Linux. There is one runtime model for all planes, not a choice per plane. A
-   CPU-bound plane busy-polls. An I/O-bound plane runs blocking worker threads over
-   the same iceoryx2 transport. See `runtime-choice.md` for the measured basis.
+5. **A plane is a thread-per-core process over iceoryx v1.** Every plane runs a thin
+   C++ harness. The harness pins one thread per core and runs a poll loop on an
+   iceoryx `WaitSet`. iceoryx v1 needs the RouDi daemon. The project does not use Rust,
+   so the plane is C++. There is one runtime model for all planes, not a choice per
+   plane. A CPU-bound plane busy-polls. An I/O-bound plane runs blocking worker threads
+   over the same iceoryx transport. See `runtime-choice.md` for the measured basis.
 6. **The control plane orchestrates.** It decides where a plane runs, its lifecycle,
    backpressure, and result caching. The BEAM owns _what_ and _where_. The plane
    owns _how fast_.
 
 ## Planes today
 
-| Plane       | Native stack                                       | iceoryx2 pattern  | Isolation                   |
+| Plane       | Native stack                                       | iceoryx pattern  | Isolation                   |
 | ----------- | -------------------------------------------------- | ----------------- | --------------------------- |
 | Control     | BEAM (weft)                                        | —                 | supervised (OTP)            |
-| Game data   | thread-per-core Rust harness + Jolt                | publish-subscribe | out of BEAM                 |
+| Game data   | thread-per-core C++ harness + Jolt                 | publish-subscribe | out of BEAM                 |
 | SUMO        | Eclipse SUMO traffic microsimulation               | publish-subscribe | out of BEAM                 |
 | Asset baker | OpenUSD + Adobe glTF plugin (fabric-stage-runtime) | request-response  | out of BEAM, crash-isolated |
 | Store       | native SQLite (WAL) + FoundationDB replica         | request-response  | out of BEAM, crash-isolated |
@@ -111,36 +111,37 @@ like a CDN. Baking
 is off the game hot path. See `runtime-choice.md`.
 
 New planes (physics, ML inference, video/audio transcode) use the same contract: a
-native process plus iceoryx2 publish-subscribe or request-response. There is nothing
+native process plus iceoryx publish-subscribe or request-response. There is nothing
 new to design per plane.
 
 The thread-per-core harness is the loop every plane runs, not a plane by itself. In
 the game data plane, the harness runs the loop, drives Jolt (physics), and reaches the
-control plane and other planes through iceoryx2. Every plane uses the harness the same
-way. The harness is a thin Rust layer over iceoryx2, not Seastar. So a plane builds and
-runs natively on Windows and Linux. See `runtime-choice.md` for the measured basis.
+control plane and other planes through iceoryx. Every plane uses the harness the same
+way. The harness is a thin C++ layer over iceoryx v1, not Seastar and not Rust. Linux
+is the primary target. Windows support in iceoryx v1 is experimental. See
+`runtime-choice.md` for the measured basis.
 
 ## Durable state: FoundationDB
 
-iceoryx2 is a local bus. It connects planes on the same machine with zero copy. It
+iceoryx is a local bus. It connects planes on the same machine with zero copy. It
 does not cross machines and it does not store anything.
 
 Durable, cross-machine state lives in **FoundationDB**. The control plane reads and
 writes it with the FoundationDB client (`erlfdb`) over the network. FoundationDB holds actor state,
 zone state, and entity ownership. It survives crashes, and it lets an actor or zone
 move to another machine and still find its data. FoundationDB is not a plane and is
-not on iceoryx2. It is the shared source of truth below the planes.
+not on iceoryx. It is the shared source of truth below the planes.
 
 Two boundaries, two jobs:
 
-- **iceoryx2**: same machine, zero-copy, hot path, between planes.
+- **iceoryx**: same machine, zero-copy, hot path, between planes.
 - **FoundationDB**: across machines, durable state, over the network.
 
 ## Results
 
 - The BEAM stays fast. It never does slow work, so scheduler latency stays low no
   matter what the planes do.
-- Each plane can use the best language for the job (C++, Rust) and its own CPU
+- Each plane can use C++ and its own CPU
   cores.
 - A plane can be replaced, scaled, or crash without touching the control plane.
 - Deployment is the same for all planes: the container image holds the plane
@@ -166,8 +167,8 @@ The TUI mode swaps the render for printed text. Two separations apply.
 ### Client, not a plane
 
 A SteamVR HMD is a remote client across the network over WebTransport, not on
-iceoryx2, so it is a client like Godot, not a plane. The word plane stays for
-server-side iceoryx2 processes. The server-side parts that feed and consume the
+iceoryx, so it is a client like Godot, not a plane. The word plane stays for
+server-side iceoryx processes. The server-side parts that feed and consume the
 headset's data are planes.
 
 ### Authority and interest, both

@@ -17,9 +17,9 @@ Rules and conventions for the weft repo. Follow them.
 ## Architecture
 
 - The BEAM runs only the control plane. Every heavy plane is a native process outside the BEAM.
-- Planes talk over Eclipse iceoryx2, zero-copy. Never a Port. Networking is off by default.
-- A plane runs a thin Rust thread-per-core harness over iceoryx2, not Seastar. One runtime model for all planes, native on Windows and Linux.
-- Durable state is FoundationDB, over the network with `erlfdb`. iceoryx2 does not cross machines.
+- Planes talk over Eclipse iceoryx, zero-copy. Never a Port. Networking is off by default.
+- A plane runs a thin C++ thread-per-core harness over iceoryx v1, not Seastar and not Rust. One runtime model for all planes. iceoryx v1 needs the RouDi daemon.
+- Durable state is FoundationDB, over the network with `erlfdb`. iceoryx does not cross machines.
 - The store is a native plane. It tiers a local SQLite WAL primary to a FoundationDB replica to S3-compatible object storage.
 - The asset CDN uses casync through the `desync` fork. Chunks go into SQLite to FoundationDB to the S3-compatible tier, not a naive S3 CDN.
 - The client transport is HTTP/3 and WebTransport. Never HTTP/1.1.
@@ -31,6 +31,7 @@ Rules and conventions for the weft repo. Follow them.
 - Return `{:ok, _}` and `{:error, _}` tuples.
 - Low latency is the priority. Keep durability and replication off the write path.
 - Match every enum variant. Do not use a catch-all arm.
+- Do not use Rust. The target environment blocklists it. Native planes are C++.
 - Formalize an algorithm in Lean4 first, then port it to Elixir. The spec lives in `lean/`.
 - Lean4 proofs use `native_decide`. Do not use Mathlib. Elixir tests mirror the proofs.
 

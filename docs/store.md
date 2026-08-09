@@ -67,7 +67,7 @@ This is the trade for low-latency writes.
 
 The store runs SQLite natively in its own process, a store plane, the same as rivet
 runs per-actor SQLite in rivetkit-core rather than in the orchestrator. The BEAM
-control plane reaches it over iceoryx2. The reason is crash isolation: SQLite in a
+control plane reaches it over iceoryx. The reason is crash isolation: SQLite in a
 BEAM NIF takes the whole VM down if it faults, while a separate store plane can crash
 and be restarted on its own (`planes.md`, why not a dirty NIF).
 
@@ -79,7 +79,7 @@ per-write FoundationDB cost never sits on the path.
 The logic is prototyped in Elixir today (`Weft.Actor.Store.Replicated` plus
 `Weft.Actor.Store.Replicator`), tested against a live FoundationDB, so the design is
 proven before the native port. The production store plane ports this same logic to a
-native process behind iceoryx2.
+native process behind iceoryx.
 
 The boundary still holds: this store holds control-plane actor KV only, not game or
 entity or world state. That is the data plane (`data-plane.md`); its durable form is
