@@ -1,0 +1,6 @@
+# Podman Quadlet network for weft. Both containers join it.
+[Unit]
+Description=weft container network
+
+[Network]
+NetworkName=weft

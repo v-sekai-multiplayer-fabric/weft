@@ -1,0 +1,34 @@
+# Build and run weft in a container. Docker on Windows and Podman on Fedora both use
+# this image. The versions match the CI: Elixir 1.20, OTP 29, and FoundationDB 7.3.76.
+ARG ELIXIR_IMAGE=hexpm/elixir:1.20.3-erlang-29.0.5-debian-bookworm-20260803
+ARG FDB_VERSION=7.3.76
+
+FROM ${ELIXIR_IMAGE}
+ARG FDB_VERSION
+
+# Build tools for the NIFs (exqlite, erlfdb, and the native data-plane NIF), plus the
+# FoundationDB client library so erlfdb links against libfdb_c.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      build-essential git curl ca-certificates \
+  && curl -fsSL -o /tmp/fdb-clients.deb \
+      "https://github.com/apple/foundationdb/releases/download/${FDB_VERSION}/foundationdb-clients_${FDB_VERSION}-1_amd64.deb" \
+  && dpkg -i /tmp/fdb-clients.deb \
+  && rm /tmp/fdb-clients.deb \
+  && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+RUN mix local.hex --force && mix local.rebar --force
+
+# Fetch and compile the dependencies first. A later code change does not refetch them.
+COPY mix.exs mix.lock ./
+RUN mix deps.get
+COPY . .
+RUN mix deps.compile && mix compile
+
+# The store plane reads this cluster file to reach FoundationDB. Compose and the
+# Quadlet unit both override it to the shared path.
+ENV WEFT_FDB_CLUSTER_FILE=/etc/foundationdb/fdb.cluster
+
+# Run the control plane. Override the command to run the tests or the stress bench, for
+# example `mix test` or `mix run bench/sumo_tui.exs`.
+CMD ["mix", "run", "--no-halt"]
