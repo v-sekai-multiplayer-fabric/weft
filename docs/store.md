@@ -53,15 +53,15 @@ This is the trade for low-latency writes.
 
 ## rivet vs weft
 
-| Aspect | rivet | weft |
-| --- | --- | --- |
-| Local file | none | yes, the fast primary |
-| Commit | sync FoundationDB txn (~1 ms) | local (~µs), replicate async |
-| Durability | strong | eventual |
-| Read | per page from FoundationDB | local file; hydrate once on open |
-| FoundationDB role | source of truth, on the hot path | durable replica and handoff, off the hot path |
-| DELTA / SHARD / compaction | yes | yes, for the replica |
-| Single writer | Pegboard | Horde |
+| Aspect                     | rivet                            | weft                                          |
+| -------------------------- | -------------------------------- | --------------------------------------------- |
+| Local file                 | none                             | yes, the fast primary                         |
+| Commit                     | sync FoundationDB txn (~1 ms)    | local (~µs), replicate async                  |
+| Durability                 | strong                           | eventual                                      |
+| Read                       | per page from FoundationDB       | local file; hydrate once on open              |
+| FoundationDB role          | source of truth, on the hot path | durable replica and handoff, off the hot path |
+| DELTA / SHARD / compaction | yes                              | yes, for the replica                          |
+| Single writer              | Pegboard                         | Horde                                         |
 
 ## Build order
 
