@@ -35,6 +35,15 @@ rivet_ex-*.tar
 bench/sumo/scenario/
 bench/sumo/replay
 
+# Native benches: compiled from the .c sources next to them. CI builds and runs them,
+# then uploads the numbers. Never commit the binaries.
+bench/pps_dram
+bench/pps_native
+bench/ring_native
+bench/udp_recv
+bench/zstd_frames
+bench/fly/netbench
+
 # Native planes (C++): build output is not committed.
 native/**/build/
 

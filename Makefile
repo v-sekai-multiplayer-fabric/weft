@@ -8,7 +8,7 @@ NIF := $(PRIV)/weft_dataplane_nif.so
 
 all: $(NIF)
 
-$(NIF): c_src/weft_dataplane_nif.c
+$(NIF): native/nif/weft_dataplane_nif.c
 	@mkdir -p $(PRIV)
 	$(CC) $(CFLAGS) -shared -pthread -o $@ $<
 
