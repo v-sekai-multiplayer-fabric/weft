@@ -1,0 +1,29 @@
+cff-version: 1.2.0
+message: "If you use weft, please cite it as below."
+title: weft
+abstract: >-
+  Single-writer actors, a level-triggered pool reconciler, and durable per-actor
+  SQLite for the multiplayer fabric control plane.
+type: software
+authors:
+  - family-names: Lee
+    given-names: "K. S. Ernest (iFire)"
+repository-code: "https://github.com/v-sekai-multiplayer-fabric/weft"
+keywords:
+  - actors
+  - control-plane
+  - character
+  - avatar
+references:
+  - type: standard
+    title: "Characters and Avatars Technical Subgroup Charter"
+    version: "0.1.0"
+    date-released: 2025-09-24
+    authors:
+      - name: "Khronos 3D Formats Working Group, Characters and Avatars TSG (CATSG)"
+    abstract: >-
+      Charter of the Character and Avatars Technical Subgroup (CATSG) of the
+      Khronos 3D Formats Working Group. weft adopts its terminology for the
+      character domain: Character, Avatar, Persona, and Identity. weft renames the
+      charter's "entity" (an avatar's controller) to "controller", because weft
+      already uses "entity" for the runtime sim unit (the fabric entity packet).

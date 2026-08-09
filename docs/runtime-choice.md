@@ -60,8 +60,8 @@ OpenUSD or Godot. The stage tier is a different job. The asset baker and the Ope
 stage tier together form weft's **asset CDN**:
 
 - **Asset baker plane** (OpenUSD + Adobe glTF, request-response) bakes a source glb
-  into an OpenUSD stage. This is a job: the control plane sends a bake request, the
-  baker responds with a content-addressed baked stage.
+  Character into an OpenUSD stage. This is a job: the control plane sends a bake
+  request, the baker responds with a content-addressed baked stage.
 - **OpenUSD stage tier** (server-side) holds the baked stages and distributes them to
   clients like a CDN: content-addressed, cached, fanned out. The control plane owns
   the cache and the fanout, the same way it orchestrates any plane.

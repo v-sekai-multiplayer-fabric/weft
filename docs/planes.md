@@ -12,19 +12,35 @@ a large C++ library runs as its own native process. We call each one a **plane**
 
 ## Terms
 
-One name per concept.
+One name per concept. The character terms are the Khronos 3D Formats Characters and
+Avatars TSG definitions (see `CITATION.cff`); the runtime terms are weft's.
+
+Runtime:
 
 - **actor**: a weft runtime process with a single writer. The control-plane
   primitive.
 - **zone**: an actor that owns one spatial partition and simulates the entities in
   it. A zone is a kind of actor. The whole set of zones is the shard.
 - **entity**: one simulated thing inside a zone, with position and velocity. The unit
-  the game data plane moves, thousands per zone. An entity is not an actor.
-- **player entity**: the entity that represents a connected player. We do not use the
-  word avatar.
+  the game data plane moves, thousands per zone. An entity is not an actor. Authority
+  is per entity: each entity is authoritative on exactly one zone, and a zone owns
+  many entities, so it is not one zone per entity.
 
-Authority is per entity: each entity is authoritative on exactly one zone. A zone
-owns many entities, so it is not one zone per entity.
+Character domain (Khronos CATSG):
+
+- **Character**: a 3D asset representing a potentially animatable figure (human,
+  animal, creature), including metadata about usage of the model. The asset CDN bakes
+  and stores Characters.
+- **Avatar**: a Character controlled by a controller to embody them in the 3D world. A
+  player's embodiment is an avatar; its per-tick runtime state (pose, position)
+  travels as an entity.
+- **controller**: the human or AI that controls an avatar. The TSG names this concept
+  "entity"; weft says controller, because entity already names the runtime sim unit
+  above. This keeps one name per concept.
+- **player**: a controller that is a human.
+- **Persona**: a controller's personality expressed through their avatar.
+- **Identity**: the controller embodying an avatar, plus the data that identifies them
+  (authentication, verification).
 
 ## Why not a dirty NIF
 
@@ -85,8 +101,9 @@ The SUMO plane is the current focus. It streams per-step entity movement into th
 ring, the game data plane's publish-subscribe pattern.
 
 The asset baker plane plus the OpenUSD stage tier form weft's **asset CDN**: the
-baker bakes a source glb into a content-addressed OpenUSD stage (request-response),
-and the stage tier caches and distributes baked stages to clients like a CDN. Baking
+baker bakes a source glb Character into a content-addressed OpenUSD stage
+(request-response), and the stage tier caches and distributes baked stages to clients
+like a CDN. Baking
 is off the game hot path. See `runtime-choice.md`.
 
 New planes (physics, ML inference, video/audio transcode) use the same contract: a
@@ -143,9 +160,9 @@ authority/interest split, formalized in
 
 - **Authority (upstream).** Each entity is authoritative on exactly one zone (the game
   data plane, proven single-owner), which advances its world and physics state. The
-  exception is a player entity's tracked pose, head and hands: that comes only from the
+  exception is a player's avatar tracked pose, head and hands: that comes only from the
   HMD tracker, so the client is the source and sends it upstream. The zone owns
-  everything else about the player entity.
+  everything else about the avatar.
 - **Interest (downstream).** The player has interest in the surrounding world and
   receives read-only area-of-interest replicas, served as `CH_INTEREST` snapshots. A
   peer can hold interest in an entity without authority over it; interest replicas do
@@ -153,8 +170,8 @@ authority/interest split, formalized in
   staleness and k-tick lookahead.
 
 A pure observer is the degenerate case: interest only, zero authority. The "observe
-from SteamVR" ask is this case; a full VR player adds the player-entity pose
-authority upstream.
+from SteamVR" ask is this case; a full VR player adds the avatar pose authority
+upstream.
 
 ### Transport
 
