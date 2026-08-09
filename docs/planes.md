@@ -107,42 +107,63 @@ Two boundaries, two jobs:
 - Deployment is the same for all planes: the container image holds the plane
   binaries at fixed paths, so shared-library paths are known. Fly runs that image.
 
-## VR observer
+## VR headset
 
-We want to observe a live world from SteamVR, with WebTransport running in the HMD.
-This splits in two, and the split is settled:
+A SteamVR headset observing or playing a live world, with WebTransport in the HMD.
+Two separations apply.
 
-- **The HMD is a client.** A SteamVR HMD is a remote client across the network over
-  WebTransport, not on iceoryx2, so it is a client like Godot, not a plane. The word
-  plane stays for server-side iceoryx2 processes.
-- **The part that provides the observer's data is a plane.** That is server-side. The
-  game data plane already produces digested world state, so its output is the
-  observer feed; the gateway forwards it to the HMD over WebTransport.
+### Client, not a plane
 
-A single read-only VR headset needs no new plane: it consumes the game data plane's
-full digest over WebTransport. A dedicated spectator plane is added only when a
-concrete trigger appears:
+A SteamVR HMD is a remote client across the network over WebTransport, not on
+iceoryx2, so it is a client like Godot, not a plane. The word plane stays for
+server-side iceoryx2 processes. The server-side parts that feed and consume the
+headset's data are planes.
 
-- **Scale.** Many observers on a popular zone. The game data plane's reactor cores
-  are pinned at 100% for the simulation, so spectator fanout and encoding must not
-  steal cycles from it. A spectator plane reads the output and scales on its own
-  cores.
-- **A wider or enriched view.** The authoritative feed is area-of-interest culled per
-  participant and omits what players must not see. A whole-zone or director camera,
-  or overlays players never get (everyone's names and stats, event markers), is extra
-  work on an un-culled view.
-- **Delay and replay.** Broadcast spectating runs on a delay with scrubbing and
-  replay to stop stream-sniping, a stateful buffer distinct from the live feed.
+### Authority and interest, both
 
-Until one of these holds, there is no spectator plane.
+A HMD player is both an authority and an interest subscriber. This is the
+authority/interest split, formalized in
+[`lean-interest-mgmt`](https://github.com/v-sekai-multiplayer-fabric/lean-interest-mgmt).
+
+- **Authority (upstream).** The player is the authority for their own avatar's tracked
+  pose: head and hands. The tracker is the only source of that pose, so it originates
+  at the HMD and flows upstream as authoritative data. World and physics authority
+  stays server-side, one zone per entity (proven single-owner); the avatar pose is the
+  part the client owns.
+- **Interest (downstream).** The player has interest in the surrounding world and
+  receives read-only area-of-interest replicas, served as `CH_INTEREST` snapshots. A
+  peer can hold interest in an entity without authority over it; interest replicas do
+  not consume authority slots and are bounded separately, with causal vector-clock
+  staleness and k-tick lookahead.
+
+A pure observer is the degenerate case: interest only, zero authority. The "observe
+from SteamVR" ask is this case; a full VR player adds the avatar-pose authority
+upstream.
+
+### Transport
+
+Both directions ride WebTransport. Live pose upstream and live world interest
+downstream use unreliable drop-stale datagrams for the latest state (see `protocol.md`
+and `latency.md`). Control and pulling baked OpenUSD stages from the asset CDN use
+reliable streams.
+
+### The feed is interest, and when it needs its own plane
+
+The interest feed is always an interest producer, never authority. A single headset
+can ride the game data plane's interest output directly. A dedicated spectator plane
+(still interest, never authority) is warranted when the interest view must scale or
+widen past per-peer area-of-interest culling:
+
+- **Scale.** Many observers on a popular zone. The game data plane's reactor cores are
+  pinned at 100% for the authority simulation, so interest fanout and encoding must
+  not steal cycles from it. A spectator plane produces interest on its own cores.
+- **A wider or enriched interest view.** A whole-zone or director camera, or overlays
+  beyond per-peer area-of-interest culling (everyone's names and stats, event markers).
+- **Delay and replay.** Broadcast spectating runs on a delay with scrubbing and replay
+  to stop stream-sniping, a stateful interest buffer distinct from the live feed.
 
 ### Open questions
 
-1. **Transport.** Real-time observation uses unreliable drop-stale datagrams for the
-   latest entity and pose state (see `protocol.md` and `latency.md`); control and
-   pulling baked OpenUSD stages from the asset CDN use reliable streams. Confirm.
-2. **Role.** Observe only (read-only) first. Later, does it send input and become a
-   participant, or stay a pure observer?
-3. **Engine.** Godot already has OpenXR and SteamVR support, so the VR client may be
+1. **Engine.** Godot already has OpenXR and SteamVR support, so the VR client may be
    Godot plus OpenXR consuming WebTransport, consistent with "Godot stays on the
    client." Or a custom WebTransport HMD client. Decide one.
