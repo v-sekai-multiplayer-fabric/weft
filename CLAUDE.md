@@ -6,6 +6,7 @@ Rules and conventions for the weft repo. Follow them.
 
 - weft is the Elixir and OTP control plane of the multiplayer fabric.
 - The docs in `docs/` are the source of truth. Start with `docs/planes.md`.
+- `docs/how-it-works.md` is the plain explanation for a new reader. Keep it correct.
 
 ## Writing
 
@@ -75,6 +76,7 @@ Keep the top level small. Put a new file in one of these directories.
 
 ## Reference docs
 
+- `docs/how-it-works.md` explains the whole system to a new reader. Send a newcomer there.
 - `docs/planes.md`, `docs/data-plane.md`, `docs/store.md`, `docs/protocol.md`, `docs/latency.md`.
 - `docs/yagni.md`, `docs/runtime-choice.md`, `docs/benchmarks.md`.
 - `docs/tasks.md` records the open work, the state today, and the next step.
