@@ -2,8 +2,9 @@
 #
 #   docker compose -f deploy/compose.yaml up --build
 #
-# It starts FoundationDB, configures a single-node database once, then runs weft. The
-# three services share one volume that holds the FoundationDB cluster file.
+# It starts FoundationDB, configures a single-node database once, then runs weft. It
+# also runs versitygw as the S3-compatible cold tier and backs FoundationDB up to it.
+# The FoundationDB services share one volume that holds the cluster file.
 services:
   fdb:
     image: foundationdb/foundationdb:7.3.76
@@ -50,5 +51,39 @@ services:
     ports:
       - "4000:4000"
 
+  # The S3-compatible cold tier. versitygw turns a local directory into an S3 server.
+  # FoundationDB backs up to it. See docs/store.md.
+  versitygw:
+    image: ghcr.io/versity/versitygw:latest
+    environment:
+      ROOT_ACCESS_KEY: weft
+      ROOT_SECRET_KEY: weftsecret
+    command: ["--port", ":7070", "posix", "/data"]
+    volumes:
+      - s3:/data
+    ports:
+      - "7070:7070"
+
+  # Continuous FoundationDB backup to versitygw. This is the SQLite to FDB to S3 tier.
+  fdb-backup:
+    image: foundationdb/foundationdb:7.3.76
+    depends_on:
+      fdb-init:
+        condition: service_completed_successfully
+      versitygw:
+        condition: service_started
+    volumes:
+      - fdb:/var/fdb
+    restart: on-failure
+    entrypoint: ["/bin/bash", "-lc"]
+    command:
+      - |
+        dest='blobstore://weft:weftsecret@versitygw:7070/fdb?bucket=fdb-backup&secure_connection=0&region=us-east-1'
+        backup_agent -C /var/fdb/fdb.cluster --log --logdir /var/log/foundationdb &
+        sleep 3
+        fdbbackup start -C /var/fdb/fdb.cluster -d "$dest" -z || true
+        wait
+
 volumes:
   fdb: {}
+  s3: {}
