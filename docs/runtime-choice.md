@@ -75,3 +75,76 @@ stage tier together form weft's **asset CDN**:
 
 Both run as planes over iceoryx2, not in-BEAM NIFs, since `planes.md` forbids heavy
 C++ in the BEAM. Baking is off the game hot path; the >15M path stays native.
+
+## Seastar or iceoryx2 with a thin harness (Windows support)
+
+Seastar is Linux-only. It builds on epoll, io_uring, Linux AIO, and DPDK. A native
+Windows plane cannot use it. iceoryx2 runs on Windows. So we asked one question. Can
+iceoryx2 plus a small thread-per-core loop replace Seastar for a plane?
+
+### The experiment
+
+We ran iceoryx2's own publish-subscribe benchmark. It pins two threads to two cores and
+measures the round-trip latency of the zero-copy path. The machine is a Ryzen 7 3800X.
+The pinning uses `iceoryx2_bb_posix::thread::ThreadBuilder::affinity()`, an iceoryx2
+building block. Each run does 10 million A to B to A round trips.
+
+| Path | 12 B | 768 B | 8192 B |
+| --- | --- | --- | --- |
+| IPC zero-copy (cross-process) | 236 ns | 233 ns | 239 ns |
+| Process-local (same process) | 254 ns | 239 ns | — |
+| IPC, thread-safe variant | 282 ns | 269 ns | 268 ns |
+| IPC, `--send-copy` (768 B) | — | 226 ns | — |
+
+### What the numbers show
+
+- The one-way latency is about 118 ns. That is very good on a 2019 desktop.
+- The latency stays flat from 12 B to 8 KB. This proves true zero-copy. Only an offset
+  crosses, not the payload.
+- Cross-process IPC is as fast as same-process here. So a split into separate processes
+  costs nothing versus Seastar's single-process model. This removes the main structural
+  advantage of Seastar.
+- One serial ping-pong link runs 2.11 million round trips per second. A streaming link
+  runs far higher, well above the 15M snapshots per second the ring produces. So the
+  transport does not bound the plane.
+
+### The code cost of the harness
+
+The hot path is about 30 to 40 lines. It creates a node, a service, a publisher, and a
+subscriber. Then it loans, sends, and receives. The thread pinning is one call. It uses
+`iceoryx2_bb_posix` on POSIX. On Windows it uses `std::thread` plus the `core_affinity`
+crate.
+
+### Does it fit every plane?
+
+- **Game data plane** (publish-subscribe, CPU-bound, hot path). This is the ideal fit. A
+  busy-poll thread-per-core loop over iceoryx2 matches the design.
+- **Store plane, asset baker plane, and OpenUSD stage tier** (request-response,
+  I/O-bound). iceoryx2 carries the transport. The execution is blocking worker threads,
+  not a busy poll. This is simpler than Seastar's async I/O. It keeps I/O off the hot
+  path, which the design already requires.
+- **The network-ingest plane** (the one plane with networking on). It needs a QUIC or
+  socket stack in any case. Seastar would give async sockets. Without Seastar, that one
+  plane uses a Rust QUIC stack. Neither Seastar nor iceoryx2 gives WebTransport.
+
+So iceoryx2 works as the transport for all planes. The busy-poll model fits the
+CPU-bound hot planes. The I/O planes use blocking workers over the same transport.
+
+### Is it less bloated than Seastar?
+
+Yes, for weft. Seastar is a full runtime. It has a reactor, futures, a per-core
+allocator, and a DPDK network stack. A weft plane uses the thread-per-core part and
+little else. iceoryx2 plus `core_affinity` pulls in the transport and the pinning only.
+So it is less code for what a plane needs. The Seastar parts we drop are the parts we do
+not use.
+
+### Tradeoff and recommendation
+
+Seastar gave one runtime model for all planes (`planes.md` rule 5). The iceoryx2 approach
+is uniform at the transport. The execution differs by plane. It is busy-poll for CPU
+planes and blocking workers for I/O planes.
+
+Recommendation: if native Windows is a product requirement, adopt iceoryx2 plus a thin
+thread-per-core harness, in Rust, and drop Seastar. The native planes are not built yet,
+so the switch is cheap now and expensive later. This change rewrites `planes.md` rule 5.
+Treat that rewrite as an open question until we decide.
