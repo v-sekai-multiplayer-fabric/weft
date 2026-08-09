@@ -9,6 +9,10 @@ on:
   push:
     branches: [main]
 
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
     runs-on: ubuntu-24.04
@@ -32,13 +36,20 @@ jobs:
             _build
           key: ${{ runner.os }}-mix-1.20-29-${{ hashFiles('mix.lock') }}
 
+      - name: cache FoundationDB packages
+        uses: actions/cache@v6
+        with:
+          path: ~/fdb-debs
+          key: fdb-debs-${{ env.FDB_VERSION }}
+
       - name: Install FoundationDB
         run: |
-          curl -fsSL -o /tmp/fdb-clients.deb \
+          mkdir -p ~/fdb-debs
+          [ -f ~/fdb-debs/clients.deb ] || curl -fsSL -o ~/fdb-debs/clients.deb \
             "https://github.com/apple/foundationdb/releases/download/${FDB_VERSION}/foundationdb-clients_${FDB_VERSION}-1_amd64.deb"
-          curl -fsSL -o /tmp/fdb-server.deb \
+          [ -f ~/fdb-debs/server.deb ] || curl -fsSL -o ~/fdb-debs/server.deb \
             "https://github.com/apple/foundationdb/releases/download/${FDB_VERSION}/foundationdb-server_${FDB_VERSION}-1_amd64.deb"
-          sudo dpkg -i /tmp/fdb-clients.deb /tmp/fdb-server.deb
+          sudo dpkg -i ~/fdb-debs/clients.deb ~/fdb-debs/server.deb
           # The server package's postinst starts a single-node cluster. Wait for it.
           for i in $(seq 1 30); do
             fdbcli --exec 'status minimal' | grep -q 'The database is available' && break
