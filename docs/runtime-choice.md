@@ -35,16 +35,16 @@ each — one to five orders of magnitude over the 66 ns budget. The hot loop is
 it (~3 µs/read, `docs/data-plane.md`).
 
 They are not competing for the hot path — they are **stage-tier** choices (world
-representation and authoring, at Hz). For the _server-side_ stage runtime consumed
-by weft's control plane, **fabric-stage-runtime (OpenUSD via Elixir) fits better
-than embedding Godot**: it is a headless library (no renderer/input/VM baggage),
-composition- and interchange-oriented, and already packaged for the BEAM. Godot
-stays on the client.
+representation and authoring, at Hz). For the _server-side_ stage runtime,
+**fabric-stage-runtime (OpenUSD) fits better than embedding Godot**: it is a headless
+library (no renderer/input/VM baggage), composition- and interchange-oriented. It
+runs as a plane over iceoryx2 (a separate native process), not as an in-BEAM NIF,
+because `planes.md` forbids heavy C++ in the BEAM. Godot stays on the client.
 
 So the layering the benchmark points to:
 
 1. **Hot path (>15M/s):** native Jolt/Seastar → `Weft.DataPlane.Ring`.
-2. **Stage/world representation:** OpenUSD (fabric-stage-runtime), server-side. Deferred (YAGNI for now), planned to return later as a plane over iceoryx2.
+2. **Stage/world representation:** OpenUSD (fabric-stage-runtime), server-side, as a plane over iceoryx2.
 3. **Control plane:** weft (placement, single-writer, lifecycle, durable state).
 4. **Client:** Godot.
 
@@ -53,15 +53,18 @@ and flatten rates), not the hot path; it needs the prebuilt OpenUSD archive and 
 headless Godot build. Worth doing only to size the authoring tier, since neither is
 on the 15M path.
 
-## Status
+## The asset pipeline is a CDN
 
 The hot-path conclusion above stands: the >15M producer is native Jolt/Seastar, not
-OpenUSD or Godot.
+OpenUSD or Godot. The stage tier is a different job. The asset baker and the OpenUSD
+stage tier together form weft's **asset CDN**:
 
-Two things are set aside, at different strengths:
+- **Asset baker plane** (OpenUSD + Adobe glTF, request-response) bakes a source glb
+  into an OpenUSD stage. This is a job: the control plane sends a bake request, the
+  baker responds with a content-addressed baked stage.
+- **OpenUSD stage tier** (server-side) holds the baked stages and distributes them to
+  clients like a CDN: content-addressed, cached, fanned out. The control plane owns
+  the cache and the fanout, the same way it orchestrates any plane.
 
-- **Asset baker plane** (OpenUSD + Adobe glTF, request-response): deleted (YAGNI).
-  Gone, not planned.
-- **OpenUSD stage tier** (layer 2, server-side world representation): deferred (YAGNI
-  for now), planned to return later. When it returns it runs as a plane over
-  iceoryx2, not an in-BEAM NIF, since `planes.md` forbids heavy C++ in the BEAM.
+Both run as planes over iceoryx2, not in-BEAM NIFs, since `planes.md` forbids heavy
+C++ in the BEAM. Baking is off the game hot path; the >15M path stays native.

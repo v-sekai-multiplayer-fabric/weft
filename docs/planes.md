@@ -35,7 +35,8 @@ Every plane that is not the control plane follows the same rules:
    planes. Because planes talk over iceoryx2, not the network, **networking is off by
    default** (`--unshare-net`). The one exception is the plane that ingests from the
    network (the game data plane). This matters for a plane that handles untrusted
-   input: with no network, a broken or exploited plane cannot reach out. It is also
+   input: the asset baker parses arbitrary glb files, so with no network a broken or
+   exploited baker cannot reach out. It is also
    crash-isolated: if it crashes, the BEAM keeps running and the plane is restarted
    on its own. The BEAM checks liveness only. On Fly this is a second layer inside
    the machine's container.
@@ -57,14 +58,20 @@ Every plane that is not the control plane follows the same rules:
 
 ## Planes today
 
-| Plane     | Native stack                         | iceoryx2 pattern   | Isolation        |
-| --------- | ------------------------------------ | ----------------- | ---------------- |
-| Control   | BEAM (weft)                          | —                 | supervised (OTP) |
-| Game data | Seastar/DPDK + Jolt                  | publish-subscribe | out of BEAM      |
-| SUMO      | Eclipse SUMO traffic microsimulation | publish-subscribe | out of BEAM      |
+| Plane       | Native stack                                       | iceoryx2 pattern  | Isolation                   |
+| ----------- | -------------------------------------------------- | ----------------- | --------------------------- |
+| Control     | BEAM (weft)                                        | —                 | supervised (OTP)            |
+| Game data   | Seastar/DPDK + Jolt                                | publish-subscribe | out of BEAM                 |
+| SUMO        | Eclipse SUMO traffic microsimulation               | publish-subscribe | out of BEAM                 |
+| Asset baker | OpenUSD + Adobe glTF plugin (fabric-stage-runtime) | request-response  | out of BEAM, crash-isolated |
 
 The SUMO plane is the current focus. It streams per-step entity movement into the
 ring, the game data plane's publish-subscribe pattern.
+
+The asset baker plane plus the OpenUSD stage tier form weft's **asset CDN**: the
+baker bakes a source glb into a content-addressed OpenUSD stage (request-response),
+and the stage tier caches and distributes baked stages to clients like a CDN. Baking
+is off the game hot path. See `runtime-choice.md`.
 
 New planes (physics, ML inference, video/audio transcode) use the same contract: a
 native process plus iceoryx2 publish-subscribe or request-response. There is nothing
