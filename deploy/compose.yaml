@@ -12,28 +12,36 @@ services:
       FDB_NETWORKING_MODE: container
     volumes:
       - fdb:/var/fdb
-    healthcheck:
-      test: ["CMD", "fdbcli", "-C", "/var/fdb/fdb.cluster", "--exec", "status minimal"]
-      interval: 5s
-      timeout: 5s
-      retries: 30
 
   # Configure the database one time. The step is safe to run again.
+  #
+  # This waits for the server itself. A healthcheck on `fdb` cannot gate this step,
+  # because `status minimal` reports the database as unavailable until `configure new`
+  # runs, and `configure new` runs here. A healthcheck would deadlock the first start.
+  #
+  # The step is idempotent. `configure new` fails when the database exists, so the loop
+  # tests availability first and exits 0 when the database is already configured.
   fdb-init:
     image: foundationdb/foundationdb:7.3.76
     depends_on:
       fdb:
-        condition: service_healthy
+        condition: service_started
     volumes:
       - fdb:/var/fdb
     restart: "no"
     entrypoint: ["/bin/bash", "-lc"]
     command:
       - |
-        for i in $(seq 1 30); do
-          fdbcli -C /var/fdb/fdb.cluster --exec 'configure new single memory' && exit 0
+        for i in $(seq 1 60); do
+          if fdbcli -C /var/fdb/fdb.cluster --exec 'status minimal' 2>/dev/null \
+             | grep -q 'The database is available'; then
+            echo "FoundationDB is available."
+            exit 0
+          fi
+          fdbcli -C /var/fdb/fdb.cluster --exec 'configure new single memory' >/dev/null 2>&1 || true
           sleep 2
         done
+        echo "FoundationDB did not become available."
         exit 1
 
   weft:
