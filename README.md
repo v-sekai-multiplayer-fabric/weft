@@ -31,35 +31,44 @@ process semantics, and distribution for free.
 | `Bump` signal | `Reconciler.bump/1` |
 | Reschedule on runner loss | monitor `:DOWN` → re-observe → re-converge (self-heal) |
 
-## Implemented (this slice)
+## Implemented
 
 - Single-writer actors under a supervision tree, addressed through a registry,
-  with race-safe `get_or_create`.
+  with race-safe `get_or_create` that tolerates the registry-cleanup window.
+- **Durable per-actor state**: one SQLite database per actor, write-through,
+  restored on restart. The single writer means no locking or lease.
+- **Scale-to-zero lifecycle**: an idle actor stops and releases its process, then
+  the next request wakes a fresh process that restores state from disk.
 - The level-triggered pool reconciler: `desired = clamp(margin + ceil(demand /
-  slots), min, max)`, converging the live runner set with no counter.
-- Self-heal: a killed runner re-converges the pool instead of wedging it.
+  slots), min, max)`, converging the live runner set with no counter; self-heals
+  when a runner crashes.
 - Tests mirror the Rust proof and integration test: `desired_runners/2` unit tests,
-  a `reconciler_never_jams` **property** (positive demand always wants at least one
-  runner), the scale-up-on-demand test (Elixir counterpart of
-  `serverless_pool_reconcile.rs`), crash self-heal, and drain-on-falling-demand.
+  a `reconciler_never_jams` **property**, the scale-up-on-demand test (Elixir
+  counterpart of `serverless_pool_reconcile.rs`), crash self-heal, drain, durable
+  restart, and idle sleep/wake.
 
-Run it:
+## Quality gates
 
 ```sh
-mix test
+mix test        # unit + property tests
+mix dialyzer    # success typing, strict flags (error_handling, extra_return,
+                # missing_return, unmatched_returns)
 ```
+
+Both are green. Dialyzer is the BEAM analogue of the Lean spec: it proves the
+call graph is type-consistent, and it has already caught unhandled return values
+and an over-narrow `@spec` in this code.
 
 ## Roadmap
 
 Ordered by how load-bearing each piece is in rivet.
 
-1. **Durable per-actor state** — SQLite (`exqlite`) or CubDB per actor behind the
-   `RivetEx.Actor` call interface; the single-writer invariant already holds.
-2. **Lifecycle** — sleep/hibernate on idle, wake on request, scale-to-zero (a pool
-   with `min_runners: 0`, already expressible).
-3. **Gateway / routing** — address an actor and forward a request (Phoenix or plug).
-4. **Distribution** — multi-node single-writer via `Horde.Registry` +
+1. ~~**Durable per-actor state**~~ — done: SQLite per actor.
+2. ~~**Lifecycle**~~ — done: idle sleep, wake on request, scale-to-zero.
+3. **Distribution** — multi-node single-writer via `Horde.Registry` +
    `Horde.DynamicSupervisor` (or `:syn`), replacing pegboard's cross-node fencing.
+   This is the part that proves OTP can do pegboard's hardest job.
+4. **Gateway / routing** — address an actor and forward a request (Phoenix or plug).
 5. **Workflow engine** — durable multi-step operations (gasoline → Oban or a
    custom OTP saga) for anything needing replay/observability.
 6. **Data plane** — keep the real-time spatial plane (entity replication, interest
