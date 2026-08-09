@@ -48,7 +48,9 @@ Rules and conventions for the weft repo. Follow them.
 ## Release
 
 - The release is a standard OTP release. It bundles ERTS, so it is self-contained. Do not use Burrito or zig.
-- The cluster packages as a `.deb`, a `.rpm`, and a Windows `.msi`. Each runner builds its own OS.
+- The cluster packages as a `.deb` and a `.rpm`. Linux is the only release target.
+- Do not add a Windows release target. FoundationDB has no Windows build after 7.2.5, so a
+  Windows node cannot run the store plane. Run weft on Windows in a container.
 - The packages install the services enabled. They bundle FoundationDB, so a node is self-contained.
 - `release-native.yml` builds the packages. RFD 0067 sets the dev, beta, and rc stages.
 

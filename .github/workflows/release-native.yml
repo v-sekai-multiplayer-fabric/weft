@@ -1,6 +1,9 @@
-# Build the native artifacts for both Windows and Linux: the C++ data plane and the
-# Elixir release. Each runner builds its own operating system natively. The artifacts
-# upload to the workflow run, never to git.
+# Build the native artifacts for Linux: the C++ data plane and the Elixir release. The
+# artifacts upload to the workflow run, never to git.
+#
+# Linux is the only release target. FoundationDB has no Windows build after 7.2.5, and
+# the pinned 7.3.76 release has no Windows asset. A Windows node can therefore not run
+# the store plane. Run weft on Windows in a container instead. See `deploy/README.md`.
 name: release-native
 
 on:
@@ -17,11 +20,7 @@ permissions:
 
 jobs:
   dataplane:
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, windows-latest]
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
       - name: Build the data plane (C++)
@@ -29,27 +28,17 @@ jobs:
           cmake -B native/dataplane/build -S native/dataplane -DCMAKE_BUILD_TYPE=Release
           cmake --build native/dataplane/build --config Release
       - name: Collect the binary
-        shell: bash
         run: |
           mkdir -p out
-          cp native/dataplane/build/weft-dataplane out/ 2>/dev/null || true
-          cp native/dataplane/build/Release/weft-dataplane.exe out/ 2>/dev/null || true
+          cp native/dataplane/build/weft-dataplane out/
       - uses: actions/upload-artifact@v7
         with:
-          name: weft-dataplane-${{ matrix.os }}
+          name: weft-dataplane-linux
           path: out/*
           if-no-files-found: error
 
   release:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-latest
-            target: linux
-          - os: windows-latest
-            target: windows
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest
     env:
       FDB_VERSION: "7.3.76"
     steps:
@@ -58,27 +47,13 @@ jobs:
         with:
           otp-version: "29"
           elixir-version: "1.20"
-      - name: Install the FoundationDB client (Linux, official)
-        if: matrix.os == 'ubuntu-latest'
+      - name: Install the FoundationDB client
         run: |
           curl -fsSL -o /tmp/fdb.deb \
             "https://github.com/apple/foundationdb/releases/download/${FDB_VERSION}/foundationdb-clients_${FDB_VERSION}-1_amd64.deb"
           sudo dpkg -i /tmp/fdb.deb
-      - name: Install the FoundationDB client (Windows, community)
-        if: matrix.os == 'windows-latest'
-        shell: bash
-        env:
-          FDB_WINDOWS_CLIENT_URL: ${{ vars.FDB_WINDOWS_CLIENT_URL }}
-        run: |
-          if [ -z "${FDB_WINDOWS_CLIENT_URL}" ]; then
-            echo "Set the repository variable FDB_WINDOWS_CLIENT_URL to the community FoundationDB Windows client installer."
-            exit 1
-          fi
-          curl -fsSL -o fdb-client.exe "${FDB_WINDOWS_CLIENT_URL}"
-          ./fdb-client.exe /quiet || ./fdb-client.exe
       # Standard OTP release. It bundles ERTS, so it is self-contained. No Burrito, no zig.
       - name: Build the release
-        shell: bash
         run: |
           mix local.hex --force
           mix local.rebar --force
@@ -87,7 +62,7 @@ jobs:
           tar czf weft-release.tar.gz -C _build/prod/rel weft
       - uses: actions/upload-artifact@v7
         with:
-          name: weft-release-${{ matrix.target }}
+          name: weft-release-linux
           path: weft-release.tar.gz
           if-no-files-found: error
 
@@ -107,7 +82,7 @@ jobs:
           path: dl/release
       - uses: actions/download-artifact@v7
         with:
-          name: weft-dataplane-ubuntu-latest
+          name: weft-dataplane-linux
           path: dl/dataplane
       - name: Fetch the versitygw binary (Linux)
         env:
@@ -157,58 +132,4 @@ jobs:
           path: |
             *.deb
             *.rpm
-          if-no-files-found: error
-
-  # Package the whole cluster for Windows: WiX builds an .msi with the control plane, the
-  # data plane, and the versitygw S3 tier.
-  package-windows:
-    needs: [dataplane, release]
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v5
-      - uses: actions/download-artifact@v7
-        with:
-          name: weft-release-windows
-          path: dl/release
-      - uses: actions/download-artifact@v7
-        with:
-          name: weft-dataplane-windows-latest
-          path: dl/dataplane
-      - name: Fetch the versitygw binary (Windows)
-        shell: bash
-        env:
-          VERSITYGW_WINDOWS_URL: ${{ vars.VERSITYGW_WINDOWS_URL }}
-        run: |
-          if [ -z "${VERSITYGW_WINDOWS_URL}" ]; then
-            echo "Set the repository variable VERSITYGW_WINDOWS_URL to the versitygw Windows binary."
-            exit 1
-          fi
-          curl -fsSL "${VERSITYGW_WINDOWS_URL}" -o versitygw.exe
-      - name: Fetch the community FoundationDB Windows client installer
-        shell: bash
-        env:
-          FDB_WINDOWS_CLIENT_URL: ${{ vars.FDB_WINDOWS_CLIENT_URL }}
-        run: |
-          if [ -z "${FDB_WINDOWS_CLIENT_URL}" ]; then
-            echo "Set the repository variable FDB_WINDOWS_CLIENT_URL to the community FoundationDB Windows client installer."
-            exit 1
-          fi
-          curl -fsSL "${FDB_WINDOWS_CLIENT_URL}" -o fdb-client-setup.exe
-      - name: Stage the release and binaries
-        shell: bash
-        run: |
-          mkdir -p stage/rel
-          tar xzf dl/release/weft-release.tar.gz -C stage/rel --strip-components=1
-          cp dl/dataplane/weft-dataplane.exe stage/weft-dataplane.exe
-          cp versitygw.exe stage/versitygw.exe
-          cp fdb-client-setup.exe stage/fdb-client-setup.exe
-      - name: Build the MSI with WiX
-        shell: bash
-        run: |
-          dotnet tool install --global wix
-          wix build packaging/windows/weft.wxs -b stage -o weft-cluster.msi
-      - uses: actions/upload-artifact@v7
-        with:
-          name: weft-cluster-windows-msi
-          path: weft-cluster.msi
           if-no-files-found: error
