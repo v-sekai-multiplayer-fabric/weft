@@ -25,3 +25,4 @@ rivet_ex-*.tar
 
 # Dialyzer PLT cache
 /priv/plts/
+/priv/*.cluster

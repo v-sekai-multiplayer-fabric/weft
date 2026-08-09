@@ -16,4 +16,32 @@ distributed? =
 
 if distributed?, do: Node.set_cookie(:rivet_ex_test)
 
-ExUnit.start(exclude: if(distributed?, do: [], else: [:distributed]))
+# Detect a reachable FoundationDB so store-backend tests can run against it.
+# Point at a local cluster file if present; probe with a timeout so an
+# unreachable cluster excludes :fdb tests instead of hanging.
+fdb_cluster_file = System.get_env("RIVET_EX_FDB_CLUSTER_FILE", "/tmp/rivet_ex_fdb/fdb.cluster")
+
+fdb? =
+  File.exists?(fdb_cluster_file) and
+    (
+      Application.put_env(:rivet_ex, :fdb_cluster_file, fdb_cluster_file)
+
+      task =
+        Task.async(fn ->
+          db = :erlfdb.open(fdb_cluster_file)
+          :erlfdb.get(db, "rivet_ex/probe")
+          true
+        end)
+
+      case Task.yield(task, 5_000) || Task.shutdown(task, :brutal_kill) do
+        {:ok, true} -> true
+        _ -> false
+      end
+    )
+
+excluded =
+  [] ++
+    if(distributed?, do: [], else: [:distributed]) ++
+    if(fdb?, do: [], else: [:fdb])
+
+ExUnit.start(exclude: excluded)
