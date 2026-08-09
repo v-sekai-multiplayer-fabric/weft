@@ -1,7 +1,7 @@
 # Unfinished tasks
 
 This file records the open work so we can pause and resume. Each entry has the goal, the
-state today, and the next step. The date is 2026-08-09.
+state today, and the next step. The date is 2026-08-10.
 
 ## Rules that apply to every task
 
@@ -14,20 +14,14 @@ state today, and the next step. The date is 2026-08-09.
 - Do not use exceptions for control flow. Return `{:ok, _}` or `{:error, _}`.
 - Latency is the priority. Keep durability and replication off the write path.
 
-## #52 Colored, dithered braille scope
+## Done recently
 
-Goal: the braille scope dots must be colored and dithered. The terminal window grows to
-size, so the render dithers to the current size and palette.
-
-State: the dither core is done and merged path is open. `lean/Dither.lean` holds the
-Floyd-Steinberg spec from paperlesspaper/epdoptimize. The Lean proofs check with
-`native_decide`: the kernel weights sum to 16 (error conservation), and `nearest` returns
-the closest palette level. `Weft.DataPlane.Dither` is the Elixir port. Tests mirror the
-proofs. This work is in PR #9.
-
-Next: color the four braille panels. Dither each panel to a small ANSI palette with
-`Weft.DataPlane.Dither`. Adapt the panel size to the window size. Keep the labels and stats
-as text.
+- #52 colored, dithered braille scope. `lean/Dither.lean` holds the Floyd-Steinberg spec
+  from paperlesspaper/epdoptimize, proven with `native_decide`. `Weft.DataPlane.Dither` is
+  the Elixir port. The scope colors each panel by density, dithers to a six-level palette,
+  scales uniformly so it does not skew, sizes to the window, and does not flicker.
+- Container dev environments. `deploy/Containerfile`, `deploy/compose.yaml`, and
+  `deploy/quadlet/` run weft on Docker (Windows) and Podman Quadlets (Fedora).
 
 ## #51 rivet-like actor limits
 
@@ -101,7 +95,6 @@ iceoryx2 toolchain, which we do not have here yet.
 
 ## Buildable now
 
-- #52 (finish the scope integration)
 - #51 (actor limits, pure Elixir)
 - #45 (Godot client, godot-images binary works headless)
 
