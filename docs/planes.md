@@ -107,27 +107,27 @@ Two boundaries, two jobs:
 - Deployment is the same for all planes: the container image holds the plane
   binaries at fixed paths, so shared-library paths are known. Fly runs that image.
 
-## Open questions
+## VR observer
 
-1. **VR observer: a plane or a client?** We want to observe a live world from
-   SteamVR, probably with WebTransport running in the HMD. This does not fit the
-   plane contract: a plane is a server-side native process on the same machine,
-   reached over iceoryx2, with networking off. A SteamVR HMD is a remote client
-   across the network over WebTransport, not on iceoryx2. So it is likely a
-   **client** like Godot, not a plane, and the word "plane" should stay for
-   server-side iceoryx2 processes. Points to decide:
-   - **Term.** Call it the VR client (client layer, alongside Godot in
-     `runtime-choice.md`), not a plane.
-   - **Transport.** WebTransport in the HMD. Real-time observation uses unreliable
-     drop-stale datagrams for the latest entity and pose state (see `protocol.md`
-     and `latency.md`); control and pulling baked OpenUSD stages from the asset CDN
-     use reliable streams.
-   - **Role.** Observe only (read-only) first. Later, does it send input and become
-     a participant, or stay a pure observer?
-   - **Engine.** Godot already has OpenXR and SteamVR support, so the VR client may
-     be Godot plus OpenXR consuming WebTransport, consistent with "Godot stays on
-     the client." Or a custom WebTransport HMD client. Decide one.
-   - **Server side.** No new server plane may be needed: the game data plane already
-     produces snapshots, the gateway forwards them over WebTransport, and the stage
-     tier (asset CDN) serves the baked world. Confirm the VR client only consumes
-     existing outputs.
+We want to observe a live world from SteamVR, with WebTransport running in the HMD.
+This splits in two, and the split is settled:
+
+- **The HMD is a client.** A SteamVR HMD is a remote client across the network over
+  WebTransport, not on iceoryx2, so it is a client like Godot, not a plane. The word
+  plane stays for server-side iceoryx2 processes.
+- **The part that provides the observer's data is a plane.** That is server-side. The
+  game data plane already produces digested world state, so its output is the
+  observer feed; the gateway forwards it to the HMD over WebTransport. A dedicated
+  spectator plane is added only if the observer view must differ from the game data
+  plane's output.
+
+### Open questions
+
+1. **Transport.** Real-time observation uses unreliable drop-stale datagrams for the
+   latest entity and pose state (see `protocol.md` and `latency.md`); control and
+   pulling baked OpenUSD stages from the asset CDN use reliable streams. Confirm.
+2. **Role.** Observe only (read-only) first. Later, does it send input and become a
+   participant, or stay a pure observer?
+3. **Engine.** Godot already has OpenXR and SteamVR support, so the VR client may be
+   Godot plus OpenXR consuming WebTransport, consistent with "Godot stays on the
+   client." Or a custom WebTransport HMD client. Decide one.
