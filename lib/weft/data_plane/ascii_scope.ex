@@ -8,16 +8,15 @@ defmodule Weft.DataPlane.AsciiScope do
   Coordinates are fixed-point millimetres, the ring layout in `Weft.DataPlane.Ring`.
   """
 
+  alias Weft.DataPlane.Braille
   alias Weft.DataPlane.Ring
-
-  @dot "."
-  @mark "O"
 
   @doc """
   Render `coords` (the ring's flat `[x, y, z, ...]`) as the four-panel scope string.
-  Options: `:width`, `:height` per panel, `:x_range`/`:y_range`/`:z_range` as
-  `{min, max}` millimetres, and `:stats` as a list of strings for the stats line.
-  Origin padding `{0, 0, 0}` is skipped.
+  Each panel draws in Unicode braille, so it is pixel scale: 2 by 4 dots per
+  character. Options: `:width`, `:height` per panel (in characters),
+  `:x_range`/`:y_range`/`:z_range` as `{min, max}` millimetres, and `:stats` as a list
+  of strings for the stats line. Origin padding `{0, 0, 0}` is skipped.
   """
   @spec render([integer()], keyword()) :: String.t()
   def render(coords, opts \\ []) do
@@ -29,13 +28,12 @@ defmodule Weft.DataPlane.AsciiScope do
     stats = Keyword.get(opts, :stats, [])
 
     pts = entities(coords)
-
-    top = panel(pts, w, h, fn {x, y, _z} -> {sc(x, bx, w), sc(y, by, h)} end)
-    front = panel(pts, w, h, fn {x, _y, z} -> {sc(x, bx, w), sc(z, bz, h)} end)
-    side = panel(pts, w, h, fn {_x, y, z} -> {sc(y, by, w), sc(z, bz, h)} end)
-
     {ix, iy} = iso_bounds(bx, by, bz)
-    iso = panel(pts, w, h, fn {x, y, z} -> {sc(x - y, ix, w), sc(div(x + y, 2) - z, iy, h)} end)
+
+    top = panel(pts, w, h, fn {x, y, _z} -> {x, bx, y, by} end)
+    front = panel(pts, w, h, fn {x, _y, z} -> {x, bx, z, bz} end)
+    side = panel(pts, w, h, fn {_x, y, z} -> {y, by, z, bz} end)
+    iso = panel(pts, w, h, fn {x, y, z} -> {x - y, ix, div(x + y, 2) - z, iy} end)
 
     gap = "   "
     row1 = beside(labeled("top   x>y", top, w), labeled("front x>z", front, w), gap)
@@ -60,16 +58,16 @@ defmodule Weft.DataPlane.AsciiScope do
   defp entities([0, 0, 0 | rest]), do: entities(rest)
   defp entities([x, y, z | rest]), do: [{x, y, z} | entities(rest)]
 
-  # One panel as a list of h row-strings, marking each projected point.
+  # One panel as h braille rows. Each character is a 2 by 4 dot cell, so the panel
+  # draws 2*w by 4*h pixels. Labels and stats stay as text; only the plot is braille.
   defp panel(pts, w, h, proj) do
-    empty = for _ <- 1..h, do: for(_ <- 1..w, do: @dot)
+    pixels =
+      Enum.map(pts, fn p ->
+        {a, ra, b, rb} = proj.(p)
+        {sc(a, ra, 2 * w), sc(b, rb, 4 * h)}
+      end)
 
-    pts
-    |> Enum.reduce(empty, fn p, grid ->
-      {col, row} = proj.(p)
-      List.update_at(grid, row, fn line -> List.replace_at(line, col, @mark) end)
-    end)
-    |> Enum.map(&Enum.join/1)
+    Braille.render(pixels, w, h) |> String.split("\n")
   end
 
   defp labeled(title, rows, w), do: [String.pad_trailing(title, w) | rows]
