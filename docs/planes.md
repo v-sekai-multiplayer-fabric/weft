@@ -96,6 +96,7 @@ Every plane that is not the control plane follows the same rules:
 | Game data   | Seastar/DPDK + Jolt                                | publish-subscribe | out of BEAM                 |
 | SUMO        | Eclipse SUMO traffic microsimulation               | publish-subscribe | out of BEAM                 |
 | Asset baker | OpenUSD + Adobe glTF plugin (fabric-stage-runtime) | request-response  | out of BEAM, crash-isolated |
+| Store       | native SQLite (WAL) + FoundationDB replica         | request-response  | out of BEAM, crash-isolated |
 
 The SUMO plane is the current focus. It streams per-step entity movement into the
 ring, the game data plane's publish-subscribe pattern.

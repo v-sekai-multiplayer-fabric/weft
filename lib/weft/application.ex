@@ -19,7 +19,10 @@ defmodule Weft.Application do
        members: :auto,
        process_redistribution: :active},
       # Runner lifecycle: serverless runners started and drained by pool reconcilers.
-      {DynamicSupervisor, name: Weft.RunnerSupervisor, strategy: :one_for_one}
+      {DynamicSupervisor, name: Weft.RunnerSupervisor, strategy: :one_for_one},
+      # Replicates actor writes to FoundationDB off the write path. No-op until a
+      # cluster is configured, so the store runs local-only without it.
+      Weft.Actor.Store.Replicator
     ]
 
     opts = [strategy: :one_for_one, name: Weft.Supervisor]
