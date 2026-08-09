@@ -34,14 +34,49 @@ defmodule Weft.ClusterTest do
   test "one instance per id, addressable from every node", %{peer_nodes: [n1, n2]} do
     key = "clustered-#{System.unique_integer([:positive])}"
 
-    # Create from one node; resolve from another and from the primary. All three
-    # must be the exact same process: a single writer cluster-wide.
-    {:ok, pid_from_n1} = :erpc.call(n1, Actors, :get_or_create, ["zone", key])
-    {:ok, pid_from_n2} = :erpc.call(n2, Actors, :get_or_create, ["zone", key])
-    {:ok, pid_from_primary} = Actors.get_or_create("zone", key)
+    # Create once, wait for the registration to propagate (CRDT), then resolve from
+    # every node. All must be the exact same process: a single writer cluster-wide.
+    # (Concurrent creation on separate nodes is deliberately avoided here: during a
+    # propagation window Horde is available-first and would transiently admit two,
+    # then reconcile — a property covered by the handoff/failover tests, not this
+    # addressing test.)
+    {:ok, pid} = :erpc.call(n1, Actors, :get_or_create, ["zone", key])
 
-    assert pid_from_n1 == pid_from_n2
-    assert pid_from_n1 == pid_from_primary
+    for node <- [n2, node()] do
+      wait_until(fn ->
+        if :erpc.call(node, Actors, :whereis, ["zone", key]) == pid, do: :ok, else: :retry
+      end)
+    end
+
+    assert :erpc.call(n2, Actors, :get_or_create, ["zone", key]) == {:ok, pid}
+    assert Actors.get_or_create("zone", key) == {:ok, pid}
+  end
+
+  test "an entity hands off from zone A to zone B across the cluster", %{peer_nodes: [n1, n2]} do
+    a = "zoneA-#{System.unique_integer([:positive])}"
+    b = "zoneB-#{System.unique_integer([:positive])}"
+
+    # Zones are placed by Horde somewhere in the cluster and addressed by id.
+    {:ok, _} = Weft.Zones.ensure(a, worker_opts: [tick_ms: 3_600_000])
+    {:ok, _} = Weft.Zones.ensure(b, worker_opts: [tick_ms: 3_600_000])
+
+    # Wait for the registry entries to propagate (CRDT) to the nodes we act from.
+    for {node, zone} <- [{n1, a}, {n1, b}, {n2, a}, {n2, b}] do
+      wait_until(fn ->
+        case :erpc.call(node, Horde.Registry, :lookup, [Weft.Registry, {:zone, zone}]) do
+          [{_pid, _}] -> :ok
+          _ -> :retry
+        end
+      end)
+    end
+
+    # Add an entity to A from one node, hand it off, and read the result from
+    # another node: the crossing is cluster-wide, single-owner throughout.
+    :ok = :erpc.call(n1, Weft.Zone, :add_entity, [a, "player-1", %{hp: 42}])
+    :ok = :erpc.call(n1, Weft.Zone, :handoff, [a, b, "player-1"])
+
+    assert :erpc.call(n2, Weft.Zone, :entities, [a]) == %{}
+    assert :erpc.call(n2, Weft.Zone, :entities, [b]) == %{"player-1" => %{hp: 42}}
   end
 
   test "actor state hands off when its host node dies", %{peers: peers, peer_nodes: peer_nodes} do
