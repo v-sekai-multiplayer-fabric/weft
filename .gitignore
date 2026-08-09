@@ -22,3 +22,6 @@ erl_crash.dump
 # Ignore package tarball (built via "mix hex.build").
 rivet_ex-*.tar
 
+
+# Dialyzer PLT cache
+/priv/plts/

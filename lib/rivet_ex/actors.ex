@@ -29,9 +29,11 @@ defmodule RivetEx.Actors do
       nil ->
         case DynamicSupervisor.start_child(RivetEx.ActorSupervisor, {RivetEx.Actor, id}) do
           {:ok, pid} -> {:ok, pid}
+          {:ok, pid, _info} -> {:ok, pid}
           {:error, {:already_started, pid}} -> if_alive(pid, name, key, tries)
           {:error, :already_present} -> retry(name, key, tries)
-          other -> other
+          :ignore -> {:error, :ignore}
+          {:error, _} = err -> err
         end
     end
   end

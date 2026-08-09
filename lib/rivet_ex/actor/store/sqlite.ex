@@ -38,7 +38,8 @@ defmodule RivetEx.Actor.Store.Sqlite do
     {:ok, stmt} = Sqlite3.prepare(conn, "SELECT key, value FROM kv")
 
     rows = fetch_all(conn, stmt, [])
-    Sqlite3.release(conn, stmt)
+    # Best-effort statement cleanup; a release error is not actionable here.
+    _ = Sqlite3.release(conn, stmt)
 
     Map.new(rows, fn [k, v] ->
       {:erlang.binary_to_term(k), :erlang.binary_to_term(v)}
@@ -61,7 +62,7 @@ defmodule RivetEx.Actor.Store.Sqlite do
       ])
 
     :done = Sqlite3.step(conn, stmt)
-    Sqlite3.release(conn, stmt)
+    _ = Sqlite3.release(conn, stmt)
     :ok
   end
 
