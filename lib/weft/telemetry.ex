@@ -47,7 +47,7 @@ defmodule Weft.Telemetry do
   @doc false
   def handle(event, %{duration: duration}, _meta, _cfg) do
     key = event |> Enum.drop(1) |> Enum.drop(-1) |> Enum.join(".")
-    :ets.update_counter(@table, key, [{2, 1}, {3, duration}], {key, 0, 0})
+    _ = :ets.update_counter(@table, key, [{2, 1}, {3, duration}], {key, 0, 0})
     :ok
   end
 
@@ -66,14 +66,16 @@ defmodule Weft.Telemetry do
   end
 
   defp ensure_table do
-    if :ets.whereis(@table) == :undefined do
-      try do
-        _ = :ets.new(@table, [:named_table, :public, :set, write_concurrency: true])
-      rescue
-        ArgumentError -> :ok
-      end
+    case :ets.whereis(@table) do
+      :undefined -> new_table()
+      _tid -> :ok
     end
+  end
 
+  defp new_table do
+    _ = :ets.new(@table, [:named_table, :public, :set, write_concurrency: true])
     :ok
+  rescue
+    ArgumentError -> :ok
   end
 end
