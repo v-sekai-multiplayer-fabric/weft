@@ -1,0 +1,49 @@
+# Build the native NIFs once in CI and cache them as GitHub release artifacts, so
+# `mix compile` downloads the prebuilt binary (checksum-verified) instead of
+# recompiling from source — critical for the heavy OpenUSD NIF, whose build env
+# (via fabric-stage-runtime) is expensive to reproduce on every machine.
+name: precompile NIFs
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  precompile:
+    runs-on: ubuntu-24.04
+    env:
+      MIX_ENV: prod
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: "27"
+          elixir-version: "1.18"
+
+      # The OpenUSD NIF's build env: fabric-stage-runtime downloads the prebuilt
+      # OpenUSD archive during `mix deps.get` (OPENUSD_BUILD unset => download).
+      - run: mix deps.get
+
+      # Builds priv/*.so for the runner target and packs cache/*.tar.gz.
+      - run: mix elixir_make.precompile
+
+      # Regenerate checksum.exs so consumers verify the downloaded artifacts.
+      - run: mix elixir_make.checksum --all --ignore-unavailable
+
+      - name: Attach precompiled artifacts to the release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: cache/*.tar.gz
+
+      - name: Commit checksum
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add checksum.exs || true
+          git commit -m "Update NIF checksums for ${GITHUB_REF_NAME}" || true
+          git push || true
