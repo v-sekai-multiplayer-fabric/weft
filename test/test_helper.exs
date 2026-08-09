@@ -42,6 +42,7 @@ fdb? =
 excluded =
   [] ++
     if(distributed?, do: [], else: [:distributed]) ++
-    if(fdb?, do: [], else: [:fdb])
+    if(fdb?, do: [], else: [:fdb]) ++
+    if(System.find_executable("desync"), do: [], else: [:desync])
 
 ExUnit.start(exclude: excluded)

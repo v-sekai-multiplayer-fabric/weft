@@ -1,7 +1,8 @@
 defmodule Weft.Assets.StageTierTest do
   @moduledoc """
-  The stage tier of the asset CDN: content-addressed storage and paged distribution
-  of baked stages. Covers dedup by hash, whole and paged fetch, and bad addresses.
+  The stage tier of the asset CDN: it stores and distributes baked stages with casync
+  through the `desync` tool. The round-trip runs only when `desync` is on the path
+  (tagged `:desync`); the guard tests run always.
   """
 
   use ExUnit.Case, async: false
@@ -24,41 +25,20 @@ defmodule Weft.Assets.StageTierTest do
     :ok
   end
 
-  test "publish is content-addressed and deduplicates identical bytes" do
-    bytes = "USDA baked stage " <> :crypto.strong_rand_bytes(100)
-    assert {:ok, addr} = StageTier.publish(bytes)
-    assert addr == StageTier.address(bytes)
-    # Publishing the same bytes returns the same address.
-    assert {:ok, ^addr} = StageTier.publish(bytes)
-    # Different bytes get a different address.
-    assert {:ok, other} = StageTier.publish("something else")
-    assert other != addr
+  test "a missing stage is not_found, not a crash" do
+    assert {:error, :not_found} = StageTier.fetch("never-published")
   end
 
-  test "fetch round-trips the stored stage" do
-    bytes = :crypto.strong_rand_bytes(500)
-    {:ok, addr} = StageTier.publish(bytes)
-    assert {:ok, ^bytes} = StageTier.fetch(addr)
-    assert {:ok, 500} = StageTier.size(addr)
+  test "a bad name is rejected before touching desync" do
+    assert {:error, :bad_name} = StageTier.publish("../evil", "x")
+    assert {:error, :bad_name} = StageTier.fetch("../evil")
   end
 
-  test "fetch_page serves a stage in pages for fanout" do
-    bytes = :crypto.strong_rand_bytes(2500)
-    {:ok, addr} = StageTier.publish(bytes)
-
-    assert {:ok, p0} = StageTier.fetch_page(addr, 0, 1000)
-    assert {:ok, p1} = StageTier.fetch_page(addr, 1, 1000)
-    assert {:ok, p2} = StageTier.fetch_page(addr, 2, 1000)
-    assert byte_size(p0) == 1000
-    assert byte_size(p2) == 500
-    assert p0 <> p1 <> p2 == bytes
-    # A page past the end is empty.
-    assert {:ok, ""} = StageTier.fetch_page(addr, 3, 1000)
-  end
-
-  test "a bad address and a missing stage are errors, not crashes" do
-    assert {:error, :bad_address} = StageTier.fetch("not-a-hash")
-    missing = StageTier.address("never published " <> :crypto.strong_rand_bytes(8))
-    assert {:error, :not_found} = StageTier.fetch(missing)
+  @tag :desync
+  test "publish then fetch round-trips a stage through desync" do
+    bytes = "USDA baked stage " <> :crypto.strong_rand_bytes(200_000)
+    assert {:ok, index} = StageTier.publish("atlantis", bytes)
+    assert String.ends_with?(index, "atlantis.caibx")
+    assert {:ok, ^bytes} = StageTier.fetch("atlantis")
   end
 end

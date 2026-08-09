@@ -1,90 +1,86 @@
 defmodule Weft.Assets.StageTier do
   @moduledoc """
   The stage tier of the asset CDN (`docs/runtime-choice.md`). It holds baked OpenUSD
-  stages and distributes them to clients like a CDN: content-addressed, cached, and
-  fanned out. The baker plane bakes a glb Character into a stage; this tier stores and
-  serves it.
+  stages and distributes them to clients like a CDN. It uses casync through the
+  `desync` tool, the same format as `fabric-casync-central`, not a bespoke content
+  addressing.
 
-  Content addressing gives the CDN properties for free. The address is the SHA-256 of
-  the bytes, so an identical stage deduplicates, and the stored file is immutable, so
-  it is its own cache. Large stages are fetched by page, so many clients pull one
-  stage without loading it whole per request.
+  A publish runs `desync make` to split a stage into content-defined chunks, write
+  them to a shared chunk store, and produce a small `.caibx` index. Content-defined
+  chunking deduplicates at the chunk level, so a new stage version stores only its
+  changed chunks. A fetch runs `desync extract` to rebuild the stage from the index
+  and the store, pulling only the chunks it needs. The index is the reference a client
+  receives; the chunk store is the CDN.
 
   This is the control-plane half of the asset CDN. Baking (glb to OpenUSD) is the
-  native baker plane. Storage here is file-backed and outside the hot path.
+  native baker plane. `desync` must be on the path (see
+  https://github.com/folbricht/desync).
   """
 
-  @type address :: String.t()
-
-  @doc "Publish baked stage bytes. Returns the content address. Deduplicates by hash."
-  @spec publish(binary()) :: {:ok, address()}
-  def publish(bytes) when is_binary(bytes) do
-    address = address(bytes)
-    path = stage_path(address)
-
-    unless File.exists?(path) do
-      File.mkdir_p!(dir())
-      File.write!(path, bytes)
-    end
-
-    {:ok, address}
-  end
-
-  @doc "Fetch a whole stage by its content address."
-  @spec fetch(address()) :: {:ok, binary()} | {:error, term()}
-  def fetch(address) do
-    with :ok <- validate(address),
-         path = stage_path(address),
-         true <- File.exists?(path) or {:error, :not_found} do
-      {:ok, File.read!(path)}
-    end
-  end
-
-  @doc "Size of a stored stage in bytes."
-  @spec size(address()) :: {:ok, non_neg_integer()} | {:error, term()}
-  def size(address) do
-    with :ok <- validate(address),
-         path = stage_path(address),
-         true <- File.exists?(path) or {:error, :not_found} do
-      {:ok, File.stat!(path).size}
-    end
-  end
+  @doc "True when the `desync` tool is available on the path."
+  @spec available?() :: boolean()
+  def available?, do: System.find_executable("desync") != nil
 
   @doc """
-  Fetch one page of a stage for fanout: `page_bytes` bytes starting at
-  `page * page_bytes`. The last page may be short. An out-of-range page is empty.
+  Publish a baked stage under `name`. Splits it into the chunk store and writes a
+  `name.caibx` index. Returns the index path.
   """
-  @spec fetch_page(address(), non_neg_integer(), pos_integer()) ::
-          {:ok, binary()} | {:error, term()}
-  def fetch_page(address, page, page_bytes) when page >= 0 and page_bytes > 0 do
-    with :ok <- validate(address),
-         path = stage_path(address),
-         true <- File.exists?(path) or {:error, :not_found},
-         {:ok, io} <- File.open(path, [:read, :binary]) do
-      data = :file.pread(io, page * page_bytes, page_bytes)
-      File.close(io)
+  @spec publish(String.t(), binary()) :: {:ok, Path.t()} | {:error, term()}
+  def publish(name, bytes) when is_binary(name) and is_binary(bytes) do
+    with :ok <- validate(name) do
+      File.mkdir_p!(store_dir())
+      File.mkdir_p!(index_dir())
+      input = Path.join(index_dir(), name <> ".usd")
+      File.write!(input, bytes)
+      index = index_path(name)
 
-      case data do
-        {:ok, bin} -> {:ok, bin}
-        :eof -> {:ok, ""}
-        other -> other
+      case desync(["make", "--store", store_dir(), index, input]) do
+        {:ok, _} -> {:ok, index}
+        error -> error
       end
     end
   end
 
-  @doc "The content address of some bytes: the lowercase hex SHA-256."
-  @spec address(binary()) :: address()
-  def address(bytes), do: :crypto.hash(:sha256, bytes) |> Base.encode16(case: :lower)
+  @doc "Fetch a whole stage by `name`, rebuilding it from the index and the chunk store."
+  @spec fetch(String.t()) :: {:ok, binary()} | {:error, term()}
+  def fetch(name) when is_binary(name) do
+    with :ok <- validate(name),
+         index = index_path(name),
+         true <- File.exists?(index) or {:error, :not_found} do
+      out = Path.join(System.tmp_dir!(), "weft-stage-#{System.unique_integer([:positive])}.usd")
 
-  defp validate(address) when is_binary(address) do
-    if address =~ ~r/\A[a-f0-9]{64}\z/, do: :ok, else: {:error, :bad_address}
+      try do
+        case desync(["extract", "--store", store_dir(), index, out]) do
+          {:ok, _} -> {:ok, File.read!(out)}
+          error -> error
+        end
+      after
+        File.rm_rf(out)
+      end
+    end
   end
 
-  defp validate(_), do: {:error, :bad_address}
+  @doc "Path to the `.caibx` index for a stage name."
+  @spec index_path(String.t()) :: Path.t()
+  def index_path(name), do: Path.join(index_dir(), name <> ".caibx")
 
-  defp stage_path(address), do: Path.join(dir(), address <> ".usd")
+  defp desync(args) do
+    case System.cmd("desync", args, stderr_to_stdout: true) do
+      {out, 0} -> {:ok, out}
+      {out, code} -> {:error, {:desync_failed, code, out}}
+    end
+  rescue
+    e in ErlangError -> {:error, {:desync_unavailable, e}}
+  end
 
-  defp dir do
+  defp validate(name) do
+    if name =~ ~r/\A[A-Za-z0-9_.-]+\z/, do: :ok, else: {:error, :bad_name}
+  end
+
+  defp store_dir, do: Path.join(base_dir(), "store")
+  defp index_dir, do: Path.join(base_dir(), "index")
+
+  defp base_dir do
     base = Application.get_env(:weft, :assets_dir) || Path.join(System.tmp_dir!(), "weft-assets")
     Path.join(base, "stages")
   end

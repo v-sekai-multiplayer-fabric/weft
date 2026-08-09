@@ -102,7 +102,7 @@ The SUMO plane is the current focus. It streams per-step entity movement into th
 ring, the game data plane's publish-subscribe pattern.
 
 The asset baker plane plus the OpenUSD stage tier form weft's **asset CDN**: the
-baker bakes a source glb Character into a content-addressed OpenUSD stage
+baker bakes a source glb Character into an OpenUSD stage
 (request-response), and the stage tier caches and distributes baked stages to clients
 like a CDN. Baking
 is off the game hot path. See `runtime-choice.md`.

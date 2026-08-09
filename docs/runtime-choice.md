@@ -61,10 +61,12 @@ stage tier together form weft's **asset CDN**:
 
 - **Asset baker plane** (OpenUSD + Adobe glTF, request-response) bakes a source glb
   Character into an OpenUSD stage. This is a job: the control plane sends a bake
-  request, the baker responds with a content-addressed baked stage.
+  request, the baker responds with a baked stage.
 - **OpenUSD stage tier** (server-side) holds the baked stages and distributes them to
-  clients like a CDN: content-addressed, cached, fanned out. The control plane owns
-  the cache and the fanout, the same way it orchestrates any plane.
+  clients like a CDN with casync, through the `desync` tool, the same format as
+  `fabric-casync-central`. Content-defined chunking deduplicates at the chunk level, so
+  a new stage version stores only its changed chunks, and a client pulls only the
+  chunks it needs. The control plane owns the chunk store and the indexes.
 
 Both run as planes over iceoryx2, not in-BEAM NIFs, since `planes.md` forbids heavy
 C++ in the BEAM. Baking is off the game hot path; the >15M path stays native.
