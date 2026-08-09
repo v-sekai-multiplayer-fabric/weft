@@ -63,6 +63,30 @@ through a NIF (faster than an Elixir producer), and the BEAM only samples the
 latest — so the raw 15M+ pps packet flood never enters the VM, and the digested
 snapshot rate is not BEAM-bound either.
 
+## SUMO plane — real workload, not synthetic (`bench/sumo/`)
+
+The numbers above use synthetic packets. To confirm them on real, coherent movement,
+weft acts as the engine for a SUMO (Eclipse traffic microsimulation) run: a 25 by 25
+grid city, dense traffic, each vehicle an entity, each simulation step a state frame.
+The trace is 600 frames, 11,947 distinct vehicles, 8,637 peak concurrent, 2,950,620
+entity updates. See `bench/sumo/README.md` to reproduce and `docs/protocol.md` for
+the full analysis.
+
+Nasty hot-path decode plus apply (`bench/sumo/replay.c`), on the real trace:
+
+| cores | pps    | ns/apply/core |
+| ----- | ------ | ------------- |
+| 1     | 840 M  | 1.19          |
+| 8     | 6.19 B | 1.29          |
+| 16    | 7.78 B | 2.06          |
+
+**Takeaway.** 840M applies/sec on one core (1.19 ns each) on real traffic movement,
+**56× the 15M target**, matching the synthetic `pps_native.c` (826M/core). Real data
+confirms the synthetic ceiling: apply is never the bottleneck. The same trace drives
+the cheap-versus-nasty wire-format comparison (`bench/sumo/encode_compare.py`): nasty
+bitpacked is 12 B/entity, cheap CBOR JSON-LD is 28 B/entity (2.3× raw, 1.4× after
+last-frame zstd). Details in `docs/protocol.md`.
+
 ## Packet decode+apply — is 15M pps compute- or I/O-bound? (`bench/pps_native.c`)
 
 The true ">15M pps" unit is a _packet_: decode a 24-byte movement datagram and

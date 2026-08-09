@@ -29,3 +29,8 @@ rivet_ex-*.tar
 /bench_results/
 
 /priv/*.so
+
+# SUMO benchmark: venv, generated scenario, trace, compiled binary
+.sumo-venv/
+bench/sumo/scenario/
+bench/sumo/replay
