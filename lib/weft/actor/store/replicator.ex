@@ -39,11 +39,27 @@ defmodule Weft.Actor.Store.Replicator do
     GenServer.cast(__MODULE__, {:replicate, id, seq, user_key, value})
   end
 
+  # Both reads below run in the caller, not in the GenServer. The GenServer serializes
+  # the replication writes, so a read sent to it queues behind the whole backlog. With
+  # 200 queued writes at about 1 ms each, a read waits longer than the call timeout.
+  # Neither read touches GenServer state, and the FoundationDB handle is in
+  # `:persistent_term`, so the caller can read directly. Reads stay off the write path.
+
   @doc "Highest replicated seq for an actor, so a new process continues from it."
-  def tip(id), do: GenServer.call(__MODULE__, {:tip, id})
+  def tip({name, key}) do
+    case db() do
+      nil -> 0
+      db -> read_seq(db, name, key)
+    end
+  end
 
   @doc "Current durable state for an actor as a list of {user_key, value}."
-  def hydrate(id), do: GenServer.call(__MODULE__, {:hydrate, id})
+  def hydrate({name, key}) do
+    case db() do
+      nil -> []
+      db -> read_current(db, name, key)
+    end
+  end
 
   # ── Server ────────────────────────────────────────────────────────────────
 
@@ -72,27 +88,6 @@ defmodule Weft.Actor.Store.Replicator do
 
         {:noreply, %{state | counts: counts}}
     end
-  end
-
-  @impl true
-  def handle_call({:tip, {name, key}}, _from, state) do
-    reply =
-      case db() do
-        nil -> 0
-        db -> read_seq(db, name, key)
-      end
-
-    {:reply, reply, state}
-  end
-
-  def handle_call({:hydrate, {name, key}}, _from, state) do
-    reply =
-      case db() do
-        nil -> []
-        db -> read_current(db, name, key)
-      end
-
-    {:reply, reply, state}
   end
 
   # ── FoundationDB ──────────────────────────────────────────────────────────
