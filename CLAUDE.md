@@ -34,7 +34,8 @@ Rules and conventions for the weft repo. Follow them.
 - Low latency is the priority. Keep durability and replication off the write path.
 - Match every enum variant. Do not use a catch-all arm.
 - Do not use Rust. The target environment blocklists it. Native planes are C++.
-- Formalize an algorithm in Lean4 first, then port it to Elixir. The spec lives in `lean/`.
+- Formalize an algorithm in Lean4 first, then port it to Elixir. The spec lives in
+  `docs/spec/`. Read `docs/spec/README.md` first.
 - Lean4 proofs use `native_decide`. Do not use Mathlib. Elixir tests mirror the proofs.
 
 ## Git and CI
@@ -63,17 +64,18 @@ Rules and conventions for the weft repo. Follow them.
 
 Keep the top level small. Put a new file in one of these directories.
 
-- `lib/` and `test/` hold the Elixir control plane. `lean/` holds the Lean4 spec.
+- `lib/` and `test/` hold the Elixir control plane.
 - `native/` holds every native source. `native/dataplane` is the C++ plane. `native/nif` is
   the NIF.
 - `bench/` holds every benchmark. `bench/sumo` is the SUMO trace. `bench/fly` is the Fly
   network test.
 - `deploy/` holds every ship and run artifact. `deploy/packaging` builds the OS packages.
   `deploy/quadlet` runs the Podman units.
-- `docs/` holds the prose.
+- `docs/` holds the prose. `docs/spec` holds the Lean4 specs.
 
 ## Reference docs
 
 - `docs/planes.md`, `docs/data-plane.md`, `docs/store.md`, `docs/protocol.md`, `docs/latency.md`.
 - `docs/yagni.md`, `docs/runtime-choice.md`, `docs/benchmarks.md`.
 - `docs/tasks.md` records the open work, the state today, and the next step.
+- `docs/spec/README.md` explains the Lean4 specs and how an Elixir test mirrors a proof.

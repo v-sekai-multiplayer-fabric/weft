@@ -1,6 +1,6 @@
 defmodule Weft.DataPlane.DitherTest do
   @moduledoc """
-  Floyd-Steinberg dithering, ported from lean/Dither.lean. These tests mirror the Lean
+  Floyd-Steinberg dithering, ported from docs/spec/Dither.lean. These tests mirror the Lean
   proofs (nearest correctness, weight conservation) and cover the 2D dither.
   """
 

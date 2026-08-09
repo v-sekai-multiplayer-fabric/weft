@@ -16,7 +16,7 @@ state today, and the next step. The date is 2026-08-10.
 
 ## Done recently
 
-- #52 colored, dithered braille scope. `lean/Dither.lean` holds the Floyd-Steinberg spec
+- #52 colored, dithered braille scope. `docs/spec/Dither.lean` holds the Floyd-Steinberg spec
   from paperlesspaper/epdoptimize, proven with `native_decide`. `Weft.DataPlane.Dither` is
   the Elixir port. The scope colors each panel by density, dithers to a six-level palette,
   scales uniformly so it does not skew, sizes to the window, and does not flicker.
