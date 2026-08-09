@@ -1,0 +1,43 @@
+# FoundationDB, owned by the FoundationDB operator. The operator must be installed
+# first. See README.md.
+#
+# FoundationDB is the one boundary that crosses machines, so it runs in its own Pods and
+# not in the weft Pod. iceoryx does not cross machines and FoundationDB does not use it.
+#
+# The operator writes the cluster file into a ConfigMap named `weft-fdb-config`. The weft
+# Deployment mounts that ConfigMap, so nothing copies the cluster file by hand.
+#
+# Check the CRD version that your operator release serves and make this file agree. The
+# operator has changed the served version between releases.
+apiVersion: apps.foundationdb.org/v1beta2
+kind: FoundationDBCluster
+metadata:
+  name: weft-fdb
+  namespace: weft
+spec:
+  # Match the version pinned in the CI workflows and deploy/Containerfile.
+  version: 7.3.76
+  processes:
+    general:
+      podTemplate:
+        spec:
+          # The monitor process in each Pod writes its locality to the annotations of
+          # that Pod. The default service account cannot patch a Pod, so the operator
+          # reports "ineligible to be a coordinator due to missing locality information"
+          # and the cluster never starts. This service account holds that permission.
+          serviceAccountName: fdb-kubernetes-operator-controller-manager
+          # The schema needs a container list. The operator merges this with the
+          # containers it builds.
+          #
+          # The operator asks for 8 GiB and one core for each process. A cluster has many
+          # processes, so a local cluster cannot schedule them and the Pods stay Pending.
+          # These values are for a local cluster only. Delete them for real hardware and
+          # let the operator use its own values.
+          containers:
+            - name: foundationdb
+              resources:
+                requests:
+                  memory: 1Gi
+                  cpu: 250m
+                limits:
+                  memory: 2Gi

@@ -43,6 +43,7 @@ defmodule Weft.MixProject do
       {:exqlite, "~> 0.27"},
       {:erlfdb, "~> 0.3"},
       {:horde, "~> 0.9"},
+      {:libcluster, "~> 3.3"},
       {:telemetry, "~> 1.2"},
       {:elixir_make, "~> 0.8", runtime: false},
       {:cc_precompiler, "~> 0.1", runtime: false},

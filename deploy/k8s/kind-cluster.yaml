@@ -1,0 +1,21 @@
+# A local cluster for the manifests in this directory. kind runs each node as a
+# container, so it needs no virtual machine of its own.
+#
+#   kind create cluster --config deploy/k8s/kind-cluster.yaml
+#   kind load docker-image weft:dev --name weft
+#
+# Three nodes, because one node cannot test what this deploy exists to test: libcluster
+# finds peers across nodes, and Horde hands an actor to a survivor when a node leaves.
+#
+# kind is kubeadm with the nodes in containers. The nodes share the host kernel, so
+# Guaranteed QoS with the static CPU manager policy and hugepages do not behave as they
+# do on real hardware. This cluster tests the manifests, the operator, the /dev/shm
+# wiring, and the BEAM cluster. It does not test latency.
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: weft
+nodes:
+  - role: control-plane
+  - role: worker
+  - role: worker
+  - role: worker
