@@ -16,7 +16,7 @@ jobs:
   test:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: erlef/setup-beam@v1
         with:
           otp-version: "29"
@@ -36,7 +36,7 @@ jobs:
     env:
       MIX_ENV: prod
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - uses: erlef/setup-beam@v1
         with:
@@ -44,7 +44,7 @@ jobs:
           elixir-version: "1.20"
 
       # Burrito wraps the release into one executable, using zig.
-      - uses: mlugg/setup-zig@v1
+      - uses: mlugg/setup-zig@v2
 
       - name: Install FoundationDB client
         run: |
@@ -70,7 +70,7 @@ jobs:
           "$(go env GOPATH)/bin/desync" make --store chunks weft.caibx "${exe}"
 
       - name: publish the release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: |
             *.rpm

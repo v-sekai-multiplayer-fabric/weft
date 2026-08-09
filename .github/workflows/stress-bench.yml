@@ -1,6 +1,6 @@
-# Sim the stress bench on CI and record it for local playback. The SUMO plane feeds
-# the ring and prints an ASCII grid each tick (bench/sumo_tui.exs). asciinema records
-# the terminal to a .cast artifact; replay it locally with `asciinema play <file>`.
+# Sim the stress bench on CI. It records the SUMO console playback for local replay
+# (asciinema, uploaded as an artifact), and it gathers the docs/benchmarks.md numbers:
+# the native C benches and the Elixir benches.
 name: stress bench
 
 on:
@@ -9,16 +9,28 @@ on:
   push:
     tags: ["v*"]
 
+concurrency:
+  group: stress-bench-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   sumo-tui:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - uses: erlef/setup-beam@v1
         with:
           otp-version: "29"
           elixir-version: "1.20"
+
+      - name: cache deps
+        uses: actions/cache@v6
+        with:
+          path: |
+            deps
+            _build
+          key: ${{ runner.os }}-mix-1.20-29-${{ hashFiles('mix.lock') }}
 
       - name: Install FoundationDB client
         run: |
@@ -27,32 +39,155 @@ jobs:
 
       - run: mix deps.get
 
-      - name: install asciinema
-        run: pipx install asciinema
+      - name: generate a SUMO trace
+        run: |
+          python3 -m pip install --quiet eclipse-sumo
+          export SUMO_HOME=$(python3 -c "import os,sumo;print(os.path.dirname(sumo.__file__))")
+          export PATH="$SUMO_HOME/bin:$PATH"
+          export PYTHONPATH="$SUMO_HOME/tools:$PYTHONPATH"
+          mkdir -p bench/sumo/scenario
+          cd bench/sumo/scenario
+          netgenerate --grid --grid.number=8 --grid.length=200 \
+            --default.lanenumber=2 --default.speed=13.9 -o grid.net.xml
+          python3 "$SUMO_HOME/tools/randomTrips.py" -n grid.net.xml -o trips2.xml \
+            -r routes2.rou.xml -b 0 -e 150 -p 0.3 --fringe-factor 5 --validate
+          python3 ../extract_frames.py
 
-      - name: record the SUMO console playback
-        run: asciinema rec -c "mix run bench/sumo_tui.exs 300 40" --overwrite bench-sumo-tui.cast
+      - name: install asciinema v3
+        run: |
+          sudo curl -fsSL -o /usr/local/bin/asciinema \
+            https://github.com/asciinema/asciinema/releases/download/v3.2.1/asciinema-x86_64-unknown-linux-gnu
+          sudo chmod +x /usr/local/bin/asciinema
+          asciinema --version
+
+      - name: install agg
+        run: |
+          sudo curl -fsSL -o /usr/local/bin/agg \
+            https://github.com/asciinema/agg/releases/download/v1.9.0/agg-x86_64-unknown-linux-gnu
+          sudo chmod +x /usr/local/bin/agg
+
+      - name: name the recording (CFF style, matches the source)
+        run: |
+          repo="${GITHUB_REPOSITORY//\//-}"
+          echo "REC=weft-stress-bench-3d-scope.${repo}.${GITHUB_SHA}" >> "$GITHUB_ENV"
+
+      - name: compile and warm up so the recording has no build output
+        run: |
+          mix compile
+          mix run bench/sumo_tui.exs 1 0 > /dev/null 2>&1 || true
+
+      - name: record the 3D scope (wide geometry)
+        run: |
+          asciinema rec --headless --window-size 160x48 \
+            -t "title: weft stress bench 3D scope | repository-code: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY} | commit: ${GITHUB_SHA}" \
+            -c "mix run bench/sumo_tui.exs 200 30" \
+            --overwrite $REC.cast
+
+      - name: reference the recording (CFF style)
+        run: |
+          {
+            echo "### weft stress bench - 3D scope recording"
+            echo ""
+            echo '```yaml'
+            echo "- type: video"
+            echo "  title: weft stress bench 3D scope"
+            echo "  repository-code: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}"
+            echo "  commit: ${GITHUB_SHA}"
+            echo "  date-released: $(date -u +%Y-%m-%d)"
+            echo "  notes: GitHub Actions run ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: render gif and mp4
+        run: |
+          sudo apt-get update && sudo apt-get install -y ffmpeg
+          agg --cols 160 --rows 48 --font-family "DejaVu Sans Mono" \
+            $REC.cast $REC.gif
+          ffmpeg -y -i $REC.gif -movflags faststart -pix_fmt yuv420p \
+            -vf "scale=trunc(iw/2)*2:trunc(ih/2)*2" $REC.mp4
 
       - name: upload the recording
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: stress-bench-cast
-          path: bench-sumo-tui.cast
+          path: |
+            ${{ env.REC }}.cast
+            ${{ env.REC }}.gif
+            ${{ env.REC }}.mp4
 
-  benches:
+  native-benches:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
+
+      - name: install libzstd
+        run: sudo apt-get update && sudo apt-get install -y libzstd-dev
 
       - name: build and run the native benches
         run: |
           cc -O3 -march=native -pthread bench/pps_native.c -o pps_native
           cc -O3 -march=native -pthread bench/pps_dram.c -o pps_dram
-          ./pps_native | tee -a bench-results.txt
-          ./pps_dram | tee -a bench-results.txt
+          cc -O3 -march=native bench/ring_native.c -o ring_native
+          cc -O3 -march=native bench/zstd_frames.c -o zstd_frames -lzstd
+          {
+            echo "# native benches ($(date -u))"
+            echo "## pps_native"; ./pps_native
+            echo "## pps_dram"; ./pps_dram
+            echo "## ring_native"; ./ring_native
+            echo "## zstd_frames"; ./zstd_frames
+          } | tee native-benches.txt
 
       - name: upload the numbers
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
-          name: stress-bench-numbers
-          path: bench-results.txt
+          name: benchmarks-native
+          path: native-benches.txt
+
+  elixir-benches:
+    runs-on: ubuntu-24.04
+    env:
+      FDB_VERSION: "7.3.76"
+      WEFT_FDB_CLUSTER_FILE: /etc/foundationdb/fdb.cluster
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: "29"
+          elixir-version: "1.20"
+
+      - name: cache deps
+        uses: actions/cache@v6
+        with:
+          path: |
+            deps
+            _build
+          key: ${{ runner.os }}-mix-1.20-29-${{ hashFiles('mix.lock') }}
+
+      - name: Install FoundationDB
+        run: |
+          curl -fsSL -o /tmp/fdb-clients.deb "https://github.com/apple/foundationdb/releases/download/${FDB_VERSION}/foundationdb-clients_${FDB_VERSION}-1_amd64.deb"
+          curl -fsSL -o /tmp/fdb-server.deb "https://github.com/apple/foundationdb/releases/download/${FDB_VERSION}/foundationdb-server_${FDB_VERSION}-1_amd64.deb"
+          sudo dpkg -i /tmp/fdb-clients.deb /tmp/fdb-server.deb
+          for i in $(seq 1 30); do
+            fdbcli --exec 'status minimal' | grep -q 'The database is available' && break
+            sleep 2
+          done
+
+      - run: mix deps.get
+
+      - name: run the Elixir benches
+        run: |
+          {
+            echo "# elixir benches ($(date -u))"
+            for b in store actor data_plane data_plane_ring; do
+              echo "## $b"
+              mix run "bench/$b.exs" || true
+            done
+          } | tee elixir-benches.txt
+
+      - name: upload the numbers
+        uses: actions/upload-artifact@v7
+        with:
+          name: benchmarks-elixir
+          path: elixir-benches.txt
