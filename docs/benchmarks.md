@@ -85,3 +85,15 @@ Caveat: this is the cache-hot compute ceiling (packets and hot entities in L1/L2
 Real traffic adds NIC DMA and scattered-entity cache misses, so per-packet cost
 rises — but it stays far above 15M pps, so the conclusion (I/O-bound, not
 compute-bound) holds.
+
+### On measuring the I/O ceiling here (`bench/udp_recv.c`)
+
+Attempting to measure the kernel receive ceiling on loopback gave ~0.16M pps with
+**no gain from `recvmmsg` batching over `recv()`** — the tell that it is not
+measuring the receive path but loopback send-side throttling (ENOBUFS / single
+softirq core). Loopback UDP is not a valid proxy for NIC receive. A trustworthy
+kernel-vs-AF_XDP receive comparison needs a real NIC (or an AF_XDP veth setup),
+which this box does not have. The tool is kept for a NIC-equipped host; the
+number here is not load-bearing. The decisive, clean numbers stand: compute is
+826M pps/core and the I/O tax (which kernel bypass removes) must be measured on
+hardware, not loopback.
