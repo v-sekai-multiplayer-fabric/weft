@@ -13,11 +13,12 @@ not production SLAs. Reproduce with `mix run bench/<name>.exs`.
 | FDB load_all (100 keys)    | 2.2 K  | 448 µs   | 6.6x slower  |
 | FDB put (one txn)          | 1.0 K  | ~1006 µs | 14.4x slower |
 
-**Takeaway.** Node-local SQLite writes cost ~70 µs; FoundationDB writes cost ~1 ms
-— roughly **14× more per write**. That millisecond is the price of
-node-independence (a committed, any-node-reachable transaction), and it is what
-makes cross-machine handoff possible. Pick per actor mobility: hot single-node
-actors → SQLite; migratable/clustered actors → FDB.
+**Takeaway.** Local SQLite writes cost ~70 µs; a synchronous FoundationDB write
+costs ~1 ms, about **14× more**. Latency is the priority (see `latency.md`), so the
+write path is the local fast store, and durability plus cross-machine handoff run
+asynchronously, off the write path, replicating to FoundationDB. The 1 ms
+FoundationDB write is never on the critical path. This is one store design for every
+actor (local primary, async FoundationDB replica), not a per-actor choice.
 
 ## Actor ops (`bench/actor.exs`)
 
