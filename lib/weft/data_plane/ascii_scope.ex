@@ -68,14 +68,18 @@ defmodule Weft.DataPlane.AsciiScope do
   defp entities([x, y, z | rest]), do: [{x, y, z} | entities(rest)]
 
   # One panel as h braille rows. Each character is a 2 by 4 dot cell, so the panel
-  # draws 2*w by 4*h pixels. The dots come from entity positions. The color comes from
-  # the per-cell density, dithered onto the level palette. Denser cells run hotter.
-  # Labels and stats stay as plain text; only the plot is braille and colored.
+  # draws 2*w by 4*h pixels. A braille sub-pixel is square, so one uniform scale keeps
+  # the plot from skewing, centred in the pixel box. The dots come from entity
+  # positions. The color comes from the per-cell density, dithered onto the level
+  # palette. Denser cells run hotter. Labels and stats stay as plain text.
   defp panel(pts, w, h, proj) do
+    pw = 2 * w
+    ph = 4 * h
+
     pixels =
       Enum.map(pts, fn p ->
         {a, ra, b, rb} = proj.(p)
-        {sc(a, ra, 2 * w), sc(b, rb, 4 * h)}
+        uniform(a, ra, b, rb, pw, ph)
       end)
 
     density = density_grid(pixels, w, h)
@@ -121,11 +125,30 @@ defmodule Weft.DataPlane.AsciiScope do
     Enum.zip_with(a, b, fn la, lb -> la <> gap <> lb end)
   end
 
-  defp sc(_v, {mn, mx}, size) when mx <= mn, do: div(size - 1, 2)
+  # Map world point (a, b) to a pixel with one scale for both axes, so the plot keeps
+  # its shape. The content is centred (letterboxed) in the pixel box.
+  defp uniform(a, {mna, mxa}, b, {mnb, mxb}, pw, ph) do
+    span_a = max(mxa - mna, 1)
+    span_b = max(mxb - mnb, 1)
+    da = a - mna
+    db = b - mnb
 
-  defp sc(v, {mn, mx}, size) do
-    div((v - mn) * (size - 1), mx - mn) |> max(0) |> min(size - 1)
+    if (pw - 1) * span_b <= (ph - 1) * span_a do
+      # Width limits the scale.
+      s = pw - 1
+      used_h = div(span_b * s, span_a)
+      oy = div(ph - 1 - used_h, 2)
+      {clamp(div(da * s, span_a), pw), clamp(div(db * s, span_a) + oy, ph)}
+    else
+      # Height limits the scale.
+      s = ph - 1
+      used_w = div(span_a * s, span_b)
+      ox = div(pw - 1 - used_w, 2)
+      {clamp(div(da * s, span_b) + ox, pw), clamp(div(db * s, span_b), ph)}
+    end
   end
+
+  defp clamp(v, size), do: v |> max(0) |> min(size - 1)
 
   # Isometric screen bounds from the eight corners of the world box.
   defp iso_bounds({xmn, xmx}, {ymn, ymx}, {zmn, zmx}) do
