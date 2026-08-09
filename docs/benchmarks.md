@@ -83,8 +83,26 @@ of it entirely.
 
 Caveat: this is the cache-hot compute ceiling (packets and hot entities in L1/L2).
 Real traffic adds NIC DMA and scattered-entity cache misses, so per-packet cost
-rises — but it stays far above 15M pps, so the conclusion (I/O-bound, not
-compute-bound) holds.
+rises — the DRAM-bound number below is the honest version.
+
+### DRAM-bound apply — the real ceiling for large worlds (`bench/pps_dram.c`)
+
+Random writes into a 2 GB entity table (64M entities, far beyond the 32 MiB L3):
+
+| cores | packets/sec | ns/op/core |
+| --- | --- | --- |
+| 1 | 41.2 M | 24.2 |
+| 4 | 102.7 M | 38.9 |
+| 8 | 115.5 M | 69.3 |
+| 16 | 117.5 M | 136.1 |
+
+**Takeaway.** Random DRAM access is ~20× slower than cache-hot (41M vs 826M per
+core), and the aggregate **plateaus at ~117M pps — the DRAM bandwidth wall** (8→16
+cores barely moves). Two conclusions: (1) even pessimistically, one core clears the
+15M target by ~2.7×, so **apply is never the bottleneck** — packet I/O is; (2) the
+20× cache-vs-DRAM gap is why entity layout and area-of-interest locality (ECS-style
+hot arrays, spatial partitioning) matter at extreme scale, and why the ~117M wall,
+not compute, is the ultimate apply ceiling on this machine.
 
 ### On measuring the I/O ceiling here (`bench/udp_recv.c`)
 
