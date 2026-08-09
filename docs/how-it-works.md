@@ -119,8 +119,8 @@ crash. weft keeps each part in its own program for two reasons.
 
 - **A crash stays local.** One part crashes and restarts on its own. The world keeps
   running.
-- **A part cannot reach what it does not need.** Each part runs in a sandbox. Most parts
-  have no network access at all.
+- **A part cannot reach what it does not need.** Each part runs in a sandbox. A plane has
+  no network access. Only an edge has network access, and an edge does no other work.
 
 ## Does the mesh actually go faster
 
@@ -169,7 +169,8 @@ system is early. `tasks.md` lists what remains.
 
 | Word          | Meaning                                                                 |
 | ------------- | ----------------------------------------------------------------------- |
-| plane         | One part of the mesh. One program with one job.                         |
+| plane         | One part of the mesh. One program with one job. It has no network.       |
+| edge          | A plane with networking. It decodes the network and gives the result on. |
 | control plane | The manager. The Elixir program named weft.                             |
 | zone          | One region of the world. It simulates the things inside it.             |
 | entity        | One thing in the world with a position, such as an avatar or a vehicle. |
