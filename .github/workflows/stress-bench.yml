@@ -78,7 +78,7 @@ jobs:
 
       - name: record the 3D scope (wide geometry)
         run: |
-          asciinema rec --headless --window-size 160x48 \
+          asciinema rec --headless --window-size 80x24 \
             -t "title: weft stress bench 3D scope | repository-code: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY} | commit: ${GITHUB_SHA}" \
             -c "mix run bench/sumo_tui.exs 200 30" \
             --overwrite $REC.cast
@@ -101,19 +101,31 @@ jobs:
       - name: render gif and mp4
         run: |
           sudo apt-get update && sudo apt-get install -y ffmpeg
-          agg --cols 160 --rows 48 --font-family "DejaVu Sans Mono" \
+          agg --cols 80 --rows 24 --font-family "DejaVu Sans Mono" \
             $REC.cast $REC.gif
           ffmpeg -y -i $REC.gif -movflags faststart -pix_fmt yuv420p \
             -vf "scale=trunc(iw/2)*2:trunc(ih/2)*2" $REC.mp4
 
-      - name: upload the recording
+      - name: upload the mp4 (unzipped)
         uses: actions/upload-artifact@v7
         with:
-          name: stress-bench-cast
-          path: |
-            ${{ env.REC }}.cast
-            ${{ env.REC }}.gif
-            ${{ env.REC }}.mp4
+          name: ${{ env.REC }}.mp4
+          path: ${{ env.REC }}.mp4
+          archive: false
+
+      - name: upload the gif (unzipped)
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ env.REC }}.gif
+          path: ${{ env.REC }}.gif
+          archive: false
+
+      - name: upload the cast (unzipped)
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ env.REC }}.cast
+          path: ${{ env.REC }}.cast
+          archive: false
 
   native-benches:
     runs-on: ubuntu-24.04
