@@ -1,4 +1,4 @@
-defmodule RivetEx.DataPlane.Snapshot do
+defmodule Weft.DataPlane.Snapshot do
   @moduledoc """
   Digested world state crossing the physics -> BEAM boundary (contract 2 in
   `docs/data-plane.md`). This is what the data plane hands the control plane: not
@@ -17,7 +17,7 @@ defmodule RivetEx.DataPlane.Snapshot do
         }
 end
 
-defmodule RivetEx.DataPlane.Worker do
+defmodule Weft.DataPlane.Worker do
   @moduledoc """
   Contract for a zone's data-plane worker: the C++ Seastar + iceoryx + Jolt stack,
   or a stub. The real implementation is a Port or dirty-NIF to a separate OS
@@ -27,7 +27,7 @@ defmodule RivetEx.DataPlane.Worker do
 
   Snapshots are delivered to the subscriber as:
 
-      {:dp_snapshot, zone_id, %RivetEx.DataPlane.Snapshot{}}
+      {:dp_snapshot, zone_id, %Weft.DataPlane.Snapshot{}}
   """
 
   @callback start_link(zone_id :: term(), subscriber :: pid(), opts :: keyword()) ::
@@ -36,7 +36,7 @@ defmodule RivetEx.DataPlane.Worker do
   @callback stop(pid()) :: :ok
 end
 
-defmodule RivetEx.DataPlane.Stub do
+defmodule Weft.DataPlane.Stub do
   @moduledoc """
   Stand-in data-plane worker for exercising the boundary before the C++ exists. It
   models the right shape: it schedules its own ticks (event-driven, not a busy
@@ -44,21 +44,21 @@ defmodule RivetEx.DataPlane.Stub do
   this module with a Port/NIF to Seastar+iceoryx+Jolt; the contract is identical.
   """
 
-  @behaviour RivetEx.DataPlane.Worker
+  @behaviour Weft.DataPlane.Worker
 
   use GenServer
 
-  alias RivetEx.DataPlane.Snapshot
+  alias Weft.DataPlane.Snapshot
 
-  @impl RivetEx.DataPlane.Worker
+  @impl Weft.DataPlane.Worker
   def start_link(zone_id, subscriber, opts \\ []) do
     GenServer.start_link(__MODULE__, {zone_id, subscriber, opts})
   end
 
-  @impl RivetEx.DataPlane.Worker
+  @impl Weft.DataPlane.Worker
   def command(pid, cmd), do: GenServer.cast(pid, {:command, cmd})
 
-  @impl RivetEx.DataPlane.Worker
+  @impl Weft.DataPlane.Worker
   def stop(pid), do: GenServer.stop(pid, :normal)
 
   @impl GenServer

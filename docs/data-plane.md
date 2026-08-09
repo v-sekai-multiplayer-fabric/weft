@@ -1,6 +1,6 @@
 # Data plane boundary
 
-rivet_ex is the **control plane**. It decides *which* node owns a zone, keeps one
+weft is the **control plane**. It decides *which* node owns a zone, keeps one
 writer per id, hands zones off on node loss, and holds durable state. It must
 never touch a game packet.
 
@@ -33,20 +33,20 @@ flowchart TD
 | Network | **Seastar (C++/DPDK)** | Datagram ingest + decode, kernel bypass, thread-per-core | 15M+ pps |
 | IPC | **Eclipse iceoryx (C++)** | Zero-copy shared-memory handoff, network → physics | <1 microsecond |
 | Game loop | **Jolt Physics (C++, separate process)** | 60Hz spatial hash, broadphase culling, raycast, collision | multi-core |
-| Control | **Elixir / BEAM (rivet_ex)** | Placement, single-writer, failover, durable state, chat, accounts, matchmaking | — |
+| Control | **Elixir / BEAM (weft)** | Placement, single-writer, failover, durable state, chat, accounts, matchmaking | — |
 
 ## The three contracts across the boundary
 
 1. **Network → Physics (iceoryx, zero-copy).** Seastar decodes datagrams and
    publishes decrypted player inputs into an iceoryx pool; Jolt subscribes. Pure
-   shared memory, no copy, sub-microsecond. rivet_ex is not involved.
+   shared memory, no copy, sub-microsecond. weft is not involved.
 
 2. **Physics → BEAM (shared-memory ring, read at tick rate).** Jolt writes
    *digested* world state (not packets) into a shared-memory ring. BEAM reads the
    latest snapshot at its tick rate through a thin **dirty NIF** or a **C-Node /
    Port**. The BEAM side is **event-driven or tick-scheduled, never a busy-poll**.
 
-3. **BEAM → Data plane (control channel).** rivet_ex issues lifecycle commands:
+3. **BEAM → Data plane (control channel).** weft issues lifecycle commands:
    spawn a zone's data-plane worker on this node, despawn it, migrate it. These
    ride a Port/NIF control path, low-rate, request/response.
 
@@ -75,20 +75,20 @@ Climb only when the tier below is genuinely saturated, and cull first.
 3. **DPDK / Seastar** — 15–30M pps, dedicate 4–8 cores to polling.
 4. **SmartNIC / DPU** — 50–100M+ pps, offload decode/filter onto NIC silicon.
 
-## Where rivet_ex fits
+## Where weft fits
 
-rivet_ex decides *where* a zone runs; the data plane decides *how fast* that one
+weft decides *where* a zone runs; the data plane decides *how fast* that one
 server ingests. They compose through placement:
 
 - `Horde` single-writer + handoff (already built) tells the data plane **which box
-  owns a zone's socket**. When a node dies, rivet_ex re-places the zone; the new
+  owns a zone's socket**. When a node dies, weft re-places the zone; the new
   owner's data-plane worker binds the socket.
 - The FoundationDB store (already built) holds the zone's durable state so the new
   owner can resume it after handoff — no filesystem affinity.
-- The zone's hot loop (Seastar/iceoryx/Jolt) is spawned and reaped by rivet_ex as
+- The zone's hot loop (Seastar/iceoryx/Jolt) is spawned and reaped by weft as
   part of that zone's lifecycle, but runs entirely outside the BEAM.
 
-The next step is a thin, honest prototype of contract (2) and (3): a `RivetEx.Zone`
+The next step is a thin, honest prototype of contract (2) and (3): a `Weft.Zone`
 whose control/durable state lives in the BEAM, with a stubbed data-plane worker
 behind a behaviour, so the seam is exercised before the C++ exists. See
-`RivetEx.DataPlane`.
+`Weft.DataPlane`.

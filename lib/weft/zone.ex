@@ -1,4 +1,4 @@
-defmodule RivetEx.Zone do
+defmodule Weft.Zone do
   @moduledoc """
   A game zone: the control-plane owner of a data-plane worker.
 
@@ -15,7 +15,7 @@ defmodule RivetEx.Zone do
 
   use GenServer
 
-  alias RivetEx.DataPlane.Snapshot
+  alias Weft.DataPlane.Snapshot
 
   @spec start_link(keyword()) :: GenServer.on_start()
   def start_link(opts) do
@@ -25,7 +25,7 @@ defmodule RivetEx.Zone do
 
   @doc "Distributed address of a zone."
   @spec via(term()) :: {:via, module(), {module(), {:zone, term()}}}
-  def via(zone_id), do: {:via, Horde.Registry, {RivetEx.Registry, {:zone, zone_id}}}
+  def via(zone_id), do: {:via, Horde.Registry, {Weft.Registry, {:zone, zone_id}}}
 
   @doc "The latest digested snapshot from the data plane, or nil before the first tick."
   @spec latest(GenServer.server()) :: Snapshot.t() | nil
@@ -42,7 +42,7 @@ defmodule RivetEx.Zone do
   @impl true
   def init(opts) do
     zone_id = Keyword.fetch!(opts, :zone_id)
-    worker_mod = Keyword.get(opts, :worker, RivetEx.DataPlane.Stub)
+    worker_mod = Keyword.get(opts, :worker, Weft.DataPlane.Stub)
     worker_opts = Keyword.get(opts, :worker_opts, [])
 
     # The worker is linked: if the hot loop dies, the zone dies with it and is

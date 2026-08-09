@@ -1,4 +1,4 @@
-defmodule RivetEx.ActorLifecycleTest do
+defmodule Weft.ActorLifecycleTest do
   @moduledoc """
   Per-actor scale-to-zero. An actor with no activity for its idle window stops and
   releases its process (rivet's "sleep"), keeping only its durable SQLite state.
@@ -9,16 +9,16 @@ defmodule RivetEx.ActorLifecycleTest do
 
   use ExUnit.Case, async: false
 
-  alias RivetEx.{Actor, Actors}
+  alias Weft.{Actor, Actors}
 
   setup do
-    prev = Application.get_env(:rivet_ex, :actor_idle_ms)
-    Application.put_env(:rivet_ex, :actor_idle_ms, 50)
+    prev = Application.get_env(:weft, :actor_idle_ms)
+    Application.put_env(:weft, :actor_idle_ms, 50)
 
     on_exit(fn ->
       if prev,
-        do: Application.put_env(:rivet_ex, :actor_idle_ms, prev),
-        else: Application.delete_env(:rivet_ex, :actor_idle_ms)
+        do: Application.put_env(:weft, :actor_idle_ms, prev),
+        else: Application.delete_env(:weft, :actor_idle_ms)
     end)
 
     :ok

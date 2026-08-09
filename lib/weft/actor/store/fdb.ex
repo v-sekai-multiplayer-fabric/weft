@@ -1,11 +1,11 @@
-defmodule RivetEx.Actor.Store.Fdb do
+defmodule Weft.Actor.Store.Fdb do
   @moduledoc """
   FoundationDB-backed actor store: durable per-actor state that any node in the
   cluster can reach, so an actor can be handed off to a different machine and still
   read its data. This is the backend that makes real multi-machine handoff work,
   and it is the same choice rivet makes.
 
-  Each actor occupies a tuple-layer subspace `("rivet_ex", "actor", name, key)`.
+  Each actor occupies a tuple-layer subspace `("weft", "actor", name, key)`.
   Keys and values are Erlang terms serialized with `term_to_binary`. A single
   database handle is shared process-wide; each `put` is its own committed
   transaction, and `load_all` reads the actor's subspace in one snapshot.
@@ -16,9 +16,9 @@ defmodule RivetEx.Actor.Store.Fdb do
   locking is needed.
   """
 
-  @behaviour RivetEx.Actor.Store
+  @behaviour Weft.Actor.Store
 
-  @prefix "rivet_ex"
+  @prefix "weft"
   @kind "actor"
 
   @impl true
@@ -65,9 +65,9 @@ defmodule RivetEx.Actor.Store.Fdb do
   end
 
   defp cluster_file do
-    case Application.get_env(:rivet_ex, :fdb_cluster_file) do
+    case Application.get_env(:weft, :fdb_cluster_file) do
       path when is_binary(path) -> path
-      nil -> raise "RivetEx.Actor.Store.Fdb requires config :rivet_ex, :fdb_cluster_file"
+      nil -> raise "Weft.Actor.Store.Fdb requires config :weft, :fdb_cluster_file"
     end
   end
 end

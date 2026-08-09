@@ -1,4 +1,4 @@
-defmodule RivetEx.ZoneTest do
+defmodule Weft.ZoneTest do
   @moduledoc """
   Exercises the control/data-plane boundary with a stub worker: the BEAM zone
   receives digested snapshots event-driven and steers the worker, without polling
@@ -7,7 +7,7 @@ defmodule RivetEx.ZoneTest do
 
   use ExUnit.Case, async: true
 
-  alias RivetEx.Zone
+  alias Weft.Zone
 
   test "a zone receives digested snapshots from its data-plane worker" do
     zone_id = "z-#{System.unique_integer([:positive])}"

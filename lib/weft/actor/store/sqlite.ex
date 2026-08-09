@@ -1,4 +1,4 @@
-defmodule RivetEx.Actor.Store.Sqlite do
+defmodule Weft.Actor.Store.Sqlite do
   @moduledoc """
   SQLite-backed actor store: one database file per actor at
   `<data_dir>/<name>/<key>.db`, holding a single `kv` table. Keys and values are
@@ -10,7 +10,7 @@ defmodule RivetEx.Actor.Store.Sqlite do
   fencing or lease is needed here.
   """
 
-  @behaviour RivetEx.Actor.Store
+  @behaviour Weft.Actor.Store
 
   alias Exqlite.Sqlite3
 
@@ -78,8 +78,8 @@ defmodule RivetEx.Actor.Store.Sqlite do
   end
 
   defp data_dir do
-    Application.get_env(:rivet_ex, :data_dir) ||
-      Path.join(System.tmp_dir!(), "rivet_ex")
+    Application.get_env(:weft, :data_dir) ||
+      Path.join(System.tmp_dir!(), "weft")
   end
 
   # Keep ids that are not filesystem-safe from escaping their directory.

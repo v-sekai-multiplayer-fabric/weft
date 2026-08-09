@@ -1,4 +1,4 @@
-defmodule RivetEx.Actors do
+defmodule Weft.Actors do
   @moduledoc """
   Facade for addressing actors across the cluster, the OTP analogue of pegboard's
   `get_or_create` plus its exclusivity guarantee.
@@ -32,7 +32,7 @@ defmodule RivetEx.Actors do
         if alive?(pid), do: {:ok, pid}, else: retry(name, key, tries)
 
       nil ->
-        case Horde.DynamicSupervisor.start_child(RivetEx.ActorSupervisor, child_spec(id)) do
+        case Horde.DynamicSupervisor.start_child(Weft.ActorSupervisor, child_spec(id)) do
           {:ok, pid} -> {:ok, pid}
           {:ok, pid, _info} -> {:ok, pid}
           {:error, {:already_started, pid}} -> if_alive(pid, name, key, tries)
@@ -45,7 +45,7 @@ defmodule RivetEx.Actors do
 
   @spec whereis(String.t(), String.t()) :: pid() | nil
   def whereis(name, key) do
-    case Horde.Registry.lookup(RivetEx.Registry, {name, key}) do
+    case Horde.Registry.lookup(Weft.Registry, {name, key}) do
       [{pid, _value}] -> pid
       [] -> nil
     end
@@ -53,7 +53,7 @@ defmodule RivetEx.Actors do
 
   # Unique child id per actor so Horde tracks and redistributes each distinctly.
   defp child_spec({_name, _key} = id) do
-    %{id: {RivetEx.Actor, id}, start: {RivetEx.Actor, :start_link, [id]}, restart: :transient}
+    %{id: {Weft.Actor, id}, start: {Weft.Actor, :start_link, [id]}, restart: :transient}
   end
 
   defp if_alive(pid, name, key, tries) do

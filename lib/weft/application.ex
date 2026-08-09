@@ -1,4 +1,4 @@
-defmodule RivetEx.Application do
+defmodule Weft.Application do
   @moduledoc false
 
   use Application
@@ -10,19 +10,19 @@ defmodule RivetEx.Application do
       # distributed registry is the single-writer invariant across a cluster,
       # replacing pegboard's exclusivity + lost-timeout/ping fencing. `members:
       # :auto` makes every connected node a member automatically.
-      {Horde.Registry, name: RivetEx.Registry, keys: :unique, members: :auto},
+      {Horde.Registry, name: Weft.Registry, keys: :unique, members: :auto},
       # Actor lifecycle, distributed: actors spread across the cluster and are
       # handed off to survivors when a node leaves. This is pegboard failover.
       {Horde.DynamicSupervisor,
-       name: RivetEx.ActorSupervisor,
+       name: Weft.ActorSupervisor,
        strategy: :one_for_one,
        members: :auto,
        process_redistribution: :active},
       # Runner lifecycle: serverless runners started and drained by pool reconcilers.
-      {DynamicSupervisor, name: RivetEx.RunnerSupervisor, strategy: :one_for_one}
+      {DynamicSupervisor, name: Weft.RunnerSupervisor, strategy: :one_for_one}
     ]
 
-    opts = [strategy: :one_for_one, name: RivetEx.Supervisor]
+    opts = [strategy: :one_for_one, name: Weft.Supervisor]
     Supervisor.start_link(children, opts)
   end
 end

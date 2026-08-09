@@ -1,4 +1,4 @@
-defmodule RivetEx.PoolTest do
+defmodule Weft.PoolTest do
   @moduledoc """
   The Elixir counterpart of `engine/packages/engine/tests/serverless_pool_reconcile.rs`
   and of the Lean theorems in `proofs/serverless_pool_jam.lean`.
@@ -12,8 +12,8 @@ defmodule RivetEx.PoolTest do
   use ExUnit.Case, async: true
   use ExUnitProperties
 
-  alias RivetEx.Pool
-  alias RivetEx.Pool.{Config, Reconciler}
+  alias Weft.Pool
+  alias Weft.Pool.{Config, Reconciler}
 
   describe "desired_runners/2 (pure core, port of read_desired / desiredRunners)" do
     test "zero demand wants no runners (above the min floor)" do
@@ -113,7 +113,7 @@ defmodule RivetEx.PoolTest do
          name: name,
          config: %Config{slots_per_runner: 1, max_runners: 5},
          observe: fn -> Agent.get(demand, & &1) end,
-         start_runner: fn -> RivetEx.Pool.Runner.start([]) end,
+         start_runner: fn -> Weft.Pool.Runner.start([]) end,
          tick_ms: 60_000}
       )
 
@@ -130,7 +130,7 @@ defmodule RivetEx.PoolTest do
   # A runner that reports both a bare and a tagged "started" so tests can either
   # just wait for a start or capture the pid.
   defp start_signalling_runner(test_pid) do
-    RivetEx.Pool.Runner.start(
+    Weft.Pool.Runner.start(
       on_start: fn ->
         send(test_pid, :runner_started)
         send(test_pid, {:runner_started, self()})

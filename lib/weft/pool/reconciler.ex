@@ -1,9 +1,9 @@
-defmodule RivetEx.Pool.Reconciler do
+defmodule Weft.Pool.Reconciler do
   @moduledoc """
   Level-triggered runner-pool reconciler.
 
   Every tick (and on `bump/1`) it observes live demand, computes the desired
-  runner count with `RivetEx.Pool.desired_runners/2`, and converges the live set
+  runner count with `Weft.Pool.desired_runners/2`, and converges the live set
   of runner processes toward it: starting runners when short, draining when long.
 
   Because desired is derived from `observe.()` and the live set is derived from
@@ -22,7 +22,7 @@ defmodule RivetEx.Pool.Reconciler do
 
   use GenServer
 
-  alias RivetEx.Pool
+  alias Weft.Pool
 
   @type option ::
           {:name, GenServer.name()}
@@ -99,7 +99,7 @@ defmodule RivetEx.Pool.Reconciler do
   defp drain_one(state) do
     case Enum.take(state.runners, 1) do
       [pid] ->
-        RivetEx.Pool.Runner.drain(pid)
+        Weft.Pool.Runner.drain(pid)
         %{state | runners: MapSet.delete(state.runners, pid)}
 
       [] ->

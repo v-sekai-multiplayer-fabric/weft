@@ -1,6 +1,6 @@
-defmodule RivetEx do
+defmodule Weft do
   @moduledoc """
-  Documentation for `RivetEx`.
+  Documentation for `Weft`.
   """
 
   @doc """
@@ -8,7 +8,7 @@ defmodule RivetEx do
 
   ## Examples
 
-      iex> RivetEx.hello()
+      iex> Weft.hello()
       :world
 
   """

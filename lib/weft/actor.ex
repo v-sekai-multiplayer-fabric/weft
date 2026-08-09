@@ -1,11 +1,11 @@
-defmodule RivetEx.Actor do
+defmodule Weft.Actor do
   @moduledoc """
   A stateful, single-writer actor addressed by `{name, key}`.
 
   Rivet's core invariant is that at most one actor instance for a given id may run
   or touch its storage at a time (the single-writer invariant for KV and SQLite).
   On the BEAM this is a property of the runtime, not a distributed lease: the
-  `RivetEx.Registry` guarantees one process per `{name, key}`, and a process
+  `Weft.Registry` guarantees one process per `{name, key}`, and a process
   handles its mailbox one message at a time, so state mutations are serialized by
   construction. No lease keys, no ping/lost-timeout fencing.
 
@@ -26,7 +26,7 @@ defmodule RivetEx.Actor do
 
   @doc "The `:via` tuple that addresses this actor through the distributed registry."
   @spec via(id()) :: {:via, module(), {module(), id()}}
-  def via({_name, _key} = id), do: {:via, Horde.Registry, {RivetEx.Registry, id}}
+  def via({_name, _key} = id), do: {:via, Horde.Registry, {Weft.Registry, id}}
 
   @spec put(GenServer.server(), term(), term()) :: :ok
   def put(server, k, v), do: GenServer.call(server, {:put, k, v})
@@ -39,7 +39,7 @@ defmodule RivetEx.Actor do
 
   @impl true
   def init({name, key} = id) do
-    store = RivetEx.Actor.Store.impl()
+    store = Weft.Actor.Store.impl()
     {:ok, handle} = store.open(id)
     # Restore durable state so a fresh process for this id resumes where the last
     # one left off. This is the wake-from-sleep / restart-after-crash path.
@@ -51,7 +51,7 @@ defmodule RivetEx.Actor do
       store: store,
       handle: handle,
       kv: kv,
-      idle_ms: Application.get_env(:rivet_ex, :actor_idle_ms, :infinity),
+      idle_ms: Application.get_env(:weft, :actor_idle_ms, :infinity),
       created_at: System.system_time(:millisecond)
     }
 

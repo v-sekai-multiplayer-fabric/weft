@@ -1,4 +1,4 @@
-defmodule RivetEx.ActorPersistenceTest do
+defmodule Weft.ActorPersistenceTest do
   @moduledoc """
   Durable per-actor state: rivet's core value. An actor's KV survives the process
   ending (sleep, crash, redeploy) because it is written through to a per-actor
@@ -8,7 +8,7 @@ defmodule RivetEx.ActorPersistenceTest do
 
   use ExUnit.Case, async: false
 
-  alias RivetEx.{Actor, Actors}
+  alias Weft.{Actor, Actors}
 
   test "actor state survives a restart" do
     key = "persist-#{System.unique_integer([:positive])}"

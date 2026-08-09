@@ -1,4 +1,4 @@
-defmodule RivetEx.Actor.Store.FdbTest do
+defmodule Weft.Actor.Store.FdbTest do
   @moduledoc """
   Durable actor state in FoundationDB. Unlike node-local SQLite, this state has no
   filesystem affinity, so an actor handed off to another machine still reads it.
@@ -9,16 +9,16 @@ defmodule RivetEx.Actor.Store.FdbTest do
 
   @moduletag :fdb
 
-  alias RivetEx.{Actor, Actors}
+  alias Weft.{Actor, Actors}
 
   setup do
-    prev = Application.get_env(:rivet_ex, :actor_store)
-    Application.put_env(:rivet_ex, :actor_store, RivetEx.Actor.Store.Fdb)
+    prev = Application.get_env(:weft, :actor_store)
+    Application.put_env(:weft, :actor_store, Weft.Actor.Store.Fdb)
 
     on_exit(fn ->
       if prev,
-        do: Application.put_env(:rivet_ex, :actor_store, prev),
-        else: Application.delete_env(:rivet_ex, :actor_store)
+        do: Application.put_env(:weft, :actor_store, prev),
+        else: Application.delete_env(:weft, :actor_store)
     end)
 
     :ok

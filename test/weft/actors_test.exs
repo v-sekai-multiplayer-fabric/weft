@@ -1,7 +1,7 @@
-defmodule RivetEx.ActorsTest do
+defmodule Weft.ActorsTest do
   use ExUnit.Case, async: true
 
-  alias RivetEx.{Actor, Actors}
+  alias Weft.{Actor, Actors}
 
   test "an actor is a single writer addressed by {name, key}" do
     key = "z-#{System.unique_integer([:positive])}"

@@ -1,4 +1,4 @@
-defmodule RivetEx.ClusterTest do
+defmodule Weft.ClusterTest do
   @moduledoc """
   Multi-node proof: one actor instance per id across a cluster, and handoff when a
   node dies. This is the guarantee pegboard spends `pegboard-envoy` plus
@@ -16,10 +16,10 @@ defmodule RivetEx.ClusterTest do
   @moduletag :distributed
   @moduletag timeout: 60_000
 
-  alias RivetEx.Actors
+  alias Weft.Actors
 
   setup do
-    data_dir = Application.get_env(:rivet_ex, :data_dir)
+    data_dir = Application.get_env(:weft, :data_dir)
     peers = for i <- 1..2, do: start_peer("n#{i}", data_dir)
     peer_nodes = Enum.map(peers, fn {_pid, node} -> node end)
     all_nodes = [node() | peer_nodes]
@@ -50,7 +50,7 @@ defmodule RivetEx.ClusterTest do
     {key, pid} = actor_on_a_peer(peer_nodes)
     host = node(pid)
 
-    :ok = :erpc.call(host, RivetEx.Actor, :put, [pid, :hp, 99])
+    :ok = :erpc.call(host, Weft.Actor, :put, [pid, :hp, 99])
 
     # Kill the node hosting the actor.
     {host_pid, ^host} = Enum.find(peers, fn {_pid, n} -> n == host end)
@@ -69,7 +69,7 @@ defmodule RivetEx.ClusterTest do
       end)
 
     assert node(restored_pid) != host
-    assert :erpc.call(node(restored_pid), RivetEx.Actor, :get, [restored_pid, :hp]) == 99
+    assert :erpc.call(node(restored_pid), Weft.Actor, :get, [restored_pid, :hp]) == 99
   end
 
   # Find a {key, pid} whose actor Horde placed on a peer node.
@@ -90,13 +90,13 @@ defmodule RivetEx.ClusterTest do
         name: String.to_atom(name),
         host: ~c"127.0.0.1",
         longnames: true,
-        args: [~c"-setcookie", ~c"rivet_ex_test"]
+        args: [~c"-setcookie", ~c"weft_test"]
       })
 
     # Give the peer this node's code paths and the shared data dir, then boot the app.
     :ok = :erpc.call(node, :code, :add_pathsz, [:code.get_path()])
-    _ = :erpc.call(node, Application, :put_env, [:rivet_ex, :data_dir, data_dir])
-    {:ok, _} = :erpc.call(node, Application, :ensure_all_started, [:rivet_ex])
+    _ = :erpc.call(node, Application, :put_env, [:weft, :data_dir, data_dir])
+    {:ok, _} = :erpc.call(node, Application, :ensure_all_started, [:weft])
 
     {pid, node}
   end
@@ -105,7 +105,7 @@ defmodule RivetEx.ClusterTest do
     wait_until(fn ->
       converged? =
         Enum.all?(nodes, fn n ->
-          members = :erpc.call(n, Horde.Cluster, :members, [RivetEx.ActorSupervisor])
+          members = :erpc.call(n, Horde.Cluster, :members, [Weft.ActorSupervisor])
           length(members) == length(nodes)
         end)
 

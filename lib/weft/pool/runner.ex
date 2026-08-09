@@ -1,4 +1,4 @@
-defmodule RivetEx.Pool.Runner do
+defmodule Weft.Pool.Runner do
   @moduledoc """
   A serverless runner process: the unit the reconciler starts and drains to match
   demand. In the Rust engine this is the outbound serverless connection that POSTs

@@ -1,4 +1,4 @@
-defmodule RivetEx.Pool.Config do
+defmodule Weft.Pool.Config do
   @moduledoc """
   Serverless runner-pool configuration. Mirrors the serverless fields of
   `rivet_types::runner_configs::RunnerConfigKind::Serverless`.
@@ -14,7 +14,7 @@ defmodule RivetEx.Pool.Config do
   defstruct slots_per_runner: 1, min_runners: 0, max_runners: 100, runners_margin: 0
 end
 
-defmodule RivetEx.Pool do
+defmodule Weft.Pool do
   @moduledoc """
   The level-triggered reconciler's pure core: how many runners a pool should have,
   derived entirely from *observed live demand*.
@@ -31,7 +31,7 @@ defmodule RivetEx.Pool do
   supervisor discipline: observe the live set, converge to the spec, never count.
   """
 
-  alias RivetEx.Pool.Config
+  alias Weft.Pool.Config
 
   @doc """
   Desired runner count for an observed `demand` (in slots).
