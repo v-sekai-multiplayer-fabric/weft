@@ -117,9 +117,24 @@ This splits in two, and the split is settled:
   plane stays for server-side iceoryx2 processes.
 - **The part that provides the observer's data is a plane.** That is server-side. The
   game data plane already produces digested world state, so its output is the
-  observer feed; the gateway forwards it to the HMD over WebTransport. A dedicated
-  spectator plane is added only if the observer view must differ from the game data
-  plane's output.
+  observer feed; the gateway forwards it to the HMD over WebTransport.
+
+A single read-only VR headset needs no new plane: it consumes the game data plane's
+full digest over WebTransport. A dedicated spectator plane is added only when a
+concrete trigger appears:
+
+- **Scale.** Many observers on a popular zone. The game data plane's reactor cores
+  are pinned at 100% for the simulation, so spectator fanout and encoding must not
+  steal cycles from it. A spectator plane reads the output and scales on its own
+  cores.
+- **A wider or enriched view.** The authoritative feed is area-of-interest culled per
+  participant and omits what players must not see. A whole-zone or director camera,
+  or overlays players never get (everyone's names and stats, event markers), is extra
+  work on an un-culled view.
+- **Delay and replay.** Broadcast spectating runs on a delay with scrubbing and
+  replay to stop stream-sniping, a stateful buffer distinct from the live feed.
+
+Until one of these holds, there is no spectator plane.
 
 ### Open questions
 
