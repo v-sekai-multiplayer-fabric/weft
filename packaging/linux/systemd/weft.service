@@ -6,7 +6,7 @@ Wants=network-online.target
 [Service]
 Type=simple
 Environment=WEFT_FDB_CLUSTER_FILE=/etc/foundationdb/fdb.cluster
-ExecStart=/opt/weft/bin/weft start
+ExecStart=/opt/weft/rel/bin/weft start
 Restart=always
 RestartSec=2
 

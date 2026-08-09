@@ -1,5 +1,5 @@
 # Build the native artifacts for both Windows and Linux: the C++ data plane and the
-# Elixir Burrito. Each runner builds its own operating system natively. The artifacts
+# Elixir release. Each runner builds its own operating system natively. The artifacts
 # upload to the workflow run, never to git.
 name: release-native
 
@@ -40,7 +40,7 @@ jobs:
           path: out/*
           if-no-files-found: error
 
-  burrito:
+  release:
     strategy:
       fail-fast: false
       matrix:
@@ -52,14 +52,12 @@ jobs:
     runs-on: ${{ matrix.os }}
     env:
       FDB_VERSION: "7.3.76"
-      BURRITO_TARGET: ${{ matrix.target }}
     steps:
       - uses: actions/checkout@v5
       - uses: erlef/setup-beam@v1
         with:
           otp-version: "29"
           elixir-version: "1.20"
-      - uses: mlugg/setup-zig@v2
       - name: Install the FoundationDB client (Linux, official)
         if: matrix.os == 'ubuntu-latest'
         run: |
@@ -78,31 +76,35 @@ jobs:
           fi
           curl -fsSL -o fdb-client.exe "${FDB_WINDOWS_CLIENT_URL}"
           ./fdb-client.exe /quiet || ./fdb-client.exe
-      - name: Build the Burrito
+      # Standard OTP release. It bundles ERTS, so it is self-contained. No Burrito, no zig.
+      - name: Build the release
+        shell: bash
         run: |
           mix local.hex --force
           mix local.rebar --force
           mix deps.get
           MIX_ENV=prod mix release weft
+          tar czf weft-release.tar.gz -C _build/prod/rel weft
       - uses: actions/upload-artifact@v7
         with:
-          name: weft-burrito-${{ matrix.target }}
-          path: burrito_out/*
+          name: weft-release-${{ matrix.target }}
+          path: weft-release.tar.gz
           if-no-files-found: error
 
   # Package the whole cluster for Linux: fpm builds a .deb and a .rpm with the control
   # plane, the data plane, the versitygw S3 tier, and the Quadlet units.
   package-linux:
-    needs: [dataplane, burrito]
+    needs: [dataplane, release]
     runs-on: ubuntu-latest
     env:
       VERSION: "0.1.0"
+      FDB_VERSION: "7.3.76"
     steps:
       - uses: actions/checkout@v5
       - uses: actions/download-artifact@v7
         with:
-          name: weft-burrito-linux
-          path: dl/burrito
+          name: weft-release-linux
+          path: dl/release
       - uses: actions/download-artifact@v7
         with:
           name: weft-dataplane-ubuntu-latest
@@ -118,12 +120,26 @@ jobs:
           curl -fsSL "${VERSITYGW_LINUX_URL}" -o versitygw
       - name: Stage the cluster tree
         run: |
-          mkdir -p pkgroot/opt/weft/bin pkgroot/usr/lib/systemd/system
-          cp dl/burrito/weft_linux pkgroot/opt/weft/bin/weft
+          mkdir -p pkgroot/opt/weft/rel pkgroot/opt/weft/bin \
+            pkgroot/opt/weft/vendor pkgroot/usr/lib/systemd/system
+          tar xzf dl/release/weft-release.tar.gz -C pkgroot/opt/weft/rel --strip-components=1
           cp dl/dataplane/weft-dataplane pkgroot/opt/weft/bin/weft-dataplane
           cp versitygw pkgroot/opt/weft/bin/versitygw
+          cp packaging/linux/vendor-install.sh pkgroot/opt/weft/bin/vendor-install.sh
           cp packaging/linux/systemd/*.service pkgroot/usr/lib/systemd/system/
           chmod +x pkgroot/opt/weft/bin/*
+      - name: Vendor the FoundationDB installers into the package
+        run: |
+          base="https://github.com/apple/foundationdb/releases/download/${FDB_VERSION}"
+          v=pkgroot/opt/weft/vendor
+          curl -fsSL -o "$v/foundationdb-clients_${FDB_VERSION}-1_amd64.deb" \
+            "$base/foundationdb-clients_${FDB_VERSION}-1_amd64.deb"
+          curl -fsSL -o "$v/foundationdb-server_${FDB_VERSION}-1_amd64.deb" \
+            "$base/foundationdb-server_${FDB_VERSION}-1_amd64.deb"
+          curl -fsSL -o "$v/foundationdb-clients-${FDB_VERSION}-1.el7.x86_64.rpm" \
+            "$base/foundationdb-clients-${FDB_VERSION}-1.el7.x86_64.rpm"
+          curl -fsSL -o "$v/foundationdb-server-${FDB_VERSION}-1.el7.x86_64.rpm" \
+            "$base/foundationdb-server-${FDB_VERSION}-1.el7.x86_64.rpm"
       - name: Build the .deb and .rpm with fpm
         run: |
           sudo gem install --no-document fpm
@@ -146,14 +162,14 @@ jobs:
   # Package the whole cluster for Windows: WiX builds an .msi with the control plane, the
   # data plane, and the versitygw S3 tier.
   package-windows:
-    needs: [dataplane, burrito]
+    needs: [dataplane, release]
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v5
       - uses: actions/download-artifact@v7
         with:
-          name: weft-burrito-windows
-          path: dl/burrito
+          name: weft-release-windows
+          path: dl/release
       - uses: actions/download-artifact@v7
         with:
           name: weft-dataplane-windows-latest
@@ -168,13 +184,24 @@ jobs:
             exit 1
           fi
           curl -fsSL "${VERSITYGW_WINDOWS_URL}" -o versitygw.exe
-      - name: Stage the binaries
+      - name: Fetch the community FoundationDB Windows client installer
+        shell: bash
+        env:
+          FDB_WINDOWS_CLIENT_URL: ${{ vars.FDB_WINDOWS_CLIENT_URL }}
+        run: |
+          if [ -z "${FDB_WINDOWS_CLIENT_URL}" ]; then
+            echo "Set the repository variable FDB_WINDOWS_CLIENT_URL to the community FoundationDB Windows client installer."
+            exit 1
+          fi
+          curl -fsSL "${FDB_WINDOWS_CLIENT_URL}" -o fdb-client-setup.exe
+      - name: Stage the release and binaries
         shell: bash
         run: |
-          mkdir -p stage
-          cp dl/burrito/weft_windows.exe stage/weft.exe
+          mkdir -p stage/rel
+          tar xzf dl/release/weft-release.tar.gz -C stage/rel --strip-components=1
           cp dl/dataplane/weft-dataplane.exe stage/weft-dataplane.exe
           cp versitygw.exe stage/versitygw.exe
+          cp fdb-client-setup.exe stage/fdb-client-setup.exe
       - name: Build the MSI with WiX
         shell: bash
         run: |

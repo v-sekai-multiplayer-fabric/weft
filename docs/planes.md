@@ -238,7 +238,7 @@ before putting a headset on.
 ### Build, test, release, and QA: GitHub Actions
 
 The whole system builds, tests, releases, and runs QA in GitHub Actions. A release
-follows RFD 0067 (dev, then beta, then rc): Elixir apps as Burrito executables, the
+follows RFD 0067 (dev, then beta, then rc): Elixir apps as OTP releases, the
 Godot client packaged, then fpm RPMs, and desync chunks pushed to the casync store.
 Automated QA runs the Godot client in TUI mode, which needs no display, so it runs on a
 CI worker. The runtime host is deferred.

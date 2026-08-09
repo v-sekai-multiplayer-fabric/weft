@@ -61,15 +61,16 @@ simulated HMD observers. Measure the latency and the frame budget.
 
 ## #49 dev-stage release
 
-Goal: a dev-stage release of the whole system, per RFD 0067. Elixir saves as Burrito
-executables. Godot packages from the godot-images templates. fpm builds the RPMs. The
-stages are dev, beta, and rc.
+Goal: a dev-stage release of the whole system, per RFD 0067. Elixir builds a standard OTP
+release. Godot packages from the godot-images templates. The stages are dev, beta, and rc.
 
-State: not started. The Godot package part is buildable with the godot-images templates.
-Burrito needs zig. fpm builds the RPM.
+State: mostly built. `release-native.yml` builds the OTP release and the C++ data plane on
+Linux and Windows. It packages the cluster as a .deb, a .rpm, and an .msi. The packages
+install the services enabled. The Linux package vendors the FoundationDB installers. The
+MSI bundles the community FoundationDB Windows installer. Burrito and zig were dropped.
 
-Next: add a release workflow. Build the Burrito executable. Export the Godot package with
-the templates. Package both as RPMs with fpm. Tag the dev stage.
+Next: export the Godot package with the godot-images templates and add it to the packages.
+Validate the packaging in CI, especially the Windows MSI and the FoundationDB install.
 
 ## #44 asset CDN baker plane
 
@@ -102,4 +103,3 @@ iceoryx toolchain, which we do not have here yet.
 
 - #44 (OpenUSD baker)
 - #48 (native store over iceoryx)
-- #49 (needs zig for Burrito; the Godot part is buildable)
