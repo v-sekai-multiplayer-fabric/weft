@@ -1,8 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- WiX authoring for the weft cluster MSI. It installs the control plane, the data
-     plane, and the S3 cold tier under Program Files. Build with WiX v5:
+<!-- WiX authoring for the weft cluster MSI. It installs the control-plane release, the
+     data plane, the versitygw S3 tier, and the community FoundationDB installer. It runs
+     the FoundationDB installer (client and server), then registers and starts the weft
+     Windows service. Build with WiX v5:
        wix build packaging/windows/weft.wxs -b stage -o weft-cluster.msi
-     The stage directory holds weft.exe, weft-dataplane.exe, and versitygw.exe. -->
+     The stage directory holds rel\ (the OTP release), weft-dataplane.exe, versitygw.exe,
+     and fdb-client-setup.exe. -->
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
   <Package Name="weft cluster"
            Manufacturer="v-sekai-multiplayer-fabric"
@@ -14,27 +17,40 @@
 
     <StandardDirectory Id="ProgramFiles64Folder">
       <Directory Id="INSTALLFOLDER" Name="weft">
-        <Component Id="WeftExe">
-          <File Id="weft.exe" Source="weft.exe" KeyPath="yes" />
-          <ServiceInstall Id="WeftService" Name="weft"
-                          DisplayName="weft control plane" Type="ownProcess"
-                          Start="auto" ErrorControl="normal" Arguments="start" />
-          <ServiceControl Id="WeftServiceControl" Name="weft" Start="install"
-                          Stop="both" Remove="uninstall" Wait="no" />
-        </Component>
-        <Component Id="DataplaneExe">
-          <File Id="weft_dataplane.exe" Source="weft-dataplane.exe" KeyPath="yes" />
-        </Component>
-        <Component Id="VersitygwExe">
-          <File Id="versitygw.exe" Source="versitygw.exe" KeyPath="yes" />
-        </Component>
+        <Directory Id="RelDir" Name="rel" />
       </Directory>
     </StandardDirectory>
 
     <Feature Id="Main" Title="weft cluster" Level="1">
-      <ComponentRef Id="WeftExe" />
-      <ComponentRef Id="DataplaneExe" />
-      <ComponentRef Id="VersitygwExe" />
+      <!-- The OTP release, harvested from stage\rel. -->
+      <Files Include="rel\**" Directory="RelDir" />
+      <Component Directory="INSTALLFOLDER">
+        <File Source="weft-dataplane.exe" />
+      </Component>
+      <Component Directory="INSTALLFOLDER">
+        <File Source="versitygw.exe" />
+      </Component>
+      <Component Directory="INSTALLFOLDER">
+        <File Source="fdb-client-setup.exe" />
+      </Component>
     </Feature>
+
+    <!-- Install FoundationDB (client and server), then register and start the weft
+         service through the release launcher. -->
+    <CustomAction Id="InstallFdb" Directory="INSTALLFOLDER"
+                  ExeCommand="&quot;[INSTALLFOLDER]fdb-client-setup.exe&quot; /quiet"
+                  Execute="deferred" Impersonate="no" Return="ignore" />
+    <CustomAction Id="InstallWeftSvc" Directory="INSTALLFOLDER"
+                  ExeCommand="cmd.exe /c &quot;[INSTALLFOLDER]rel\bin\weft.bat&quot; install"
+                  Execute="deferred" Impersonate="no" Return="ignore" />
+    <CustomAction Id="StartWeftSvc" Directory="INSTALLFOLDER"
+                  ExeCommand="cmd.exe /c &quot;[INSTALLFOLDER]rel\bin\weft.bat&quot; start"
+                  Execute="deferred" Impersonate="no" Return="ignore" />
+
+    <InstallExecuteSequence>
+      <Custom Action="InstallFdb" After="InstallFiles" Condition="NOT Installed" />
+      <Custom Action="InstallWeftSvc" After="InstallFdb" Condition="NOT Installed" />
+      <Custom Action="StartWeftSvc" After="InstallWeftSvc" Condition="NOT Installed" />
+    </InstallExecuteSequence>
   </Package>
 </Wix>

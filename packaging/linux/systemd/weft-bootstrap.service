@@ -1,0 +1,13 @@
+[Unit]
+Description=weft bootstrap: install vendored FoundationDB and start the services
+After=network-online.target
+Wants=network-online.target
+ConditionPathExists=/opt/weft/bin/vendor-install.sh
+
+[Service]
+Type=oneshot
+ExecStart=/opt/weft/bin/vendor-install.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

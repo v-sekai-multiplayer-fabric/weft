@@ -48,26 +48,16 @@ defmodule Weft.MixProject do
       {:cc_precompiler, "~> 0.1", runtime: false},
       {:stream_data, "~> 1.1", only: :test},
       {:benchee, "~> 1.3", only: :dev},
-      {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
-      # Package the BEAM release as a single self-contained executable for the dev
-      # release (RFD 0067). Burrito uses zig at release time; plain `mix compile`
-      # does not need it.
-      {:burrito, "~> 1.3"}
+      {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false}
     ]
   end
 
-  # Burrito wraps the release into one executable per target, for the fpm RPM and
-  # the desync chunk store. See the release workflow.
+  # Standard OTP release. It bundles ERTS, so it is self-contained. Each runner builds
+  # the release for its own operating system. No Burrito, no zig.
   defp releases do
     [
       weft: [
-        steps: [:assemble, &Burrito.wrap/1],
-        burrito: [
-          targets: [
-            linux: [os: :linux, cpu: :x86_64],
-            windows: [os: :windows, cpu: :x86_64]
-          ]
-        ]
+        include_executables_for: [:unix, :windows]
       ]
     ]
   end

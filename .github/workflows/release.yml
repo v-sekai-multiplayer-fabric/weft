@@ -1,5 +1,5 @@
 # Dev-stage release of weft (RFD 0067: dev, then beta, then rc). Test, wrap the BEAM
-# release as a single Burrito executable, package an RPM with fpm, and chunk it with
+# release, package an RPM with fpm, and chunk it with
 # desync. In production the chunk store is SQLite to FoundationDB served over an
 # on-demand H3/WebTransport endpoint; here the chunks back the release assets.
 name: dev release
@@ -47,9 +47,6 @@ jobs:
           otp-version: "29"
           elixir-version: "1.20"
 
-      # Burrito wraps the release into one executable, using zig.
-      - uses: mlugg/setup-zig@v2
-
       - name: Install FoundationDB client
         run: |
           curl -fsSL -o /tmp/fdb-clients.deb "https://github.com/apple/foundationdb/releases/download/7.3.76/foundationdb-clients_7.3.76-1_amd64.deb"
@@ -57,21 +54,23 @@ jobs:
 
       - run: mix deps.get
 
-      - name: build the Burrito executable
-        run: mix release
+      # Standard OTP release. It bundles ERTS, so it is self-contained. No Burrito, no zig.
+      - name: build the release
+        run: |
+          mix release weft
+          tar czf weft-release.tar.gz -C _build/prod/rel weft
 
       - name: package an RPM with fpm
         run: |
           sudo gem install --no-document fpm
           version="${GITHUB_REF_NAME#v}"
-          exe=$(ls burrito_out/weft_* | head -1)
-          fpm -s dir -t rpm -n weft -v "${version:-0.0.0-dev}" "${exe}=/usr/bin/weft"
+          fpm -s dir -t rpm -n weft -v "${version:-0.0.0-dev}" \
+            _build/prod/rel/weft=/opt/weft/rel
 
       - name: chunk the release with desync
         run: |
           go install github.com/folbricht/desync/cmd/desync@latest
-          exe=$(ls burrito_out/weft_* | head -1)
-          "$(go env GOPATH)/bin/desync" make --store chunks weft.caibx "${exe}"
+          "$(go env GOPATH)/bin/desync" make --store chunks weft.caibx weft-release.tar.gz
 
       - name: publish the release
         uses: softprops/action-gh-release@v3

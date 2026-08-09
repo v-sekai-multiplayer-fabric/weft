@@ -38,8 +38,6 @@ bench/sumo/replay
 # Native planes (C++): build output is not committed.
 native/**/build/
 
-# Burrito release output.
-/burrito_out/
 
 # Cluster packages and their staging trees.
 *.msi
