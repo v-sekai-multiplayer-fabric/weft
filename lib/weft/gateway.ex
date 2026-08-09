@@ -5,10 +5,19 @@ defmodule Weft.Gateway.Request do
   """
 
   @enforce_keys [:target, :op]
-  defstruct [:target, :op, args: [], reliable: true]
+  defstruct [:target, :op, args: [], reliable: true, seq: nil]
 
   @type target :: {:actor, name :: String.t(), key :: String.t()} | {:zone, zone_id :: term()}
-  @type t :: %__MODULE__{target: target(), op: atom(), args: [term()], reliable: boolean()}
+  @type t :: %__MODULE__{
+          target: target(),
+          op: atom(),
+          args: [term()],
+          reliable: boolean(),
+          # App-level sequence for unreliable datagrams: the gateway drops any
+          # request whose seq is not newer than the last seen for its target
+          # (last-write-wins), so stale/out-of-order packets are discarded.
+          seq: non_neg_integer() | nil
+        }
 end
 
 defmodule Weft.Gateway do
@@ -33,9 +42,21 @@ defmodule Weft.Gateway do
     kind = elem(target, 0)
 
     :telemetry.span([:weft, :gateway, :dispatch], %{target: kind, op: op}, fn ->
-      {do_dispatch(req), %{}}
+      {routed(req), %{}}
     end)
   end
+
+  # Unreliable + sequenced: drop the packet unless it is newer than the last one
+  # seen for this target.
+  defp routed(%Request{reliable: false, seq: seq, target: target} = req) when is_integer(seq) do
+    if Weft.Gateway.SeqGuard.fresh?(target, seq) do
+      do_dispatch(req)
+    else
+      {:error, :stale}
+    end
+  end
+
+  defp routed(%Request{} = req), do: do_dispatch(req)
 
   defp do_dispatch(%Request{reliable: false, op: op}) when op in [:put, :add_entity] do
     {:error, {:requires_reliable, op}}
