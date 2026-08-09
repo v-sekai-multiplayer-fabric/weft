@@ -31,6 +31,8 @@ Rules and conventions for the weft repo. Follow them.
 - Return `{:ok, _}` and `{:error, _}` tuples.
 - Low latency is the priority. Keep durability and replication off the write path.
 - Match every enum variant. Do not use a catch-all arm.
+- Formalize an algorithm in Lean4 first, then port it to Elixir. The spec lives in `lean/`.
+- Lean4 proofs use `native_decide`. Do not use Mathlib. Elixir tests mirror the proofs.
 
 ## Git and CI
 
@@ -49,3 +51,4 @@ Rules and conventions for the weft repo. Follow them.
 
 - `docs/planes.md`, `docs/data-plane.md`, `docs/store.md`, `docs/protocol.md`, `docs/latency.md`.
 - `docs/yagni.md`, `docs/runtime-choice.md`, `docs/benchmarks.md`.
+- `docs/tasks.md` records the open work, the state today, and the next step.
