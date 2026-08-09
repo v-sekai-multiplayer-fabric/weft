@@ -4,6 +4,11 @@ First-pass performance of the control-plane paths. Numbers are from a single dev
 machine with a local single-node FoundationDB, so treat them as _relative_ signals,
 not production SLAs. Reproduce with `mix run bench/<name>.exs`.
 
+The `stress bench` GitHub Actions workflow gathers these numbers on CI. It uploads the
+native benches as the `benchmarks-native` artifact, the Elixir benches as
+`benchmarks-elixir`, and the SUMO console recording as `stress-bench-cast` (play it
+with `asciinema play`). Download the artifacts to update this page.
+
 ## Store backends (`bench/store.exs`)
 
 | Op                         | ips    | median   | vs fastest   |

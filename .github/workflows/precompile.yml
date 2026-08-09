@@ -18,7 +18,7 @@ jobs:
     env:
       MIX_ENV: prod
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - uses: erlef/setup-beam@v1
         with:
@@ -36,7 +36,7 @@ jobs:
       - run: mix elixir_make.checksum --all --ignore-unavailable
 
       - name: Attach precompiled artifacts to the release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: cache/*.tar.gz
 
