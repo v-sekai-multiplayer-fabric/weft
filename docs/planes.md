@@ -4,6 +4,8 @@ The main rule of weft's architecture:
 
 > **The BEAM runs only the control plane. Every other plane is a native process
 > outside the BEAM. The BEAM reaches it through Eclipse iceoryx (zero-copy IPC).**
+>
+> **A plane has no networking. An edge is a plane with networking.**
 
 The BEAM does coordination: placement, lifecycle, supervision, routing,
 backpressure, and caching. It is good at coordination and bad at heavy compute.
@@ -17,6 +19,12 @@ Avatars TSG definitions (see `CITATION.cff`); the runtime terms are weft's.
 
 Runtime:
 
+- **plane**: a native process with no networking. It reaches other processes only
+  through iceoryx. Networking is off (`--unshare-net`). There is no exception.
+- **edge**: a plane with networking. It obeys every plane rule below, and it adds one
+  capability, the network. It terminates a transport and gives the decoded result to a
+  plane or to the control plane over iceoryx. An edge holds no authority, runs no
+  simulation, and keeps no durable state.
 - **actor**: a weft runtime process with a single writer. The control-plane
   primitive.
 - **zone**: an actor that owns one spatial partition and simulates the entities in
@@ -64,10 +72,11 @@ Every plane that is not the control plane follows the same rules:
    [bubblewrap](https://github.com/containers/bubblewrap) sandbox: restricted
    filesystem, namespaces, and seccomp. It can reach only what it is given — the
    iceoryx segment, its own binary, and its data — not the host, the BEAM, or other
-   planes. Because planes talk over iceoryx, not the network, **networking is off by
-   default** (`--unshare-net`). The one exception is the plane that ingests from the
-   network (the game data plane). This matters for a plane that handles untrusted
-   input: the asset baker parses arbitrary glb files, so with no network a broken or
+   planes. Because planes talk over iceoryx, not the network, **a plane has no
+   networking** (`--unshare-net`). This is a definition, not a default, so there is no
+   exception to check. A process that needs the network is an edge, not a plane. This
+   matters for a plane that handles untrusted input: the asset baker parses arbitrary
+   glb files, so with no network a broken or
    exploited baker cannot reach out. It is also
    crash-isolated: if it crashes, the BEAM keeps running and the plane is restarted
    on its own. The BEAM checks liveness only. In a container host this is a second
@@ -98,8 +107,36 @@ Every plane that is not the control plane follows the same rules:
 | Control     | BEAM (weft)                                        | —                 | supervised (OTP)            |
 | Game data   | thread-per-core C++ harness + Jolt                 | publish-subscribe | out of BEAM                 |
 | SUMO        | Eclipse SUMO traffic microsimulation               | publish-subscribe | out of BEAM                 |
+| Interest    | thread-per-core C++ harness                        | publish-subscribe | out of BEAM                 |
 | Asset baker | OpenUSD + Adobe glTF plugin (fabric-stage-runtime) | request-response  | out of BEAM, crash-isolated |
 | Store       | native SQLite (WAL) + FoundationDB replica         | request-response  | out of BEAM, crash-isolated |
+
+No row above has networking.
+
+## Edges today
+
+An edge is a plane with networking. It follows the plane contract above without change:
+a separate native process, sandboxed, crash-isolated, thread-per-core, and reached over
+iceoryx. The one difference is that the sandbox keeps the network.
+
+An edge terminates a transport, decodes the wire format, and gives the result to a plane
+or to the control plane. It holds no authority, runs no simulation, and keeps no durable
+state. So the network stays at the edge, and the work stays in the planes behind it.
+
+| Edge    | Native stack   | Terminates             | Gives the result to         |
+| ------- | -------------- | ---------------------- | --------------------------- |
+| Ingest  | picoquic + C++ | player input datagrams | the game data plane         |
+| Gateway | picoquic + C++ | client control streams | the control plane           |
+
+The ingest edge carries the unreliable datagrams: player input upstream, and the
+interest plane's `CH_INTEREST` snapshots downstream. The gateway edge carries the
+reliable, low-rate work: login, chat, control, and asset pulls. `Weft.Gateway` stays in
+the control plane as the transport-agnostic routing core. The gateway edge gives it
+decoded requests, so the BEAM still touches no socket.
+
+A client holds one session to each edge. This costs two handshakes and two congestion
+controllers on one link. We accept that cost to keep the datagram path and the control
+path in separate processes, so control work cannot delay the datagrams.
 
 The SUMO plane is the current focus. It streams per-step entity movement into the
 ring, the game data plane's publish-subscribe pattern.

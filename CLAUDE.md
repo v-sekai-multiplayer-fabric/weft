@@ -18,7 +18,12 @@ Rules and conventions for the weft repo. Follow them.
 ## Architecture
 
 - The BEAM runs only the control plane. Every heavy plane is a native process outside the BEAM.
-- Planes talk over Eclipse iceoryx, zero-copy. Never a Port. Networking is off by default.
+- Planes talk over Eclipse iceoryx, zero-copy. Never a Port.
+- A plane has no networking. An edge is a plane with networking. This is a definition,
+  not a default, so there is no exception to check.
+- An edge obeys every plane rule and adds one capability, the network. It terminates a
+  transport and gives the decoded result to a plane over iceoryx. An edge holds no
+  authority, runs no simulation, and keeps no durable state.
 - A plane runs a thin C++ thread-per-core harness over iceoryx v1, not Seastar and not Rust. One runtime model for all planes. iceoryx v1 needs the RouDi daemon.
 - Durable state is FoundationDB, over the network with `erlfdb`. iceoryx does not cross machines.
 - The store is a native plane. It tiers a local SQLite WAL primary to a FoundationDB replica to S3-compatible object storage.
