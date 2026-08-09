@@ -36,12 +36,28 @@ defmodule RivetEx.Actor do
   def info(server), do: GenServer.call(server, :info)
 
   @impl true
-  def init({name, key}) do
-    {:ok, %{name: name, key: key, kv: %{}, created_at: System.system_time(:millisecond)}}
+  def init({name, key} = id) do
+    store = RivetEx.Actor.Store.impl()
+    {:ok, handle} = store.open(id)
+    # Restore durable state so a fresh process for this id resumes where the last
+    # one left off. This is the wake-from-sleep / restart-after-crash path.
+    kv = store.load_all(handle)
+
+    {:ok,
+     %{
+       name: name,
+       key: key,
+       store: store,
+       handle: handle,
+       kv: kv,
+       created_at: System.system_time(:millisecond)
+     }}
   end
 
   @impl true
   def handle_call({:put, k, v}, _from, state) do
+    # Write through to durable storage before acknowledging, then update the cache.
+    :ok = state.store.put(state.handle, k, v)
     {:reply, :ok, %{state | kv: Map.put(state.kv, k, v)}}
   end
 
@@ -51,5 +67,11 @@ defmodule RivetEx.Actor do
 
   def handle_call(:info, _from, state) do
     {:reply, Map.take(state, [:name, :key, :created_at]), state}
+  end
+
+  @impl true
+  def terminate(_reason, state) do
+    if state[:store] && state[:handle], do: state.store.close(state.handle)
+    :ok
   end
 end

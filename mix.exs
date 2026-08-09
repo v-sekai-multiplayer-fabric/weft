@@ -22,6 +22,7 @@ defmodule RivetEx.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
+      {:exqlite, "~> 0.27"},
       {:stream_data, "~> 1.1", only: :test}
     ]
   end
