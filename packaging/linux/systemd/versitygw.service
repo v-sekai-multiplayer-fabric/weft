@@ -1,0 +1,15 @@
+[Unit]
+Description=versitygw S3 cold tier for weft
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+Environment=ROOT_ACCESS_KEY=weft
+Environment=ROOT_SECRET_KEY=weftsecret
+ExecStart=/opt/weft/bin/versitygw --port :7070 posix /var/lib/weft/s3
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

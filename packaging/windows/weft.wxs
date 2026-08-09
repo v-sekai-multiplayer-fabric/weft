@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- WiX authoring for the weft cluster MSI. It installs the control plane, the data
+     plane, and the S3 cold tier under Program Files. Build with WiX v5:
+       wix build packaging/windows/weft.wxs -b stage -o weft-cluster.msi
+     The stage directory holds weft.exe, weft-dataplane.exe, and versitygw.exe. -->
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Package Name="weft cluster"
+           Manufacturer="v-sekai-multiplayer-fabric"
+           Version="0.1.0"
+           UpgradeCode="63b0529e-256b-436f-af7f-b47f3fd8f5c1"
+           Scope="perMachine">
+    <MajorUpgrade DowngradeErrorMessage="A newer version of weft is already installed." />
+    <MediaTemplate EmbedCab="yes" />
+
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="INSTALLFOLDER" Name="weft">
+        <Component Id="WeftExe">
+          <File Id="weft.exe" Source="weft.exe" KeyPath="yes" />
+          <ServiceInstall Id="WeftService" Name="weft"
+                          DisplayName="weft control plane" Type="ownProcess"
+                          Start="auto" ErrorControl="normal" Arguments="start" />
+          <ServiceControl Id="WeftServiceControl" Name="weft" Start="install"
+                          Stop="both" Remove="uninstall" Wait="no" />
+        </Component>
+        <Component Id="DataplaneExe">
+          <File Id="weft_dataplane.exe" Source="weft-dataplane.exe" KeyPath="yes" />
+        </Component>
+        <Component Id="VersitygwExe">
+          <File Id="versitygw.exe" Source="versitygw.exe" KeyPath="yes" />
+        </Component>
+      </Directory>
+    </StandardDirectory>
+
+    <Feature Id="Main" Title="weft cluster" Level="1">
+      <ComponentRef Id="WeftExe" />
+      <ComponentRef Id="DataplaneExe" />
+      <ComponentRef Id="VersitygwExe" />
+    </Feature>
+  </Package>
+</Wix>

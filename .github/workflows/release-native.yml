@@ -93,3 +93,99 @@ jobs:
           name: weft-burrito-${{ matrix.target }}
           path: burrito_out/*
           if-no-files-found: error
+
+  # Package the whole cluster for Linux: fpm builds a .deb and a .rpm with the control
+  # plane, the data plane, the versitygw S3 tier, and the Quadlet units.
+  package-linux:
+    needs: [dataplane, burrito]
+    runs-on: ubuntu-latest
+    env:
+      VERSION: "0.1.0"
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v7
+        with:
+          name: weft-burrito-linux
+          path: dl/burrito
+      - uses: actions/download-artifact@v7
+        with:
+          name: weft-dataplane-ubuntu-latest
+          path: dl/dataplane
+      - name: Fetch the versitygw binary (Linux)
+        env:
+          VERSITYGW_LINUX_URL: ${{ vars.VERSITYGW_LINUX_URL }}
+        run: |
+          if [ -z "${VERSITYGW_LINUX_URL}" ]; then
+            echo "Set the repository variable VERSITYGW_LINUX_URL to the versitygw Linux binary."
+            exit 1
+          fi
+          curl -fsSL "${VERSITYGW_LINUX_URL}" -o versitygw
+      - name: Stage the cluster tree
+        run: |
+          mkdir -p pkgroot/opt/weft/bin pkgroot/usr/lib/systemd/system
+          cp dl/burrito/weft_linux pkgroot/opt/weft/bin/weft
+          cp dl/dataplane/weft-dataplane pkgroot/opt/weft/bin/weft-dataplane
+          cp versitygw pkgroot/opt/weft/bin/versitygw
+          cp packaging/linux/systemd/*.service pkgroot/usr/lib/systemd/system/
+          chmod +x pkgroot/opt/weft/bin/*
+      - name: Build the .deb and .rpm with fpm
+        run: |
+          sudo gem install --no-document fpm
+          for t in deb rpm; do
+            fpm -s dir -t "$t" -n weft-cluster -v "${VERSION}" \
+              --description "weft cluster: control plane, data plane, and S3 cold tier" \
+              --license MIT \
+              --after-install packaging/linux/after-install.sh \
+              --before-remove packaging/linux/before-remove.sh \
+              -C pkgroot .
+          done
+      - uses: actions/upload-artifact@v7
+        with:
+          name: weft-cluster-linux-packages
+          path: |
+            *.deb
+            *.rpm
+          if-no-files-found: error
+
+  # Package the whole cluster for Windows: WiX builds an .msi with the control plane, the
+  # data plane, and the versitygw S3 tier.
+  package-windows:
+    needs: [dataplane, burrito]
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v7
+        with:
+          name: weft-burrito-windows
+          path: dl/burrito
+      - uses: actions/download-artifact@v7
+        with:
+          name: weft-dataplane-windows-latest
+          path: dl/dataplane
+      - name: Fetch the versitygw binary (Windows)
+        shell: bash
+        env:
+          VERSITYGW_WINDOWS_URL: ${{ vars.VERSITYGW_WINDOWS_URL }}
+        run: |
+          if [ -z "${VERSITYGW_WINDOWS_URL}" ]; then
+            echo "Set the repository variable VERSITYGW_WINDOWS_URL to the versitygw Windows binary."
+            exit 1
+          fi
+          curl -fsSL "${VERSITYGW_WINDOWS_URL}" -o versitygw.exe
+      - name: Stage the binaries
+        shell: bash
+        run: |
+          mkdir -p stage
+          cp dl/burrito/weft_windows.exe stage/weft.exe
+          cp dl/dataplane/weft-dataplane.exe stage/weft-dataplane.exe
+          cp versitygw.exe stage/versitygw.exe
+      - name: Build the MSI with WiX
+        shell: bash
+        run: |
+          dotnet tool install --global wix
+          wix build packaging/windows/weft.wxs -b stage -o weft-cluster.msi
+      - uses: actions/upload-artifact@v7
+        with:
+          name: weft-cluster-windows-msi
+          path: weft-cluster.msi
+          if-no-files-found: error

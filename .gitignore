@@ -42,3 +42,10 @@ native/**/Cargo.lock
 
 # Burrito release output.
 /burrito_out/
+
+# Cluster packages and their staging trees.
+*.msi
+*.deb
+*.rpm
+/pkgroot/
+/stage/

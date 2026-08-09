@@ -1,0 +1,14 @@
+[Unit]
+Description=weft control plane
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+Environment=WEFT_FDB_CLUSTER_FILE=/etc/foundationdb/fdb.cluster
+ExecStart=/opt/weft/bin/weft start
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target
