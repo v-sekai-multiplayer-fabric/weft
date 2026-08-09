@@ -58,6 +58,9 @@ opts = [
   z_range: {0, 5_000_000}
 ]
 
+# Hide the cursor and clear the screen once. The loop then overwrites in place.
+IO.write("\e[?25l\e[2J")
+
 for tick <- 0..(count - 1) do
   Sumo.step(pid)
 
@@ -75,10 +78,20 @@ for tick <- 0..(count - 1) do
       ])
     )
 
-  IO.write("\e[H\e[2J")
-  IO.puts("weft stress bench - 3D scope (top/front/side/iso)")
-  IO.puts(grid)
+  # Home the cursor and overwrite in place. Each line ends with erase-to-end (\e[K),
+  # and the frame ends with erase-below (\e[J). The screen never blanks, so the frame
+  # does not flicker. One write keeps the frame whole.
+  frame = [
+    "\e[H",
+    "weft stress bench - 3D scope (top/front/side/iso)\e[K\n",
+    String.replace(grid, "\n", "\e[K\n"),
+    "\e[K\e[J"
+  ]
+
+  IO.write(frame)
   if delay > 0, do: Process.sleep(delay)
 end
 
+# Show the cursor again.
+IO.write("\e[?25h")
 Sumo.stop(pid)
