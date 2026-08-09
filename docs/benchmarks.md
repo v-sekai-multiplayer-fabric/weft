@@ -154,7 +154,7 @@ level 3 on ratio here, so use level 1 for latency. Note this is a _replication_
 optimization (large, coherent frames); it does nothing for the tiny, independent
 24-byte input packets on the ingest side.
 
-## Real-NIC packet I/O (`fly-bench/netbench.c`) — pending, cost-gated
+## Real-NIC packet I/O (`bench/fly/netbench.c`) — pending, cost-gated
 
 Loopback cannot measure the receive ceiling. `netbench` (UDP server/client over
 IPv6/6PN) is ready to run between two Fly machines for the real number, but is held

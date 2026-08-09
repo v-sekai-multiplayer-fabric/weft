@@ -12,6 +12,8 @@ the cluster file through a volume, and points `WEFT_FDB_CLUSTER_FILE` at it.
 - `Containerfile` builds and runs weft.
 - `compose.yaml` runs weft and FoundationDB with Docker Compose.
 - `quadlet/` holds the Podman Quadlet units for systemd.
+- `packaging/` holds the OS package inputs. `release-native.yml` builds the .deb and the
+  .rpm from them.
 
 ## Docker on Windows
 
