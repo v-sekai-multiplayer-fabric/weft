@@ -30,6 +30,12 @@ weaker durability to get fast writes.
 
 ## weft's design
 
+> **What is built.** `Weft.Actor.Store.Replicated` and `.Replicator` run in the BEAM
+> and pass their tests against a live FoundationDB. They do **not** implement the
+> design below: they replicate logical key and value rows, not WAL frames, and
+> compaction folds in place. That difference is a live bug, and `../spec/Store.lean`
+> proves why. The store plane is not native and does not use iceoryx yet.
+
 One store design for every actor:
 
 - **Local SQLite file per actor, in WAL mode.** Commits are local and fast (about a
@@ -49,6 +55,32 @@ One store design for every actor:
 
 Accepted cost: a crash can lose the last few commits that were not yet replicated. See
 `../essays/latency.md` for why weft takes that trade.
+
+## No tuning constant
+
+rivet caps shard versions at 32, a commit at 320 pages, and a batch at 500 keys. Each
+number is right for one workload and wrong for a different one, and nothing tells an
+operator which one they have.
+
+weft keeps none of them. Every quantity is one of two kinds:
+
+- **A physical limit.** FoundationDB caps a value at 100 kB and a transaction at 10 MB,
+  and SQLite uses a 4 kB page. A chunk holds as many whole pages as fit in a value. A
+  commit holds as many pages as fit in a transaction. Neither is chosen.
+- **A ratio.** Compaction runs when the log is as large as the base. A ratio has no
+  units, so there is nothing to tune. A busy actor compacts often, a quiet actor never
+  compacts, and neither is configured.
+
+The ratio also bounds both costs at once. The base must double before the next
+compaction, so each byte is rewritten a bounded number of times. The log never passes
+the base, so a restore never reads more log than base.
+
+Retention follows the same rule. rivet keeps 32 shard versions. weft keeps the versions
+a pin needs, so retention is set by what somebody is reading.
+
+`../spec/Store.lean` proves that a read touches two rows whatever the log holds, that
+the trigger clears after compaction so it cannot thrash, and that eviction preserves
+every pinned read.
 
 ## rivet vs weft
 

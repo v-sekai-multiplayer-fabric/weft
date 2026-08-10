@@ -7,6 +7,13 @@ The main rule of weft's architecture:
 >
 > **A plane has no networking. An edge is a plane with networking.**
 
+> **What is built.** The control plane runs. The ring, the store, the interest
+> producer, and the SUMO producer run in the BEAM. **No plane and no edge exists yet,
+> and there is no iceoryx code at all.** `native/dataplane` links only threads. So this
+> page describes the design that the code is written toward, not a running system. See
+> `tasks.md` for the state of each item, and `../essays/yagni.md` for why the order is
+> what it is.
+
 The BEAM does coordination: placement, lifecycle, supervision, routing,
 backpressure, and caching. It is good at coordination and bad at heavy compute.
 So no heavy compute runs in it. Any work that parses, simulates, crunches, or links

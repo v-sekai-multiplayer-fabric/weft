@@ -6,6 +6,8 @@ Rules and conventions for the weft repo. Follow them.
 
 - weft is the Elixir and OTP control plane of the multiplayer fabric.
 - The docs in `docs/` are the source of truth. Start with `docs/reference/architecture.md`.
+- A page that describes unbuilt work says so at the top, in a "What is built" note. A
+  reader must not need `docs/reference/tasks.md` to tell design from running code.
 - `docs/essays/how-it-works.md` is the plain explanation for a new reader. Keep it correct.
 
 ## Writing
@@ -62,6 +64,15 @@ Both kinds: use one name for one concept. Terms are in `docs/reference/architect
 - Formalize an algorithm in Lean4 first, then port it to Elixir. The spec lives in
   `docs/spec/`. Read `docs/spec/README.md` first.
 - Lean4 proofs use `native_decide`. Do not use Mathlib. Elixir tests mirror the proofs.
+- The store copies rivet's Depot layout: PIDX, DELTA by txid, and SHARD by `as_of_txid`.
+  `docs/spec/Store.lean` is the spec. Compaction adds a shard version. It never
+  overwrites one, and it clears a PIDX row only when that row points at a folded txid.
+- Do not add a tuning constant. A constant is a guess about a workload we have not seen.
+  Derive a limit from a physical limit, such as the FoundationDB value size. Trigger work
+  on a ratio between two measured sizes, such as log bytes against base bytes. A ratio
+  has no units to tune, and it moves with the load on its own.
+- Planes use Eclipse iceoryx v1, never iceoryx2. v1 needs the RouDi daemon beside each
+  plane, so the version changes what a machine runs.
 
 ## Git and CI
 
