@@ -116,6 +116,7 @@ defmodule Weft.Limits do
   | one action | 60 s | `with_in_flight/1` | a promise |
   | requests for each minute for each address | 1200 | `Weft.Gateway.dispatch/1` | a promise |
   | requests in flight | 32 | `Weft.Gateway.dispatch/1` | measured, see below |
+  | entities in one bus message | 7 | the harness, when it exists | measured, see below |
 
   A promise is what weft tells the person who writes an actor. A measured value comes from
   a run that is written down, and the run says which one.
@@ -129,6 +130,22 @@ defmodule Weft.Limits do
   So 32 sits inside the flat part of the curve. A caller at 32 gets 12918 commits each
   second, at 1.7 times the unloaded latency. A larger number buys throughput that one
   caller cannot use. It pays for that in the latency of every other caller.
+
+  ## Why 7 entities in a bus message
+
+  This one is not written down as 7. It is `snapshots_each_second` divided by
+  `bus_messages_each_second`, and both come from a measurement.
+
+  `data_plane_logbook.md` measures the bus at 2.38 M messages each second on one core. The
+  target for a plane is 15 M snapshots each second on one core. So a message must carry at
+  least 6.3 entities for the bus to reach the target at all, which is 7 whole ones.
+
+  This is a floor and not a size to pick. One message for each snapshot misses the target
+  by 6.4 times. A replication frame already carries 256 entities, which is 36 times the
+  floor and gives 351 M snapshots each second.
+
+  The floor moves on its own when either measurement changes, which is the point. A
+  faster bus lowers it. A higher target raises it. Neither is a guess about a workload.
 
   ## What enforces each one
 
@@ -170,6 +187,11 @@ defmodule Weft.Limits do
   @requests_each_minute 1200
   @in_flight 32
 
+  # The two measured rates the batch floor divides. Neither is a limit on its own, so
+  # neither is in `get/1`. `data_plane_logbook.md` holds the run for each.
+  @snapshots_each_second 15_000_000
+  @bus_messages_each_second 2_380_000
+
   @window_ms 60_000
   @flight_supervisor __MODULE__.InFlight
 
@@ -180,6 +202,7 @@ defmodule Weft.Limits do
           | :action_ms
           | :requests_each_minute
           | :in_flight
+          | :snapshot_batch
 
   @type error :: {:limit, limit(), [{:limit, non_neg_integer()} | {:actual, non_neg_integer()}]}
 
@@ -205,6 +228,7 @@ defmodule Weft.Limits do
   def get(:action_ms), do: @action_ms
   def get(:requests_each_minute), do: @requests_each_minute
   def get(:in_flight), do: @in_flight
+  def get(:snapshot_batch), do: ceil(@snapshots_each_second / @bus_messages_each_second)
 
   @doc """
   Check a key against the key limit.

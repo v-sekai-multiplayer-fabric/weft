@@ -28,6 +28,22 @@ inline constexpr const char* SERVICE_NAME = "weft/harness/snapshot";
 // string is part of the contract and not a label.
 inline constexpr const char* PAYLOAD_TYPE = "weft::Snapshot";
 
+// The limits below are `Weft.Limits`, transcribed. That module holds every number weft
+// promises or measures, and it says where each one comes from. A number that appears
+// here and not there is a guess about a workload, which weft does not keep.
+//
+// A C++ plane cannot call Elixir, so these are copies. `Weft.LimitsTest` asserts the
+// same values, so a change on one side fails on the other.
+
+// The floor on entities in one bus message. It is 15 M snapshots each second divided by
+// the 2.38 M messages each second the bus does, both from data_plane_logbook.md. Below
+// this a message cannot reach the target however many cores it gets.
+inline constexpr int SNAPSHOT_BATCH = 7;
+
+// The limit on one action, in milliseconds. A loop that waits longer than this has lost
+// the far end, whatever it is waiting for.
+inline constexpr int ACTION_MS = 60000;
+
 } // namespace weft
 
 #endif

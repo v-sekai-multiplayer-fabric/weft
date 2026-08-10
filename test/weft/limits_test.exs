@@ -24,6 +24,41 @@ defmodule Weft.LimitsTest do
       assert Limits.get(:requests_each_minute) == 1200
       assert Limits.get(:in_flight) == 32
     end
+
+    test "the batch floor is a ratio of two measured rates, not a number" do
+      # 15 M snapshots each second against a bus that does 2.38 M messages each second.
+      # `data_plane_logbook.md` holds both runs. A message under this size cannot reach
+      # the target however many cores it gets.
+      assert Limits.get(:snapshot_batch) == 7
+
+      # The break-even is a floor and not a size to pick. A replication frame carries 256,
+      # which is well clear of it.
+      assert Limits.get(:snapshot_batch) < 256
+    end
+
+    test "the native copy of a limit matches this module" do
+      # A C++ plane cannot call Elixir, so native/harness/src/snapshot.hpp transcribes the
+      # limits it needs. A transcription that nothing checks is a copy that goes stale,
+      # and the stale one still reads as authoritative. This reads the header.
+      header = "native/harness/src/snapshot.hpp"
+
+      body =
+        case File.read(header) do
+          {:ok, body} -> body
+          {:error, reason} -> flunk("cannot read #{header}: #{inspect(reason)}")
+        end
+
+      for {constant, limit} <- [{"SNAPSHOT_BATCH", :snapshot_batch}, {"ACTION_MS", :action_ms}] do
+        found =
+          case Regex.run(~r/\b#{constant}\s*=\s*(\d+)\s*;/, body) do
+            [_, digits] -> String.to_integer(digits)
+            nil -> flunk("#{header} does not define #{constant}")
+          end
+
+        assert found == Limits.get(limit),
+               "#{header} says #{constant} is #{found}. Weft.Limits says #{Limits.get(limit)}."
+      end
+    end
   end
 
   describe "size limits" do
