@@ -139,10 +139,38 @@ usually accepts the same loss, because a world instance is short-lived.
 FoundationDB is strongly consistent and wants a short distance between its processes. So
 each region gets its own FoundationDB cluster. One cluster does not span two regions.
 
-## Open question: global data
+## Global data: one authoritative world
 
 Identity, friends, and matchmaking are the same in every region. A FoundationDB cluster
-for each region cannot hold them. One region does not have this problem today, and a
-second region gets it on the first day. Assets do not have this problem, because they
-are content-addressed and the S3 tier is global. See `store.md`. Identity has no answer
-yet. `tasks.md` records it.
+for each region cannot hold them.
+
+The answer needs no new mechanism. One world is authoritative for this data, and the data
+lives there as actors. weft already has the rule: an actor has a single writer, and it
+lives in one place. Identity is that rule at a different level.
+
+So there is one home world. An account is an actor in it. A friend list is an actor in
+it. The store tiers it the same way as any other actor: a local SQLite primary, an async
+FoundationDB replica, and the S3 cold tier. Handoff, restore, and the limits all work
+without a change.
+
+| Data | Home | Read from a different region |
+| --- | --- | --- |
+| account, friends, matchmaking | the home world | over the network, then cached |
+| assets | no home, addressed by content | the S3 tier serves every region |
+| world state | the world machine | it does not leave the region |
+
+With one region today, the home world is in that region and nothing crosses a network.
+A second region reads the home world across the network. A read is near 150 ms from
+Europe to west North America. That is acceptable, because a person reads a friend list at
+login and not each frame. A write goes to the home world, so there is one writer and no
+merge.
+
+The home world is a single point of failure for login. It has the same answer as any
+world machine: the state rebuilds from FoundationDB, a measured 0.448 ms read. A person
+already in a world keeps playing, because world state does not need the home world.
+
+### One name for one concept
+
+`planes.md` says an entity is a simulated thing with position and velocity, so an account
+is not an entity. An account is an **actor**, which is the single-writer primitive. Use
+the actor name for this data.
