@@ -39,8 +39,16 @@ Both kinds: use one name for one concept. Terms are in `Weft` and
 ## Architecture
 
 - The BEAM runs only the control plane. Every heavy plane is a native process outside the
-  BEAM, in a repository of its own and a container of its own. weft starts it, watches it,
-  and restarts it. `native/` holds the data plane and the NIF, and nothing else.
+  BEAM, in a repository of its own and a container of its own. weft does not start it and
+  does not restart it. The platform does, and today that is a Fly app for each plane.
+  `native/` holds the data plane and the NIF, and nothing else.
+- Two planes on one machine talk over iceoryx2, zero copy. Two planes on different
+  machines do not talk directly at all. They go through the store plane to FoundationDB,
+  which is a global transaction and is slow. The 10 GiB limit for one actor is sized for
+  it.
+- HTTP/3 and WebTransport is the client transport, terminated at an edge. It is not an
+  internal path between planes.
+- So a plane may be its own Fly app, and what it can reach follows from where it lands.
 - A plane reaches the data plane over iceoryx2. The BEAM reaches the data plane through the
   NIF. So the BEAM never links iceoryx2, and a plane is a black box to it except for what
   that plane writes to the ring.
