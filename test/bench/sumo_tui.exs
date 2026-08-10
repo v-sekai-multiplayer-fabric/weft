@@ -2,12 +2,12 @@
 # profiles (top, front, side) and one isometric render, with the benchmark stats.
 # On CI, asciinema records this terminal and uploads it; locally, asciinema play.
 #
-#   mix run bench/sumo_tui.exs [frame_count] [frame_delay_ms]
+#   mix run test/bench/sumo_tui.exs [frame_count] [frame_delay_ms]
 #
-# It plays a real SUMO trace (bench/sumo/scenario/frames.bin) through the zone ring.
+# It plays a real SUMO trace (test/bench/sumo/scenario/frames.bin) through the zone ring.
 # The map is 3D, so it always renders the three profiles and the isometric view. SUMO
 # traffic is on the ground plane, so the front and side profiles show that plane.
-# Generate the trace with bench/sumo (see bench/sumo/README.md).
+# Generate the trace with test/bench/sumo (see test/bench/sumo/README.md).
 
 alias Weft.DataPlane.{AsciiScope, Ring, Sumo}
 
@@ -18,7 +18,7 @@ alias Weft.DataPlane.{AsciiScope, Ring, Sumo}
     _ -> [120, 50]
   end
 
-path = "bench/sumo/scenario/frames.bin"
+path = "test/bench/sumo/scenario/frames.bin"
 
 frames =
   case File.read(path) do
@@ -33,7 +33,7 @@ frames =
   end
 
 if frames == [] do
-  IO.puts("no SUMO trace at #{path}; generate it with bench/sumo (see bench/sumo/README.md)")
+  IO.puts("no SUMO trace at #{path}; generate it with test/bench/sumo (see test/bench/sumo/README.md)")
   System.halt(1)
 end
 

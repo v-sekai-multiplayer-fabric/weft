@@ -2,7 +2,7 @@
 # ingesting digested snapshots from a data-plane worker. We bypass the stub's
 # timer and flood the zone directly, then measure how fast it drains, so the number
 # is the control plane's capacity, not the worker's synthetic cadence.
-# Run: mix run bench/data_plane.exs
+# Run: mix run test/bench/data_plane.exs
 alias Weft.Zone
 alias Weft.DataPlane.Snapshot
 

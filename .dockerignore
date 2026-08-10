@@ -15,14 +15,14 @@ erl_crash.dump
 
 # Build output of the native planes and the benches.
 native/**/build/
-bench/pps_dram
-bench/pps_native
-bench/ring_native
-bench/udp_recv
-bench/zstd_frames
-bench/sumo/replay
-bench/sumo/scenario/
-bench/fly/netbench
+test/bench/pps_dram
+test/bench/pps_native
+test/bench/ring_native
+test/bench/udp_recv
+test/bench/zstd_frames
+test/bench/sumo/replay
+test/bench/sumo/scenario/
+test/bench/fly/netbench
 
 # Packages and their staging trees.
 *.msi

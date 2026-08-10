@@ -1,5 +1,5 @@
 # Store backend microbenchmark: node-local SQLite vs node-independent FoundationDB.
-# Run: mix run bench/store.exs   (requires a reachable FDB; see test_helper)
+# Run: mix run test/bench/store.exs   (requires a reachable FDB; see test_helper)
 alias Weft.Actor.Store
 
 data_dir = Path.join(System.tmp_dir!(), "weft_bench_#{System.unique_integer([:positive])}")

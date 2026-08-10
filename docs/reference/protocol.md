@@ -24,7 +24,7 @@ We measured both formats on a real workload, not synthetic data. SUMO (Eclipse
 traffic microsimulation) ran a 25 by 25 grid city with dense traffic. Each vehicle
 is a weft entity and each simulation step is a state frame. The trace is 600 frames,
 11,947 distinct vehicles, 8,637 peak concurrent, 2,950,620 entity updates.
-Reproduce with `bench/sumo/` (see `README` there).
+Reproduce with `test/bench/sumo/` (see `README` there).
 
 ### Wire size
 
@@ -43,7 +43,7 @@ real cost of cheap is not size, it is decode.
 
 ### Decode and apply speed
 
-The nasty decode plus apply, measured in C on the real trace (`bench/sumo/replay.c`),
+The nasty decode plus apply, measured in C on the real trace (`test/bench/sumo/replay.c`),
 with the entity slab resident in L2:
 
 | cores | pps    | ns/apply/core |
@@ -53,7 +53,7 @@ with the entity slab resident in L2:
 | 16    | 7.78 B | 2.06          |
 
 840 M applies per second on one core is 56 times the 15 M packets per second target.
-This matches the synthetic `bench/pps_native.c` number (826 M per core), so real
+This matches the synthetic `test/bench/pps_native.c` number (826 M per core), so real
 traffic movement confirms the synthetic benchmark. Apply is never the bottleneck.
 
 Cheap decode is a parse, not a cast, so it is far slower and allocates per field.

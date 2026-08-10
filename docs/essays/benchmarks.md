@@ -2,14 +2,14 @@
 
 First-pass performance of the control-plane paths. Numbers are from a single dev
 machine with a local single-node FoundationDB, so treat them as _relative_ signals,
-not production SLAs. Reproduce with `mix run bench/<name>.exs`.
+not production SLAs. Reproduce with `mix run test/bench/<name>.exs`.
 
 The `stress bench` GitHub Actions workflow gathers these numbers on CI. It uploads the
 native benches as the `benchmarks-native` artifact, the Elixir benches as
 `benchmarks-elixir`, and the SUMO console recording as `stress-bench-cast` (play it
 with `asciinema play`). Download the artifacts to update this page.
 
-## Store backends (`bench/store.exs`)
+## Store backends (`test/bench/store.exs`)
 
 | Op                         | ips    | median   | vs fastest   |
 | -------------------------- | ------ | -------- | ------------ |
@@ -25,7 +25,7 @@ asynchronously, off the write path, replicating to FoundationDB. The 1 ms
 FoundationDB write is never on the critical path. This is one store design for every
 actor (local primary, async FoundationDB replica), not a per-actor choice.
 
-## Actor ops (`bench/actor.exs`)
+## Actor ops (`test/bench/actor.exs`)
 
 | Op                                          | ips    | median  |
 | ------------------------------------------- | ------ | ------- |
@@ -40,7 +40,7 @@ put above), not by the actor/GenServer overhead. Cold actor start (~0.6 ms) is
 spawn + SQLite open + state restore; scale-to-zero pays this on wake, so tune the
 idle window against wake frequency.
 
-## Data-plane ingestion (`bench/data_plane.exs`, `bench/data_plane_ring.exs`)
+## Data-plane ingestion (`test/bench/data_plane.exs`, `test/bench/data_plane_ring.exs`)
 
 Two mechanisms for getting digested snapshots (8 entities each) into the BEAM:
 
@@ -68,16 +68,16 @@ The real producers are the native C++ planes writing the same ring through a NIF
 15M+ pps packet flood never enters the VM, and the digested snapshot rate is not
 BEAM-bound either.
 
-## SUMO plane — real workload, not synthetic (`bench/sumo/`)
+## SUMO plane — real workload, not synthetic (`test/bench/sumo/`)
 
 The numbers above use synthetic packets. To confirm them on real, coherent movement,
 weft acts as the engine for a SUMO (Eclipse traffic microsimulation) run: a 25 by 25
 grid city, dense traffic, each vehicle an entity, each simulation step a state frame.
 The trace is 600 frames, 11,947 distinct vehicles, 8,637 peak concurrent, 2,950,620
-entity updates. See `bench/sumo/README.md` to reproduce and `docs/reference/protocol.md` for
+entity updates. See `test/bench/sumo/README.md` to reproduce and `docs/reference/protocol.md` for
 the full analysis.
 
-Nasty hot-path decode plus apply (`bench/sumo/replay.c`), on the real trace:
+Nasty hot-path decode plus apply (`test/bench/sumo/replay.c`), on the real trace:
 
 | cores | pps    | ns/apply/core |
 | ----- | ------ | ------------- |
@@ -88,11 +88,11 @@ Nasty hot-path decode plus apply (`bench/sumo/replay.c`), on the real trace:
 **Takeaway.** 840M applies/sec on one core (1.19 ns each) on real traffic movement,
 **56× the 15M target**, matching the synthetic `pps_native.c` (826M/core). Real data
 confirms the synthetic ceiling: apply is never the bottleneck. The same trace drives
-the cheap-versus-nasty wire-format comparison (`bench/sumo/encode_compare.py`): nasty
+the cheap-versus-nasty wire-format comparison (`test/bench/sumo/encode_compare.py`): nasty
 bitpacked is 12 B/entity, cheap CBOR JSON-LD is 28 B/entity (2.3× raw, 1.4× after
 last-frame zstd). Details in `docs/reference/protocol.md`.
 
-## Packet decode+apply — is 15M pps compute- or I/O-bound? (`bench/pps_native.c`)
+## Packet decode+apply — is 15M pps compute- or I/O-bound? (`test/bench/pps_native.c`)
 
 The true ">15M pps" unit is a _packet_: decode a 24-byte movement datagram and
 apply it to an entity slab. Native, packets replayed from a cache-hot batch:
@@ -115,7 +115,7 @@ Caveat: this is the cache-hot compute ceiling (packets and hot entities in L1/L2
 Real traffic adds NIC DMA and scattered-entity cache misses, so per-packet cost
 rises — the DRAM-bound number below is the honest version.
 
-### DRAM-bound apply — the real ceiling for large worlds (`bench/pps_dram.c`)
+### DRAM-bound apply — the real ceiling for large worlds (`test/bench/pps_dram.c`)
 
 Random writes into a 2 GB entity table (64M entities, far beyond the 32 MiB L3):
 
@@ -134,7 +134,7 @@ cores barely moves). Two conclusions: (1) even pessimistically, one core clears 
 hot arrays, spatial partitioning) matter at extreme scale, and why the ~117M wall,
 not compute, is the ultimate apply ceiling on this machine.
 
-## State-replication bandwidth — last-frame zstd dictionary (`bench/zstd_frames.c`)
+## State-replication bandwidth — last-frame zstd dictionary (`test/bench/zstd_frames.c`)
 
 The other wall is bytes on the wire (server → client fanout, and cloud egress $).
 A state frame is 256 entities × 20 B = 5 KB; consecutive frames differ only where
@@ -154,14 +154,14 @@ level 3 on ratio here, so use level 1 for latency. Note this is a _replication_
 optimization (large, coherent frames); it does nothing for the tiny, independent
 24-byte input packets on the ingest side.
 
-## Real-NIC packet I/O (`bench/fly/netbench.c`) — pending, cost-gated
+## Real-NIC packet I/O (`test/bench/fly/netbench.c`) — pending, cost-gated
 
 Loopback cannot measure the receive ceiling. `netbench` (UDP server/client over
 IPv6/6PN) is ready to run between two Fly machines for the real number, but is held
 until a cost-bounded run (smallest shared-CPU machines, seconds of traffic, torn
 down immediately). Compressed payloads (above) also minimize egress during the run.
 
-### On measuring the I/O ceiling here (`bench/udp_recv.c`)
+### On measuring the I/O ceiling here (`test/bench/udp_recv.c`)
 
 Attempting to measure the kernel receive ceiling on loopback gave ~0.16M pps with
 **no gain from `recvmmsg` batching over `recv()`** — the tell that it is not
