@@ -24,6 +24,26 @@ Two cluster shapes appear below. Name the shape in every new entry.
 
 Shape A is not a shape to run. It is recorded because the first measurements used it.
 
+## 2026-08-09: one pragma is worth 2266 times
+
+Shape A, `bench_vfs`, on the block layout that came before the one in place now.
+
+The first measurement gave 526 point reads each second, which is 249 times slower than a
+local file. SQLite reads page 1 to check the change counter when a read transaction
+starts. Over a database on the network that check is a round trip for every query.
+
+`PRAGMA locking_mode=EXCLUSIVE` tells SQLite that nothing else can change the file. It
+then trusts its page cache and stops the re-read.
+
+| setting | point reads/s | scan |
+| --- | --- | --- |
+| default | 526 | — |
+| `locking_mode=EXCLUSIVE` | 1192302 | 39 times faster |
+
+The gain is 2266 times, and it is not a trick. An actor is the single writer of its own
+store, so the statement the pragma makes is true. The cost was never the page layout. It
+was a round trip that the page cache had to absorb.
+
 ## 2026-08-09: the commit tears
 
 Shape A. `prove_crash` over eight wall clock delays, 400 rows, against the layout that
@@ -67,6 +87,22 @@ Every crash point was in range. None left a torn database.
 Shape A. `soak.sh` for 90 seconds, 300 rows, 200 crash rows.
 
 178 rounds of load, SIGKILL, and crash point rounds. No failures of any of the four kinds.
+
+## 2026-08-09: against SQLite on a local file
+
+Shape A, 500 rows, `bench_vfs`. Both sides run with the journal in memory, so neither
+number holds an fsync. The local file is a reference and not a floor. It is one machine,
+and it has no durability across machines.
+
+| operation | local file/s | FoundationDB/s | ratio |
+| --- | --- | --- | --- |
+| insert, one commit each | 269105 | 561 | 480x |
+| insert, one commit for all | 607002 | 80450 | 7.5x |
+| point read | 2141392 | 2026893 | 1.1x |
+| scan | 13946612 | 13350778 | 1.0x |
+
+A read costs what a local read costs. A write pays for the network, and that is the trade
+the design takes.
 
 ## 2026-08-09: what a commit costs
 

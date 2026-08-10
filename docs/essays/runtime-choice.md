@@ -19,14 +19,10 @@ kind of answer.
 
 ## The budget
 
-15M snapshots/sec is a **66 ns/snapshot** budget. Measured, same ring write op
-(tick + 8 entities as fixed-point, seqlock) across tiers:
-
-| Tier                                          | snapshots/sec (1 core) | ns/snapshot |
-| --------------------------------------------- | ---------------------- | ----------- |
-| **Native C** (the native plane tier)          | **142.4 M**            | 7.0         |
-| BEAM ring (`Weft.DataPlane.Ring`, `:atomics`) | 2.85 M                 | ~350        |
-| BEAM per-message (naive)                      | 1.38 M                 | ~725        |
+15M snapshots/sec is a **66 ns/snapshot** budget. We measured the same ring write across
+the tiers, and only the native tier fits inside it — the BEAM ring misses by about five
+times, and one Erlang message per snapshot misses by about eleven. The numbers are in
+`../reference/data_plane_logbook.md`.
 
 Native clears 15M by ~9× on a single core. `test/bench/ring_native.c` reproduces it.
 
@@ -102,12 +98,7 @@ measures the round-trip latency of the zero-copy path. The machine is a Ryzen 7 
 The pinning uses `iceoryx2_bb_posix::thread::ThreadBuilder::affinity()`, an iceoryx2
 building block. Each run does 10 million A to B to A round trips.
 
-| Path                          | 12 B   | 768 B  | 8192 B |
-| ----------------------------- | ------ | ------ | ------ |
-| IPC zero-copy (cross-process) | 236 ns | 233 ns | 239 ns |
-| Process-local (same process)  | 254 ns | 239 ns | —      |
-| IPC, thread-safe variant      | 282 ns | 269 ns | 268 ns |
-| IPC, `--send-copy` (768 B)    | —      | 226 ns | —      |
+The table is in `../reference/data_plane_logbook.md`.
 
 ### What the numbers show
 
@@ -117,9 +108,8 @@ building block. Each run does 10 million A to B to A round trips.
 - Cross-process IPC is as fast as same-process here. So a split into separate processes
   costs nothing versus Seastar's single-process model. This removes the main structural
   advantage of Seastar.
-- One serial ping-pong link runs 2.11 million round trips per second. A streaming link
-  runs far higher, well above the 15M snapshots per second the ring produces. So the
-  transport does not bound the plane.
+- One serial ping-pong link runs far more round trips per second than the ring produces
+  snapshots. So the transport does not bound the plane.
 
 ### The code cost of the harness
 
@@ -177,17 +167,8 @@ The cost of this decision, versus iceoryx2:
   the same, hundreds of ns to about 1 µs.
 
 The C++ data plane meets the throughput goal with a wide margin. The ring is
-`native/dataplane` (a seqlock ring, the same method as `test/bench/ring_native.c`). Measured
-on a Ryzen 7 3800X, single writer per core:
+`native/dataplane` (a seqlock ring, the same method as `test/bench/ring_native.c`).
 
-| Threads (cores) | Aggregate snapshots/sec | Per core |
-| --------------- | ----------------------- | -------- |
-| 1               | 189.4 M                 | 189.4 M  |
-| 2               | 379.1 M                 | 189.5 M  |
-| 4               | 754.1 M                 | 188.5 M  |
-| 8               | 1498.9 M                | 187.4 M  |
-| 16 (with SMT)   | 2507.8 M                | 156.7 M  |
-
-The pattern scales near-linearly to 8 physical cores, 7.9 times the single-core rate.
-Each core owns its ring, so the planes share nothing. The 15M snapshots/sec goal is met
-per core by more than 12 times.
+It scales near-linearly to 8 physical cores, because each core owns its ring and the
+planes share nothing. One core alone clears the 15M snapshots/sec goal by more than 12
+times. The measurements are in `../reference/data_plane_logbook.md`.

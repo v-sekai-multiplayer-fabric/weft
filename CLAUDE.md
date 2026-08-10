@@ -80,7 +80,9 @@ Both kinds: use one name for one concept. Terms are in `Weft` and
 - Commit titles are sentence case. Do not use a conventional-commit prefix. Do not mention an agent.
 - Do not commit binaries or recordings to git. Upload them as CI artifacts.
 - CI is GitHub Actions. `ci.yml` runs the tests on each pull request.
-- `stress-bench.yml` records the 3D scope and gathers the `docs/essays/benchmarks.md` numbers.
+- `stress-bench.yml` records the 3D scope and gathers the numbers. A measured number goes
+  in a logbook under `docs/reference/`, with the machine and the settings that produced it.
+  An essay says what a measurement changed, and it does not hold the table.
 
 ## Release
 

@@ -146,98 +146,30 @@ Locking is a no-op, because an actor is the single writer of its own store.
 
 ## Measured
 
-Against a live FoundationDB in a container, 500 rows, beside SQLite on a local file. Both
-run with the journal in memory, so neither number includes an fsync. The local file is a
-reference and not a floor: it is one machine with no durability across machines.
+Every number, and the cluster and the settings that produced it, is in
+`store_plane_logbook.md`. Three results shape the design.
 
-The shape of the cluster changes every number below, so it is part of the measurement. The
-table comes from a cluster of one process. That is not a shape to run, because FoundationDB
-gives one role to one process, and a single process runs the commit proxy, the resolver,
-the log, and the storage together. On a cluster of seven processes with the classes split,
-on the same machine, the same commit path reads 233 each second rather than 561. A commit
-crosses more processes, and this is one machine.
+A read costs what a local read costs. Point reads and a scan both land within 1.1 times of
+SQLite on a local file, because the page cache absorbs them and no round trip happens.
 
-More processes raise the ceiling under load, and they lower the rate of one commit at a
-time. The store plane commits one at a time and waits, so it takes the second cost and not
-the first. A machine with cores to spare does not have this problem.
+A write pays for the network, and that is the trade the design takes. A commit is a round
+trip of about 1.1 ms whatever it carries, so the payload is nearly free until it is large.
 
-`store_plane_logbook.md` holds every measurement with the conditions it ran under. It also
-holds the runs that turned out to be invalid, and why.
+Commits in flight are worth 44 times, and more database handles are worth nothing. One
+client process has one network thread, and every handle shares it. One database cannot
+pipeline its own commits, because SQLite waits inside `xSync`. So the depth comes from the
+number of actors that commit at once, which is what iceoryx is for.
 
-| op                         | local file/s | FoundationDB/s | ratio    |
-| -------------------------- | ------------ | -------------- | -------- |
-| insert, one commit each    | 269105       | 561            | 480x     |
-| insert, one commit for all | 607002       | 80450          | 7.5x     |
-| point read                 | 2141392      | 2026893        | **1.1x** |
-| scan                       | 13946612     | 13350778       | **1.0x** |
+### Set the locking mode
 
-A read costs what a local read costs. A write pays for the network, which is the trade the
-design takes.
+`PRAGMA locking_mode=EXCLUSIVE` is not optional here. Without it SQLite reads page 1 to
+check the change counter at the start of every read transaction, and over a database on
+the network that check is a round trip for every query.
 
-The atomic commit is faster than the torn one it replaced.
-
-| the commit path                               | commits/s |
-| --------------------------------------------- | --------- |
-| one transaction for each `xWrite`, not atomic | 404       |
-| staged, two transactions                      | 280       |
-| one transaction                               | 420       |
-| one transaction, three reads removed          | **561**   |
-
-### The write path is latency, not work
-
-FoundationDB commits in about 1.1 ms whatever the commit carries. One key of 64 bytes and
-eight pages of 4 kB both cost 1080 us. So a commit is a round trip, and the payload is
-almost free until it is large.
-
-That number is the ceiling for one writer that waits for each commit. The VFS reached 420
-of a possible 928, because it made five round trips for each commit. It read the fence,
-read the log count, committed, and then read two more counts to decide about compaction.
-
-Three of those reads asked the database for numbers the writer already knew. A single
-writer owns the log count and the base count, so the handle keeps both. What is left is
-the fence read and the commit. The fence read has to stay: a writer that lost ownership
-between two of its own commits conflicts with nothing, so nothing else would catch it.
-
-### Where an order of magnitude is
-
-Not in a faster client, and not in more connections to FoundationDB.
-
-|                             | commits/s |
-| --------------------------- | --------- |
-| one commit at a time        | 928       |
-| 2 in flight                 | 1902      |
-| 8 in flight                 | 7733      |
-| 32 in flight                | 19162     |
-| 128 in flight               | **40993** |
-| 32 in flight over 2 handles | 19024     |
-| 32 in flight over 4 handles | 15648     |
-| 32 in flight over 8 handles | 18500     |
-
-Commits in flight are worth 44 times. More database handles are worth nothing, because one
-client process has a single network thread and every handle shares it. The parallelism has
-to come from transactions in flight.
-
-One database cannot pipeline its own commits. SQLite waits inside `xSync` until the commit
-returns, so the next commit has not been asked for yet. The parallelism has to come from
-many actors committing at once inside one plane. That is what iceoryx is for. It is also why
-the plane is one process that many actors reach, and not one process for each actor.
-
-Reads have no such room. They are already at parity with a local file. The page cache
-absorbs them, and no round trip happens at all.
-
-### One pragma is worth 2266 times
-
-The first measurement gave 526 point reads each second, which is 249 times slower than a
-local file. SQLite reads page 1 to check the change counter when a read transaction
-starts, and over a network database that check is a round trip for each query.
-
-`PRAGMA locking_mode=EXCLUSIVE` tells SQLite that nothing else can change the file, so
-it trusts its page cache and stops re-reading. Point reads went from 526 to 1192302 each
-second, a gain of 2266 times, and a scan gained 39 times.
-
-This is not a trick. An actor is the single writer of its own store, so the statement is
-true. The lesson is that the cost was never the page layout. It was a round trip that
-the page cache should have absorbed.
+The pragma tells SQLite that nothing else can change the file, so it trusts its page cache
+and stops the re-read. An actor is the single writer of its own store, so the statement is
+true. `store_plane_logbook.md` holds what it was worth, which was more than the layout of
+the pages.
 
 ## Two writers lost data, silently
 
@@ -300,9 +232,9 @@ means it did.
 [pwd]: https://github.com/fire/plausible-witness-dag
 
 Against the layout that committed each `xWrite` on its own, the search finds a witness at
-the first rung after nine crashes. Against the layout above, it covers 1100 candidates and
-finds none. Those are the crash points 1 to 220, at commit sizes of 1, 8, 64, 400, and 2000
-rows.
+the first rung. Against the layout above, it covers the space and finds none.
+`store_plane_logbook.md` holds how many candidates each run covered, because a count that
+lives in two places goes stale in one of them.
 
 ## Every transaction retries
 
