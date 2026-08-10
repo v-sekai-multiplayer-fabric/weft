@@ -77,9 +77,10 @@ RUN curl -LSs "https://github.com/apple/foundationdb/releases/download/${FDB_VER
 
 WORKDIR /work
 # Build context is the checked-out repo working tree. thirdparty/
-# deps (picoquic, picotls, QCBOR) are real git subtree content
-# checked directly into this repo, not submodules -- nothing to
-# initialize or fetch separately before this COPY.
+# deps (QCBOR, libriscv) are real vendored content checked directly
+# into this repo, not submodules -- nothing to initialize or fetch
+# separately before this COPY. picoquic and picotls are gone: they
+# moved to native/gyreedge, because a plane has no networking.
 COPY . /work
 
 RUN cmake -B build -DCMAKE_PREFIX_PATH="/opt/h2o" -DCMAKE_BUILD_TYPE=RelWithDebInfo

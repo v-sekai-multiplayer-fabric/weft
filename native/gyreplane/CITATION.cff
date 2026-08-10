@@ -2,10 +2,9 @@ cff-version: 1.2.0
 message: "If you use this software, please cite it as below."
 title: "zone-server-h2o: A zone server for the V-Sekai multiplayer fabric"
 abstract: >
-  Host for the minimum user-generated-content game loop. Terminates
-  WebTransport over QUIC with picoquic, keeps zone entity state in
-  FoundationDB as integer micrometers, and runs sandboxed guest
-  programs. Script guests run in-process under libriscv against an
+  Host for the minimum user-generated-content game loop. Keeps zone
+  entity state in FoundationDB as integer micrometers, and runs
+  sandboxed guest programs. It has no networking of its own. Script guests run in-process under libriscv against an
   eight-call domain ABI. Engine guests run as separate processes under
   Bubblewrap. ReBAC gates both planes.
 type: software
@@ -21,8 +20,6 @@ repository-code: "https://github.com/v-sekai-multiplayer-fabric/zone-server-h2o"
 url: "https://github.com/v-sekai-multiplayer-fabric/zone-server-h2o"
 keywords:
   - multiplayer
-  - webtransport
-  - quic
   - foundationdb
   - riscv
   - sandbox
@@ -41,16 +38,6 @@ references:
       against src/sandbox/zone_abi.h. Chosen for the rollback path
       because serialize_to and forking give bit-exact snapshot and
       replay, which multiplayer-fabric-manuals rfd/0098 measures.
-
-  - type: software
-    title: "picoquic: A Minimalist Implementation of the QUIC Protocol"
-    authors:
-      - family-names: Huitema
-        given-names: Christian
-    url: "https://github.com/private-octopus/picoquic"
-    notes: >-
-      Vendored at thirdparty/picoquic. Terminates QUIC and
-      WebTransport in src/transport/.
 
   - type: software
     title: "H2O: An Optimized HTTP/1, HTTP/2, HTTP/3 Server"

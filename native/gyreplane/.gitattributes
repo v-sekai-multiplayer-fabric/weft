@@ -1,6 +1,6 @@
 # Line-ending policy for this repo.
 #
-# thirdparty/ (picoquic, picotls, QCBOR) is vendored via git subtree at
+# thirdparty/ (QCBOR, libriscv) is vendored via git subtree at
 # exact upstream fork commits (see README.md). Any normalization there
 # would diff it away from that pinned commit, including its own native
 # Windows project files (*.sln, *.vcxproj, *.ps1). Exempt it completely:

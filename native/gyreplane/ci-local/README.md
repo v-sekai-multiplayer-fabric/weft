@@ -55,7 +55,7 @@ podman volume create zone-server-h2o-fdb-data
 
 for f in zone-server-h2o-fdb.build zone-server-h2o-fdb.container zone-server-h2o.container; do
   cp "ci-local/$f.example" "$HOME/.config/containers/systemd/$f"
-  sed -i "s|REPO_PATH|$(pwd)|g; s|CERTS_PATH|$(pwd)/certs|g" \
+  sed -i "s|REPO_PATH|$(pwd)|g" \
     "$HOME/.config/containers/systemd/$f"
 done
 
@@ -64,20 +64,20 @@ systemctl --user start zone-server-h2o.service   # pulls in the fdb build/contai
 journalctl --user -u zone-server-h2o.service -f
 ```
 
-A successful start logs `webtransport_server: WebTransport bound on
-UDP 7443, path /zone, zone 0 (TLS cert/key loaded)`. `ss -uln | grep
-7443` confirms the real UDP listener. `ss -tln | grep 4500` confirms
-FDB's real TCP listener. FDB's wire protocol is TCP, not UDP.
+A successful start logs `zone-server-h2o: zone 0, 1 worker(s), no
+transport (a plane has no networking)`. There is no UDP listener to
+check any more: the transport moved to `native/gyreedge`. `ss -tln |
+grep 4500` confirms FDB's real TCP listener. FDB's wire protocol is
+TCP, not UDP.
 
 `podman exec zone-server-h2o-fdb fdbcli -C /var/fdb/fdb.cluster --exec
 "status minimal"` should report "The database is available."
 
 Check SELinux mode first with `getenforce`. Under `Enforcing`, the
-bind-mounted cert directory needs `:Z`, and the shared FDB volume
-needs `:z` (lowercase -- two different containers read it). Both
-`.example` files already have the right one on each line. Without it,
-cert loading fails with "Cannot load certificate" despite correct file
-permissions. This was hit and root-caused, not guessed. See
+shared FDB volume needs `:z` (lowercase -- two different containers
+read it). The `.example` files already have it on the right line. The
+cert directory that needed `:Z` is gone with the transport; that note
+now lives in `native/gyreedge/TRANSPORT.md`. See
 `zone-server-h2o.container.example`'s own comment.
 
 ## Why a few packages are listed here that real-build.yml does not list

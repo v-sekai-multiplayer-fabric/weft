@@ -3,7 +3,7 @@ project(zone-server-h2o)
 
 # Fil-C toolchain: build with -DCMAKE_TOOLCHAIN_FILE=cmake/fil-c-toolchain.cmake
 # once the Fil-C build is vendored (task #3 in the consolidation plan).
-# Stock clang/gcc works for the pre-Fil-C spike (transport + basic ZoneTick).
+# Stock clang/gcc works for the pre-Fil-C spike (basic ZoneTick).
 
 find_library(H2O_LIB h2o-evloop REQUIRED)
 find_library(Z_LIB z REQUIRED)
@@ -29,9 +29,8 @@ set(WARNING_OPTIONS -pedantic -Wall -Wextra)
 
 # NOTE: include_directories()/add_compile_options() were global here
 # until the first real CI build (task #17) surfaced why that is wrong:
-# they leak into every target added afterward in this scope, including
-# the vendored picoquic_vendored (same-scope include()) target in
-# cmake/picoquic.cmake. Include dirs and warning flags are now
+# they leak into every target added afterward in this scope. Include
+# dirs and warning flags are now
 # scoped to our own target only, below. (mujoco was vendored here too
 # for a while, for task #8's entity/prop contact physics -- dropped in
 # favor of Godot's own Jolt physics, already available without a
@@ -43,7 +42,9 @@ set(CMAKE_C_FLAGS_RELWITHDEBINFO "${CMAKE_C_FLAGS_RELWITHDEBINFO} -O3")
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
 
-include(cmake/picoquic.cmake)
+# A plane has no networking. The QUIC transport and its libraries moved to
+# native/gyreedge, which is the edge. This build must not gain picoquic,
+# picotls, or any HTTP/3 code again. See ../../docs/reference/gyre_plane.md.
 include(cmake/qcbor.cmake)
 
 # The guest sandbox (src/sandbox/, RFD 0092/0094): libriscv built
@@ -67,18 +68,17 @@ add_subdirectory(thirdparty/libriscv/lib)
 
 file(GLOB_RECURSE HANDLER_SOURCES "src/handlers/*.c")
 file(GLOB SOURCES "src/*.c")
-file(GLOB TRANSPORT_SOURCES "src/transport/*.c")
 file(GLOB GEN_SOURCES "src/gen/*.c")
 file(GLOB PHYSICS_SOURCES "src/physics/*.c")
 file(GLOB SANDBOX_SOURCES "src/sandbox/*.c" "src/sandbox/*.cpp")
 
-add_executable(${PROJECT_NAME} ${HANDLER_SOURCES} ${SOURCES} ${TRANSPORT_SOURCES} ${GEN_SOURCES} ${PHYSICS_SOURCES} ${SANDBOX_SOURCES})
+add_executable(${PROJECT_NAME} ${HANDLER_SOURCES} ${SOURCES} ${GEN_SOURCES} ${PHYSICS_SOURCES} ${SANDBOX_SOURCES})
 target_include_directories(${PROJECT_NAME} PRIVATE
     src ${CMAKE_BINARY_DIR} ${H2O_INCLUDE} ${OPENSSL_INCLUDE} ${FDB_INCLUDE} ${YAJL_INCLUDE})
 target_compile_definitions(${PROJECT_NAME} PRIVATE H2O_USE_LIBUV=0)
 target_compile_options(${PROJECT_NAME} PRIVATE ${COMMON_OPTIONS} ${WARNING_OPTIONS})
 target_link_libraries(${PROJECT_NAME} PRIVATE ${COMMON_OPTIONS})
 target_link_libraries(${PROJECT_NAME} PRIVATE
-    ${H2O_LIB} ${FDB_C_LIB} ${SSL_LIB} ${CRYPTO_LIB} ${Z_LIB} ${YAJL_LIB} picoquic_vendored qcbor_vendored riscv m)
+    ${H2O_LIB} ${FDB_C_LIB} ${SSL_LIB} ${CRYPTO_LIB} ${Z_LIB} ${YAJL_LIB} qcbor_vendored riscv m)
 
 install(TARGETS ${PROJECT_NAME} RUNTIME DESTINATION bin)

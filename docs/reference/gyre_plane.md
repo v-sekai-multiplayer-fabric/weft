@@ -2,12 +2,12 @@
 
 Goal: host The Gyre in weft, and let a browser play it.
 
-State: two subtrees are here. Neither one holds the game.
+State: two forks are here. Neither one holds the game.
 
-- **Here.** `native/gyreplane` is a subtree of `zone-server-h2o`. It is the zone server:
-  QUIC and WebTransport transport, an FDB zone tick, and a libriscv guest sandbox.
-- **Here.** `native/gyreedge` is a subtree of `zone-guest-gyre`. It is the browser client,
-  three.js and SlugHorn, and its deployment.
+- **Here.** `native/gyreplane` is a fork of `zone-server-h2o`. It is the zone server: an
+  FDB zone tick and a libriscv guest sandbox. It has no networking.
+- **Here.** `native/gyreedge` is a fork of `zone-guest-gyre`. It is the browser client,
+  three.js and SlugHorn, and the QUIC transport that will serve it.
 - **Specified.** `../spec/Gyre.lean` proves the properties of the room graph and the
   objective that any port must keep.
 - **Missing.** The domain itself. Read the section below.
@@ -24,11 +24,13 @@ directories record.
 `zone-server-h2o` holds authority. It runs one zone for each process, it ticks against
 FoundationDB, and it runs guest code under libriscv. That is plane work.
 
+It also terminated QUIC, which is not. The split below is done.
+
 `zone-guest-gyre` holds the client and the transport that serves it. The edge terminates
 that transport. So the client repository sits on the edge side, because the edge exists to
 serve it.
 
-## The domain is in neither subtree
+## The domain is in neither fork
 
 `../spec/Gyre.lean` specifies two rooms, `decanting_floor` and `splicers_den`. That logic
 is not in `native/gyreplane` and it is not in `native/gyreedge`.
@@ -42,33 +44,42 @@ the design record, `../../native/gyreedge/docs/0003-the-gyre-mud-domain-and-mode
 and the renderer. It did not keep the rules.
 
 So the earlier plan step, "move the domain behind the harness", has nothing to move yet.
-Either `zone-guest-middleham` becomes a third subtree, or the domain is written against
+Either `zone-guest-middleham` comes in as a third directory, or the domain is written against
 `../spec/Gyre.lean`, which is why that file exists.
 
-## What the subtrees changed about the blockers
+## What the fork changed about the blockers
 
-An earlier version of this page said picoquic and picotls were absent. That was true of
-weft and it is no longer true.
+An earlier version of this page said picoquic and picotls were absent from weft. They are
+here. `zone-server-h2o` vendors both, and its `src/transport` already terminates QUIC and
+negotiates WebTransport. The transport work is not a green field.
 
-`native/gyreplane/thirdparty` vendors picoquic, picotls, and libriscv, and
-`native/gyreplane/src/transport` already terminates QUIC and negotiates WebTransport. The
-transport work is not a green field. It exists, and it needs to move.
+It ran in the process that holds authority, which a plane may not do. So the code moved
+rather than being written again.
+
+- `src/transport` is now `native/gyreedge/transport`.
+- `thirdparty/picoquic`, `thirdparty/picotls`, and the Godot patches are now under
+  `native/gyreedge/thirdparty`.
+- `cmake/picoquic.cmake` is now `native/gyreedge/cmake/picoquic.cmake`.
+- `src/main.c` lost the listener, the `-p` port flag, and the `-t` and `-k` TLS flags.
+- The plane build links no picoquic and no picotls. Its `CMakeLists.txt` says so.
+
+`native/gyreedge/TRANSPORT.md` holds the full list and the two deployment facts that moved
+with it.
+
+The plane fell from 22 MB to 5.0 MB. The edge rose to 18 MB. The total did not change.
 
 iceoryx is still absent. It is the one blocker that did not move.
 
-## The rule the server breaks
+## What the split costs
 
-A plane has no networking. `zone-server-h2o` opens a UDP socket and terminates QUIC in the
-same process that holds authority.
+The plane and the edge were one process. Now they are two, and nothing joins them.
 
-That is not a plane under the weft definition, and it is not an edge either, because an
-edge holds no authority. It is both at once, which is the shape weft splits.
+So the zone tick has no input at all. Before the split a QUIC datagram drove it directly.
+That path is cut until iceoryx carries the decoded input across.
 
-So the work is a split and not a port. The transport in `src/transport` becomes the edge.
-The zone tick in `src/zf_zonetick.c` stays the plane. What runs between them today is a
-function call, and it becomes iceoryx.
-
-That split is the cost of the rule. One process is simpler and it has one less hop.
+This is worse than it was, on purpose, and only until step 1 lands. One process was
+simpler and it had one less hop. The rule buys an edge that holds no authority, so a
+network attacker reaches a process that can decide nothing.
 
 ## What the edge needs
 
@@ -78,14 +89,14 @@ durable state.
 
 The client transport is HTTP/3 and WebTransport, and never HTTP/1.1. Firefox speaks both.
 
-- **picoquic**, for QUIC and HTTP/3. It is vendored in the plane subtree, and it has to
-  build from the edge instead.
+- **picoquic**, for QUIC and HTTP/3. It is here. It has no `main` yet, because the plane
+  used to call it.
 - **iceoryx v1**, to reach the plane. It needs the RouDi daemon beside it.
+- **A TLS certificate.** The server never had one wired, and its README said the
+  certificate and the key were `NULL`. A browser will not connect without one, so this
+  blocks the Firefox proof.
 
-The server has no TLS certificate wired. Its own README says the certificate and the key
-are `NULL`. A browser will not connect without one, so this blocks the Firefox proof.
-
-## The binaries the subtrees brought
+## The binaries the forks brought
 
 weft does not commit a binary to git, and it uploads one as a CI artifact instead. Four
 files now break that rule.
@@ -93,22 +104,22 @@ files now break that rule.
 - `native/gyreedge/web/slughorn.wasm`, 188 kB, and a vendored bundle at 672 kB. Upstream
   commits them on purpose. Its web server serves that directory from the docroot, and its
   image carries no Emscripten toolchain.
-- `native/gyreplane/thirdparty/picoquic` carries two documentation images and two test
+- `native/gyreedge/thirdparty/picoquic` carries two documentation images and two test
   fixtures. They belong to picoquic and not to weft.
 
 The reason upstream gives belongs to the deployment upstream has, and not to the one weft
 has. This is a conflict to settle. Either the build gains the toolchain and the artifacts
 leave git, or weft records the two directories as exceptions.
 
-`native/gyreplane` adds 22 MB to a checkout. Almost all of it is `thirdparty`.
+`native/gyreedge` adds 18 MB to a checkout. Almost all of it is `thirdparty`.
 
 ## The order to build it
 
 1. Put iceoryx v1 and RouDi in the container image, and prove a publisher and a subscriber
    pass a message. Nothing else can start before this.
 2. Build the thread-per-core harness once, because every plane uses it.
-3. Split `zone-server-h2o`. The transport goes to the edge, the zone tick stays the plane,
-   and iceoryx replaces the call between them.
+3. Give the edge an entry point, and join it to the plane over iceoryx. The transport is
+   already here. What is missing is the `main` that used to live in the plane.
 4. Find the domain. Subtree `zone-guest-middleham`, or write it against `../spec/Gyre.lean`.
 5. Wire a TLS certificate, and prove the result with Firefox. A command line client proves
    the transport and not the product, because the client is a browser.
