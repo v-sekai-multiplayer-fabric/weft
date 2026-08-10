@@ -54,7 +54,7 @@ wrong.
 switch to a different path above some threshold. That is a scale optimization ahead of
 scale, and worse, it doubles what QA must cover forever. So the interest feed is one
 plane at every scale, from one headset to a thousand. There is no threshold and no
-second mode. `planes.md` calls this the no-branching rule.
+second mode. `../reference/architecture.md` calls this the no-branching rule.
 
 **Spatial partitioning.** The maths says one zone holds the target with a margin near
 20 times. See `topology.md`. Building zone splitting now would be structure with no

@@ -2,7 +2,7 @@ defmodule Weft.ZoneABTest do
   @moduledoc """
   Zone A / zone B acceptance tests for the ported rivet zone actors: authoritative
   isolation, entity handoff across the area-of-interest boundary, and per-zone
-  fanout. See [[weft-port-rivet-zone-actors]] / `docs/data-plane.md`.
+  fanout. See [[weft-port-rivet-zone-actors]] / `docs/reference/data-plane.md`.
   """
 
   use ExUnit.Case, async: true

@@ -9,6 +9,13 @@ mesh.
 weft is early work. The parts are measured. The whole system is not. See "What we have
 not proven" in the page below.
 
-New here? Read **[docs/how-it-works.md](docs/how-it-works.md)** first. It explains the
-whole system in simple words, and it needs no knowledge of Elixir or game engines. Then
-read [docs/planes.md](docs/planes.md) for the full architecture.
+New here? Read **[how it works](docs/essays/how-it-works.md)** first. It explains the whole
+system in simple words, and needs no knowledge of Elixir or game engines.
+
+The docs split by what they do:
+
+- **[docs/reference/](docs/reference/)** holds the rules, the terms, and the contracts.
+  [architecture.md](docs/reference/architecture.md) is the architecture of the whole
+  system.
+- **[docs/essays/](docs/essays/)** explains why those rules exist.
+- **[docs/spec/](docs/spec/)** holds the Lean4 specs that the Elixir tests mirror.

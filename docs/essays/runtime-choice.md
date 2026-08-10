@@ -24,7 +24,7 @@ kind of answer.
 
 | Tier                                          | snapshots/sec (1 core) | ns/snapshot |
 | --------------------------------------------- | ---------------------- | ----------- |
-| **Native C** (the Jolt/Seastar tier)          | **142.4 M**            | 7.0         |
+| **Native C** (the native plane tier)          | **142.4 M**            | 7.0         |
 | BEAM ring (`Weft.DataPlane.Ring`, `:atomics`) | 2.85 M                 | ~350        |
 | BEAM per-message (naive)                      | 1.38 M                 | ~725        |
 
@@ -40,18 +40,18 @@ When a comparison comes back that lopsided, the comparison was wrong. We had bee
 choosing a runtime for the hot loop from a shortlist that contained nothing capable of
 running the hot loop. The producer has to be native code — Jolt physics and kernel-bypass
 ingest writing the ring directly — and the BEAM samples it at about 3 µs per read. See
-`docs/data-plane.md`.
+`docs/reference/data-plane.md`.
 
 They are not competing for the hot path — they are **stage-tier** choices (world
 representation and authoring, at Hz). For the _server-side_ stage runtime,
 **fabric-stage-runtime (OpenUSD) fits better than embedding Godot**: it is a headless
 library (no renderer/input/VM baggage), composition- and interchange-oriented. It
 runs as a plane over iceoryx2 (a separate native process), not as an in-BEAM NIF,
-because `planes.md` forbids heavy C++ in the BEAM. Godot stays on the client.
+because `../reference/architecture.md` forbids heavy C++ in the BEAM. Godot stays on the client.
 
 So the layering the benchmark points to:
 
-1. **Hot path (>15M/s):** native Jolt/Seastar → `Weft.DataPlane.Ring`.
+1. **Hot path (>15M/s):** the native game data plane and the ingest edge → `Weft.DataPlane.Ring`.
 2. **Stage/world representation:** OpenUSD (fabric-stage-runtime), server-side, as a plane over iceoryx2.
 3. **Control plane:** weft (placement, single-writer, lifecycle, durable state).
 4. **Client:** Godot (`fabric-godot-core`, tagged by `fabric-godot-assembly`), including the VR client via OpenXR/SteamVR over WebTransport.
@@ -63,8 +63,8 @@ on the 15M path.
 
 ## The asset pipeline is a CDN
 
-The hot-path conclusion above stands: the >15M producer is native Jolt/Seastar, not
-OpenUSD or Godot. The stage tier is a different job. The asset baker and the OpenUSD
+The hot-path conclusion above stands: the >15M producer is the native game data plane,
+not OpenUSD or Godot. The stage tier is a different job. The asset baker and the OpenUSD
 stage tier together form weft's **asset CDN**:
 
 - **Asset baker plane** (OpenUSD + Adobe glTF, request-response) bakes a source glb
@@ -81,7 +81,7 @@ stage tier together form weft's **asset CDN**:
   because the transport is H3/WebTransport. So the asset CDN and the actor store share
   one durable substrate.
 
-Both run as planes over iceoryx2, not in-BEAM NIFs, since `planes.md` forbids heavy
+Both run as planes over iceoryx2, not in-BEAM NIFs, since `../reference/architecture.md` forbids heavy
 C++ in the BEAM. Baking is off the game hot path; the >15M path stays native.
 
 ## Seastar or iceoryx2 with a thin harness (Windows support)
@@ -148,20 +148,20 @@ not use.
 
 ### Tradeoff and recommendation
 
-Seastar gave one runtime model for all planes (`planes.md` rule 5). The iceoryx2 approach
+Seastar gave one runtime model for all planes (`../reference/architecture.md` rule 5). The iceoryx2 approach
 is uniform at the transport. The execution differs by plane. It is busy-poll for CPU
 planes and blocking workers for I/O planes.
 
 Recommendation: if native Windows is a product requirement, adopt iceoryx2 plus a thin
 thread-per-core harness, in Rust, and drop Seastar. The native planes are not built yet,
-so the switch is cheap now and expensive later. This change rewrites `planes.md` rule 5.
+so the switch is cheap now and expensive later. This change rewrites `../reference/architecture.md` rule 5.
 Treat that rewrite as an open question until we decide.
 
 ## Decision: iceoryx v1 in C++, because Rust is blocklisted
 
 The target environment blocklists Rust. So the plane cannot use Rust or iceoryx2, since
 iceoryx2 is Rust-first. The decision is iceoryx v1 (the C++ implementation) with a thin
-C++ thread-per-core harness. This is the current design in `planes.md` rule 5.
+C++ thread-per-core harness. This is the current design in `../reference/architecture.md` rule 5.
 
 The cost of this decision, versus iceoryx2:
 

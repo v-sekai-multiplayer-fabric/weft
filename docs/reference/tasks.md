@@ -3,16 +3,7 @@
 This file records the open work so we can pause and resume. Each entry has the goal, the
 state today, and the next step. The date is 2026-08-10.
 
-## Rules that apply to every task
-
-- Change only v-sekai-multiplayer-fabric repositories.
-- Land every change through a pull request and the merge queue (RFD 0021). Never push to
-  main directly.
-- Never commit a binary or a recording to git. Upload it as a CI artifact.
-- Write all prose in Simplified Technical English.
-- Use one name for one concept.
-- Do not use exceptions for control flow. Return `{:ok, _}` or `{:error, _}`.
-- Latency is the priority. Keep durability and replication off the write path.
+The rules that apply to every task are in `CLAUDE.md`.
 
 ## Done recently
 

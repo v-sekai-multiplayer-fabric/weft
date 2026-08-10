@@ -1,6 +1,6 @@
 # Data plane boundary
 
-The game data plane is one instance of the general rule in `planes.md`: the BEAM
+The game data plane is one instance of the general rule in `architecture.md`: the BEAM
 runs only the control plane, and every heavy plane is a native process outside the
 VM reached over iceoryx. This document details that boundary for the game hot path,
 a **ring**.
@@ -19,14 +19,14 @@ the two halves can be built independently.
 ```mermaid
 flowchart TD
     NIC["NIC / SmartNIC-DPU<br/>15M+ pps, kernel bypass"]
-    Seastar["Seastar (C++ / DPDK)<br/>thread-per-core, lock-free<br/>decode WebTransport/QUIC datagrams"]
+    Ingest["ingest edge (C++ / picoquic)<br/>thread-per-core<br/>decode WebTransport/QUIC datagrams"]
     Iceoryx["Eclipse iceoryx<br/>zero-copy IPC (&lt;1 microsecond)"]
     Jolt["Jolt Physics (C++, own process)<br/>60Hz spatial hash, broadphase, raycast, collision"]
     Ring[("ring<br/>digested snapshots")]
     BEAM["Elixir / BEAM = control plane<br/>placement, lifecycle, state, chat, accounts"]
 
-    NIC --> Seastar
-    Seastar -->|"player inputs, zero-copy"| Iceoryx
+    NIC --> Ingest
+    Ingest -->|"player inputs, zero-copy"| Iceoryx
     Iceoryx --> Jolt
     Jolt -->|"digested world state"| Ring
     Ring -->|"read at tick rate, event-driven"| BEAM
@@ -35,14 +35,14 @@ flowchart TD
 
 | Tier      | Tech                                     | Owns                                                                           | Peak           |
 | --------- | ---------------------------------------- | ------------------------------------------------------------------------------ | -------------- |
-| Network   | **Seastar (C++/DPDK)**                   | Datagram ingest + decode, kernel bypass, thread-per-core                       | 15M+ pps       |
+| Network   | **ingest edge (C++/picoquic)**           | Datagram ingest + decode, kernel bypass                                       | 15M+ pps       |
 | IPC       | **Eclipse iceoryx**                      | Zero-copy handoff, network → physics                                           | <1 microsecond |
 | Game loop | **Jolt Physics (C++, separate process)** | 60Hz spatial hash, broadphase culling, raycast, collision                      | multi-core     |
-| Control   | **Elixir / BEAM (weft)**                 | Placement, single-writer, failover, durable state, chat, accounts, matchmaking | —              |
+| Control   | **Elixir / BEAM (weft)**                 | See `architecture.md`                                                          | —              |
 
 ## The three contracts across the boundary
 
-1. **Network → Physics (iceoryx, zero-copy).** Seastar decodes datagrams and
+1. **Network → Physics (iceoryx, zero-copy).** The ingest edge decodes datagrams and
    publishes decrypted player inputs into an iceoryx pool; Jolt subscribes.
    Zero-copy over iceoryx, sub-microsecond. weft is not involved.
 
@@ -64,7 +64,7 @@ flowchart TD
   and wrecks whole-VM latency. The data plane owns the busy-poll on pinned cores in
   a _separate OS process_; the BEAM reads pre-assembled state off the ring via a
   small iceoryx NIF at tick rate.
-- **Data plane owns pinned cores.** DPDK/Seastar reactor cores run at 100%
+- **Data plane owns pinned cores.** DPDK/the ingest edge reactor cores run at 100%
   permanently and are excluded from the BEAM scheduler set.
 - **Interest management before hardware.** A server only faces 15M pps if it is
   _interested_ in 15M pps. Spatial sharding + area-of-interest culling (one zone =
@@ -77,7 +77,7 @@ Climb only when the tier below is genuinely saturated, and cull first.
 
 1. **OS UDP sockets** — fine to ~100k–500k pps. Default.
 2. **AF_XDP** — ~5–10M pps, some kernel involvement, no special NIC.
-3. **DPDK / Seastar** — 15–30M pps, dedicate 4–8 cores to polling.
+3. **DPDK / the ingest edge** — 15–30M pps, dedicate 4–8 cores to polling.
 4. **SmartNIC / DPU** — 50–100M+ pps, offload decode/filter onto NIC silicon.
 
 ## Where weft fits
@@ -90,7 +90,7 @@ server ingests. They compose through placement:
   owner's data-plane worker binds the socket.
 - The store (see `store.md`) holds the zone's durable state so the new owner can
   resume it after handoff, with no filesystem affinity.
-- The zone's hot loop (Seastar/iceoryx/Jolt) is spawned and reaped by weft as
+- The zone's hot loop (the ingest edge/iceoryx/Jolt) is spawned and reaped by weft as
   part of that zone's lifecycle, but runs entirely outside the BEAM.
 
 The next step is a thin, honest prototype of contract (2) and (3): a `Weft.Zone`

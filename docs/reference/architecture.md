@@ -95,7 +95,7 @@ Every plane that is not the control plane follows the same rules:
    iceoryx `WaitSet`. iceoryx v1 needs the RouDi daemon. The project does not use Rust,
    so the plane is C++. There is one runtime model for all planes, not a choice per
    plane. A CPU-bound plane busy-polls. An I/O-bound plane runs blocking worker threads
-   over the same iceoryx transport. See `runtime-choice.md` for the measured basis.
+   over the same iceoryx transport. See `../essays/runtime-choice.md` for the measured basis.
 6. **The control plane orchestrates.** It decides where a plane runs, its lifecycle,
    backpressure, and result caching. The BEAM owns _what_ and _where_. The plane
    owns _how fast_.
@@ -123,10 +123,10 @@ An edge terminates a transport, decodes the wire format, and gives the result to
 or to the control plane. It holds no authority, runs no simulation, and keeps no durable
 state. So the network stays at the edge, and the work stays in the planes behind it.
 
-| Edge    | Native stack   | Terminates             | Gives the result to         |
-| ------- | -------------- | ---------------------- | --------------------------- |
-| Ingest  | picoquic + C++ | player input datagrams | the game data plane         |
-| Gateway | picoquic + C++ | client control streams | the control plane           |
+| Edge    | Native stack   | Terminates             | Gives the result to |
+| ------- | -------------- | ---------------------- | ------------------- |
+| Ingest  | picoquic + C++ | player input datagrams | the game data plane |
+| Gateway | picoquic + C++ | client control streams | the control plane   |
 
 The ingest edge carries the unreliable datagrams: player input upstream, and the
 interest plane's `CH_INTEREST` snapshots downstream. The gateway edge carries the
@@ -145,7 +145,7 @@ The asset baker plane plus the OpenUSD stage tier form weft's **asset CDN**: the
 baker bakes a source glb Character into an OpenUSD stage
 (request-response), and the stage tier caches and distributes baked stages to clients
 like a CDN. Baking
-is off the game hot path. See `runtime-choice.md`.
+is off the game hot path. See `../essays/runtime-choice.md`.
 
 ## The bake machine
 
@@ -153,11 +153,11 @@ A bake is slow, large, and the same every time. That inverts each rule the hot p
 obeys, so a bake does not run in a world machine. It runs on its own machine, and that
 machine scales on its own.
 
-| | hot path | bake |
-| --- | --- | --- |
-| budget | 16.67 ms | seconds to minutes |
-| result | 20 bytes for each entity | megabytes to gigabytes |
-| repeated work | each frame | one time, forever |
+|               | hot path                 | bake                   |
+| ------------- | ------------------------ | ---------------------- |
+| budget        | 16.67 ms                 | seconds to minutes     |
+| result        | 20 bytes for each entity | megabytes to gigabytes |
+| repeated work | each frame               | one time, forever      |
 
 `bake(source, tool version)` gives the same result every time, so weft addresses the
 result by content. The key is `hash(source)` with the tool version. A hit costs no
@@ -208,7 +208,7 @@ machine never sends a byte of an asset.
 
 Chunks are addressed by content, so the S3 tier is one tier for every region, and the
 FoundationDB of each region is a cache in front of it. weft runs in one region today, so
-a second region gets the same bakes with no new work. See `topology.md`.
+a second region gets the same bakes with no new work. See `../essays/topology.md`.
 
 New planes (physics, ML inference, video/audio transcode) use the same contract: a
 native process plus iceoryx publish-subscribe or request-response. There is nothing
@@ -219,7 +219,7 @@ the game data plane, the harness runs the loop, drives Jolt (physics), and reach
 control plane and other planes through iceoryx. Every plane uses the harness the same
 way. The harness is a thin C++ layer over iceoryx v1, not Seastar and not Rust. Linux
 is the primary target. Windows support in iceoryx v1 is experimental. See
-`runtime-choice.md` for the measured basis.
+`../essays/runtime-choice.md` for the measured basis.
 
 ## Durable state: FoundationDB
 
@@ -277,11 +277,10 @@ A HMD player is both an authority and an interest subscriber. This is the
 authority/interest split, formalized in
 [`lean-interest-mgmt`](https://github.com/v-sekai-multiplayer-fabric/lean-interest-mgmt).
 
-- **Authority (upstream).** Each entity is authoritative on exactly one zone (the game
-  data plane, proven single-owner), which advances its world and physics state. The
-  exception is a player's avatar tracked pose, head and hands: that comes only from the
-  HMD tracker, so the client is the source and sends it upstream. The zone owns
-  everything else about the avatar.
+- **Authority (upstream).** The Terms above give the rule. The exception is a player's
+  avatar tracked pose, head and hands: that comes only from the HMD tracker, so the
+  client is the source and sends it upstream. The zone owns everything else about the
+  avatar.
 - **Interest (downstream).** The player has interest in the surrounding world and
   receives read-only area-of-interest replicas, served as `CH_INTEREST` snapshots. A
   peer can hold interest in an entity without authority over it; interest replicas do
@@ -296,7 +295,7 @@ upstream.
 
 Both directions ride WebTransport. Live pose upstream and live world interest
 downstream use unreliable drop-stale datagrams for the latest state (see `protocol.md`
-and `latency.md`). Control and pulling baked OpenUSD stages from the asset CDN use
+and `../essays/latency.md`). Control and pulling baked OpenUSD stages from the asset CDN use
 reliable streams.
 
 ### The interest feed is its own plane, always

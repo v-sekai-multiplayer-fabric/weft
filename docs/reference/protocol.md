@@ -58,4 +58,4 @@ traffic movement confirms the synthetic benchmark. Apply is never the bottleneck
 
 Cheap decode is a parse, not a cast, so it is far slower and allocates per field.
 That is acceptable at the interop edge and is the reason cheap never touches the hot
-path. See `latency.md` for why the hot path stays native and copy-free.
+path. See `../essays/latency.md` for why the hot path stays native and copy-free.

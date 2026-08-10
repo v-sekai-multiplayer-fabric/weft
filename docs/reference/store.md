@@ -1,7 +1,7 @@
 # Store
 
 The store holds actor state (KV and SQLite). It must be low latency (see
-`latency.md`). This page reviews how rivet stores SQLite in FoundationDB, then gives
+`../essays/latency.md`). This page reviews how rivet stores SQLite in FoundationDB, then gives
 weft's design.
 
 ## How rivet does it
@@ -45,11 +45,10 @@ One store design for every actor:
   latest SHARD plus later DELTAs, then serves all reads from the local file. This is
   rivet's read path, done once at open, not per read.
 - **Compaction.** A background task folds DELTA rows into a new SHARD, like rivet.
-- **Single writer.** Horde gives one actor process per id, the same guarantee rivet
-  gets from Pegboard.
+- **Single writer.** See `architecture.md`. Horde provides it here.
 
-Accepted cost: a crash can lose the last few commits that were not yet replicated.
-This is the trade for low-latency writes.
+Accepted cost: a crash can lose the last few commits that were not yet replicated. See
+`../essays/latency.md` for why weft takes that trade.
 
 ## rivet vs weft
 
@@ -67,14 +66,12 @@ This is the trade for low-latency writes.
 
 The store runs SQLite natively in its own process, a store plane, the same as rivet
 runs per-actor SQLite in rivetkit-core rather than in the orchestrator. The BEAM
-control plane reaches it over iceoryx. The reason is crash isolation: SQLite in a
-BEAM NIF takes the whole VM down if it faults, while a separate store plane can crash
-and be restarted on its own (`planes.md`, why not a dirty NIF).
+control plane reaches it over iceoryx. The reason is crash isolation. See
+`architecture.md`, "why not a dirty NIF".
 
-The store plane runs weft's low-latency design, not rivet's synchronous VFS to
-FoundationDB: a local SQLite WAL file is the fast primary write path, and replication
-to FoundationDB is asynchronous, off the write path. Latency is the priority, so the
-per-write FoundationDB cost never sits on the path.
+The store plane does not use rivet's synchronous VFS to FoundationDB. A local SQLite WAL
+file is the primary write path, and replication to FoundationDB is asynchronous. See
+`../essays/latency.md` for the measured reason.
 
 The logic is prototyped in Elixir today (`Weft.Actor.Store.Replicated` plus
 `Weft.Actor.Store.Replicator`), tested against a live FoundationDB, so the design is

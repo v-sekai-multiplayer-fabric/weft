@@ -1,7 +1,7 @@
 defmodule Weft.DataPlane.Snapshot do
   @moduledoc """
   Digested world state crossing the physics -> BEAM boundary (contract 2 in
-  `docs/data-plane.md`). This is what the data plane hands the control plane: not
+  `docs/reference/data-plane.md`). This is what the data plane hands the control plane: not
   packets, but a per-tick summary the BEAM reads at tick rate.
   """
 
@@ -23,7 +23,7 @@ defmodule Weft.DataPlane.Worker do
   or a stub. The real implementation is a Port or dirty-NIF to a separate OS
   process that owns pinned cores; it **pushes** digested snapshots to the
   subscriber as messages, so the BEAM stays event-driven and never busy-polls. See
-  `docs/data-plane.md`.
+  `docs/reference/data-plane.md`.
 
   Snapshots are delivered to the subscriber as:
 

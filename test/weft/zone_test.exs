@@ -2,7 +2,7 @@ defmodule Weft.ZoneTest do
   @moduledoc """
   Exercises the control/data-plane boundary with a stub worker: the BEAM zone
   receives digested snapshots event-driven and steers the worker, without polling
-  or touching a packet. See `docs/data-plane.md`.
+  or touching a packet. See `docs/reference/data-plane.md`.
   """
 
   use ExUnit.Case, async: true

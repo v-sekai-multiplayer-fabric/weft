@@ -13,15 +13,15 @@ It was wrong, and the error is worth keeping visible because it is easy to make.
 
 Motion sickness comes from the delay between moving your head and seeing your own view
 change. Your headset renders your own view locally, with prediction. The network is not
-in that loop at all. What the network affects is how smoothly you see *other* people
+in that loop at all. What the network affects is how smoothly you see _other_ people
 move, and interpolation covers that up to roughly 80 ms.
 
 Two different budgets had been collapsed into one:
 
-| Path | Budget | Set by |
-| --- | --- | --- |
-| your head to your own view | 20 ms | the client, local, no network |
-| other persons to your view | about 80 ms | interpolation quality |
+| Path                       | Budget      | Set by                        |
+| -------------------------- | ----------- | ----------------------------- |
+| your head to your own view | 20 ms       | the client, local, no network |
+| other persons to your view | about 80 ms | interpolation quality         |
 
 At 9.8 microseconds for each kilometre of fibre, round trip, 80 ms gives a radius near
 4000 km.
@@ -33,12 +33,12 @@ weft runs in one region. Start with `sjc`, on the west coast of North America.
 A radius of 4000 km holds the 80 ms budget, so one region does not cover the world. This
 is what one region gives:
 
-| From | Round trip | Result |
-| --- | --- | --- |
-| west North America | below 30 ms | good |
-| east North America | near 70 ms | good |
-| Japan | near 110 ms | avatars stutter |
-| Europe | near 150 ms | avatars stutter |
+| From               | Round trip  | Result          |
+| ------------------ | ----------- | --------------- |
+| west North America | below 30 ms | good            |
+| east North America | near 70 ms  | good            |
+| Japan              | near 110 ms | avatars stutter |
+| Europe             | near 150 ms | avatars stutter |
 
 A distant person can play, and the world stays correct. An entity is authoritative on
 exactly one machine, wherever the person sits. Only the smoothness of other avatars gets
@@ -143,11 +143,11 @@ count actually crosses the line.
 
 ## High availability
 
-| Tier | Count | Why |
-| --- | --- | --- |
-| FoundationDB | 3 machines | `triple` redundancy keeps 3 copies and accepts 2 losses. Coordinators must be an odd number: `n = 2f+1` accepts `f` losses. |
-| front door (login, matchmaking, directory) | 2 or 3 machines | It holds no world state, so it replicates freely. Use 3 for a rolling update with no loss of capacity. |
-| world machine | 1 | An entity is authoritative on exactly one zone. Two live copies of a world are two writers. |
+| Tier                                       | Count           | Why                                                                                                                         |
+| ------------------------------------------ | --------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| FoundationDB                               | 3 machines      | `triple` redundancy keeps 3 copies and accepts 2 losses. Coordinators must be an odd number: `n = 2f+1` accepts `f` losses. |
+| front door (login, matchmaking, directory) | 2 or 3 machines | It holds no world state, so it replicates freely. Use 3 for a rolling update with no loss of capacity.                      |
+| world machine                              | 1               | An entity is authoritative on exactly one zone. Two live copies of a world are two writers.                                 |
 
 The last row is the one people argue with. Surely a world should have a hot standby?
 
@@ -182,11 +182,11 @@ it. The store tiers it the same way as any other actor: a local SQLite primary, 
 FoundationDB replica, and the S3 cold tier. Handoff, restore, and the limits all work
 without a change.
 
-| Data | Home | Read from a different region |
-| --- | --- | --- |
-| account, friends, matchmaking | the home world | over the network, then cached |
-| assets | no home, addressed by content | the S3 tier serves every region |
-| world state | the world machine | it does not leave the region |
+| Data                          | Home                          | Read from a different region    |
+| ----------------------------- | ----------------------------- | ------------------------------- |
+| account, friends, matchmaking | the home world                | over the network, then cached   |
+| assets                        | no home, addressed by content | the S3 tier serves every region |
+| world state                   | the world machine             | it does not leave the region    |
 
 With one region today, the home world is in that region and nothing crosses a network.
 A second region reads the home world across the network. A read is near 150 ms from
@@ -200,6 +200,6 @@ already in a world keeps playing, because world state does not need the home wor
 
 ### One name for one concept
 
-`planes.md` says an entity is a simulated thing with position and velocity, so an account
+`../reference/architecture.md` says an entity is a simulated thing with position and velocity, so an account
 is not an entity. An account is an **actor**, which is the single-writer primitive. Use
 the actor name for this data.

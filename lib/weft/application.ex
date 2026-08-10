@@ -43,7 +43,7 @@ defmodule Weft.Application do
   #
   # A world runs on one machine, so a world needs no cluster at all. This is for the
   # front door, which holds no world state and runs on more than one machine. See
-  # `docs/topology.md`.
+  # `docs/essays/topology.md`.
   defp cluster_children do
     case System.get_env("WEFT_CLUSTER_QUERY") do
       nil ->

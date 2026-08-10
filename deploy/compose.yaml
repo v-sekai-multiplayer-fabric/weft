@@ -62,7 +62,7 @@ services:
       - "4000:4000"
 
   # The S3-compatible cold tier. versitygw turns a local directory into an S3 server.
-  # FoundationDB backs up to it. See docs/store.md.
+  # FoundationDB backs up to it. See docs/reference/store.md.
   versitygw:
     image: ghcr.io/versity/versitygw:latest
     environment:

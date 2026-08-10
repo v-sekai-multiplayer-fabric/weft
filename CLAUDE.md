@@ -5,8 +5,8 @@ Rules and conventions for the weft repo. Follow them.
 ## What weft is
 
 - weft is the Elixir and OTP control plane of the multiplayer fabric.
-- The docs in `docs/` are the source of truth. Start with `docs/planes.md`.
-- `docs/how-it-works.md` is the plain explanation for a new reader. Keep it correct.
+- The docs in `docs/` are the source of truth. Start with `docs/reference/architecture.md`.
+- `docs/essays/how-it-works.md` is the plain explanation for a new reader. Keep it correct.
 
 ## Writing
 
@@ -17,8 +17,8 @@ up and must not misread it. Write it in ASD-STE100 Simplified Technical English:
 
 - Use short sentences. The maximum is 20 words.
 - Do not use contractions. Do not use semicolons. Use a simple tense.
-- This covers `CLAUDE.md`, the terms and the plane contract in `docs/planes.md`,
-  `docs/protocol.md`, `docs/tasks.md`, and every moduledoc and comment.
+- This covers everything in `docs/reference/`, plus `CLAUDE.md` and every moduledoc and
+  comment.
 
 **Explanatory text** makes a reader understand why. Write it as an essay, not as a
 manual. STE forbids the things that make an explanation readable, so do not use it here:
@@ -29,10 +29,9 @@ manual. STE forbids the things that make an explanation readable, so do not use 
   cut the section.
 - Vary sentence length. Flat rhythm hides which sentence carries the weight.
 - Name the cost of a decision, not only the benefit.
-- This covers `docs/how-it-works.md`, `docs/latency.md`, `docs/yagni.md`,
-  `docs/topology.md`, `docs/runtime-choice.md`, and `docs/benchmarks.md`.
+- This covers everything in `docs/essays/`.
 
-Both kinds: use one name for one concept. Terms are in `docs/planes.md` and
+Both kinds: use one name for one concept. Terms are in `docs/reference/architecture.md` and
 `CITATION.cff` (Khronos CATSG). Do not name another company or product.
 
 ## Architecture
@@ -70,7 +69,7 @@ Both kinds: use one name for one concept. Terms are in `docs/planes.md` and
 - Commit titles are sentence case. Do not use a conventional-commit prefix. Do not mention an agent.
 - Do not commit binaries or recordings to git. Upload them as CI artifacts.
 - CI is GitHub Actions. `ci.yml` runs the tests on each pull request.
-- `stress-bench.yml` records the 3D scope and gathers the `docs/benchmarks.md` numbers.
+- `stress-bench.yml` records the 3D scope and gathers the `docs/essays/benchmarks.md` numbers.
 
 ## Release
 
@@ -99,10 +98,14 @@ Keep the top level small. Put a new file in one of these directories.
   `deploy/quadlet` runs the Podman units.
 - `docs/` holds the prose. `docs/spec` holds the Lean4 specs.
 
-## Reference docs
+## Docs
 
-- `docs/how-it-works.md` explains the whole system to a new reader. Send a newcomer there.
-- `docs/planes.md`, `docs/data-plane.md`, `docs/store.md`, `docs/protocol.md`, `docs/latency.md`.
-- `docs/yagni.md`, `docs/runtime-choice.md`, `docs/benchmarks.md`.
-- `docs/tasks.md` records the open work, the state today, and the next step.
-- `docs/spec/README.md` explains the Lean4 specs and how an Elixir test mirrors a proof.
+The directory says which kind of page it holds. Put a new page in the right one.
+
+- `docs/reference/` holds the rules, the terms, and the contracts. Start at
+  `docs/reference/architecture.md`, which is the architecture of the whole system.
+  `docs/reference/tasks.md` records the open work and the next step.
+- `docs/essays/` explains why those rules exist. Send a newcomer to
+  `docs/essays/how-it-works.md`.
+- `docs/spec/` holds the Lean4 specs. `docs/spec/README.md` explains how a test mirrors
+  a proof.
