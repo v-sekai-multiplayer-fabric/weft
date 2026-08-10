@@ -8,7 +8,7 @@ defmodule Weft.DataPlane.Sumo do
   This is the Elixir producer for the ring. The production plane is a native process
   (Seastar) writing the same ring through a NIF over iceoryx2, faster than the BEAM,
   so the raw packet flood never enters the VM. Here the frames come from a decoded
-  SUMO trace (see `bench/sumo/extract_frames.py`) rather than a live socket.
+  SUMO trace (see `test/bench/sumo/extract_frames.py`) rather than a live socket.
   """
 
   use GenServer
@@ -20,7 +20,7 @@ defmodule Weft.DataPlane.Sumo do
   # ── Frame decoding ──────────────────────────────────────────────────────────
 
   @doc """
-  Decode the compact SUMO frame binary (`bench/sumo/extract_frames.py` format) into a
+  Decode the compact SUMO frame binary (`test/bench/sumo/extract_frames.py` format) into a
   list of frames, each a list of `{slot, x, y}` with float metre coordinates.
   """
   @spec decode_frames(binary()) :: {:ok, [[{non_neg_integer(), float(), float()}]]} | :error

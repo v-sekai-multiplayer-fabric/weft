@@ -32,17 +32,17 @@ rivet_ex-*.tar
 
 # SUMO benchmark: venv, generated scenario, trace, compiled binary
 .sumo-venv/
-bench/sumo/scenario/
-bench/sumo/replay
+test/bench/sumo/scenario/
+test/bench/sumo/replay
 
 # Native benches: compiled from the .c sources next to them. CI builds and runs them,
 # then uploads the numbers. Never commit the binaries.
-bench/pps_dram
-bench/pps_native
-bench/ring_native
-bench/udp_recv
-bench/zstd_frames
-bench/fly/netbench
+test/bench/pps_dram
+test/bench/pps_native
+test/bench/ring_native
+test/bench/udp_recv
+test/bench/zstd_frames
+test/bench/fly/netbench
 
 # Native planes (C++): build output is not committed.
 native/**/build/

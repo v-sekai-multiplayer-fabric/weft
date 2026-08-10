@@ -1,5 +1,5 @@
 # Actor control-plane op microbenchmark (SQLite store).
-# Run: mix run bench/actor.exs
+# Run: mix run test/bench/actor.exs
 alias Weft.{Actor, Actors}
 
 data_dir = Path.join(System.tmp_dir!(), "weft_bench_#{System.unique_integer([:positive])}")

@@ -51,8 +51,8 @@ jobs:
           export SUMO_HOME=$(python3 -c "import os,sumo;print(os.path.dirname(sumo.__file__))")
           export PATH="$SUMO_HOME/bin:$PATH"
           export PYTHONPATH="$SUMO_HOME/tools:$PYTHONPATH"
-          mkdir -p bench/sumo/scenario
-          cd bench/sumo/scenario
+          mkdir -p test/bench/sumo/scenario
+          cd test/bench/sumo/scenario
           netgenerate --grid --grid.number=8 --grid.length=200 \
             --default.lanenumber=2 --default.speed=13.9 -o grid.net.xml
           python3 "$SUMO_HOME/tools/randomTrips.py" -n grid.net.xml -o trips2.xml \
@@ -80,13 +80,13 @@ jobs:
       - name: compile and warm up so the recording has no build output
         run: |
           mix compile
-          mix run bench/sumo_tui.exs 1 0 > /dev/null 2>&1 || true
+          mix run test/bench/sumo_tui.exs 1 0 > /dev/null 2>&1 || true
 
       - name: record the 3D scope (wide geometry)
         run: |
           asciinema rec --headless --window-size 80x24 \
             -t "title: weft stress bench 3D scope | repository-code: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY} | commit: ${GITHUB_SHA}" \
-            -c "mix run bench/sumo_tui.exs 200 30" \
+            -c "mix run test/bench/sumo_tui.exs 200 30" \
             --overwrite $REC.cast
 
       - name: reference the recording (CFF style)
@@ -143,10 +143,10 @@ jobs:
 
       - name: build and run the native benches
         run: |
-          cc -O3 -march=native -pthread bench/pps_native.c -o pps_native
-          cc -O3 -march=native -pthread bench/pps_dram.c -o pps_dram
-          cc -O3 -march=native bench/ring_native.c -o ring_native
-          cc -O3 -march=native bench/zstd_frames.c -o zstd_frames -lzstd
+          cc -O3 -march=native -pthread test/bench/pps_native.c -o pps_native
+          cc -O3 -march=native -pthread test/bench/pps_dram.c -o pps_dram
+          cc -O3 -march=native test/bench/ring_native.c -o ring_native
+          cc -O3 -march=native test/bench/zstd_frames.c -o zstd_frames -lzstd
           {
             echo "# native benches ($(date -u))"
             echo "## pps_native"; ./pps_native
@@ -200,7 +200,7 @@ jobs:
             echo "# elixir benches ($(date -u))"
             for b in store actor data_plane data_plane_ring; do
               echo "## $b"
-              mix run "bench/$b.exs" || true
+              mix run "test/bench/$b.exs" || true
             done
           } | tee elixir-benches.txt
 

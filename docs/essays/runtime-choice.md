@@ -28,7 +28,7 @@ kind of answer.
 | BEAM ring (`Weft.DataPlane.Ring`, `:atomics`) | 2.85 M                 | ~350        |
 | BEAM per-message (naive)                      | 1.38 M                 | ~725        |
 
-Native clears 15M by ~9× on a single core. `bench/ring_native.c` reproduces it.
+Native clears 15M by ~9× on a single core. `test/bench/ring_native.c` reproduces it.
 
 ## The answer is neither
 
@@ -172,7 +172,7 @@ The cost of this decision, versus iceoryx2:
   the same, hundreds of ns to about 1 µs.
 
 The C++ data plane meets the throughput goal with a wide margin. The ring is
-`native/dataplane` (a seqlock ring, the same method as `bench/ring_native.c`). Measured
+`native/dataplane` (a seqlock ring, the same method as `test/bench/ring_native.c`). Measured
 on a Ryzen 7 3800X, single writer per core:
 
 | Threads (cores) | Aggregate snapshots/sec | Per core |

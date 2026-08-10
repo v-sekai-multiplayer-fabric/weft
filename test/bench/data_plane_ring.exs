@@ -2,7 +2,7 @@
 # overwrites a lock-free :atomics slot, the BEAM samples it. No per-snapshot
 # message, no copy. Measures write throughput single-core and aggregated across
 # cores (each producer = one zone's worker on its own core).
-# Run: mix run bench/data_plane_ring.exs
+# Run: mix run test/bench/data_plane_ring.exs
 alias Weft.DataPlane.Ring
 
 entities = 8

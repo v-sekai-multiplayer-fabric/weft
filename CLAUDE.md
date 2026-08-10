@@ -92,7 +92,7 @@ Keep the top level small. Put a new file in one of these directories.
 - `lib/` and `test/` hold the Elixir control plane.
 - `native/` holds every native source. `native/dataplane` is the C++ plane. `native/nif` is
   the NIF.
-- `bench/` holds every benchmark. `bench/sumo` is the SUMO trace. `bench/fly` is the Fly
+- `test/bench/` holds every benchmark. `test/bench/sumo` is the SUMO trace. `test/bench/fly` is the Fly
   network test.
 - `deploy/` holds every ship and run artifact. `deploy/packaging` builds the OS packages.
   `deploy/quadlet` runs the Podman units.
