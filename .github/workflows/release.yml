@@ -1,0 +1,64 @@
+name: Release
+
+# Tars web/ (the three.js/SlugHorn MUD client -- slughorn.wasm is
+# already a checked-in prebuilt artifact, no Emscripten build needed
+# here), then chunks that tarball with desync (folbricht/desync, the
+# real upstream casync-compatible tool -- not the in-progress Godot
+# FabricMMOGAsset module, which needs a full custom engine build this
+# repo has no reason to carry). Publishes the .caibx index and the
+# local chunk store, both as GitHub Release assets.
+#
+# GitHub Releases, not the Tigris/zone-backend CDN path (see that
+# repo's docs/decisions/0009) -- deferred, not wired here, per direct
+# instruction. The .caibx/chunk-store format is still the real casync
+# format either way, so switching the store later is a location change,
+# not a format change.
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+# softprops/action-gh-release needs contents: write to create a
+# release; the default GITHUB_TOKEN is read-only unless granted this
+# explicitly (confirmed live: the first run failed with "403 Resource
+# not accessible by integration" without it).
+permissions:
+  contents: write
+
+env:
+  DESYNC_VERSION: 1.0.4
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install desync
+        run: |
+          curl -sL -o desync.tar.gz \
+            "https://github.com/folbricht/desync/releases/download/v${DESYNC_VERSION}/desync_${DESYNC_VERSION}_linux_amd64.tar.gz"
+          tar xzf desync.tar.gz
+          sudo install -m 0755 desync /usr/local/bin/desync
+          desync --help >/dev/null
+
+      - name: Tar the web client
+        run: tar cf zone-guest-gyre-web.tar -C web .
+
+      - name: Chunk with desync (.caibx index + local chunk store)
+        run: |
+          mkdir -p dist/store
+          desync make -s dist/store zone-guest-gyre-web.tar.caibx zone-guest-gyre-web.tar
+          tar czf dist/zone-guest-gyre-web-chunks.tar.gz -C dist store
+          rm -rf dist/store
+          ls -l dist/
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            zone-guest-gyre-web.tar.caibx
+            dist/zone-guest-gyre-web-chunks.tar.gz
+          generate_release_notes: true
