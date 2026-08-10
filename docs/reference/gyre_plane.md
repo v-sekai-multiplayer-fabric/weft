@@ -61,7 +61,10 @@ rather than being written again.
   `native/gyreedge/thirdparty`.
 - `cmake/picoquic.cmake` is now `native/gyreedge/cmake/picoquic.cmake`.
 - `src/main.c` lost the listener, the `-p` port flag, and the `-t` and `-k` TLS flags.
+- `scripts/generate-tls-cert.sh` moved. A plane needs no certificate.
 - The plane build links no picoquic and no picotls. Its `CMakeLists.txt` says so.
+- The Fil-C workflow justified memory safety by the untrusted client input this process
+  parsed. It parses none now. The reason is the untrusted guest under libriscv instead.
 
 `native/gyreedge/TRANSPORT.md` holds the full list and the two deployment facts that moved
 with it.

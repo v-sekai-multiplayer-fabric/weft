@@ -2,8 +2,11 @@ name: build (Fil-C)
 
 # Builds zone-server-h2o with Fil-C (https://github.com/pizlonator/fil-c)
 # instead of stock clang/gcc, per the zone-server-h2o consolidation plan
-# (task #3): this process parses untrusted WebTransport input directly
-# from clients, so memory safety is load-bearing, not optional.
+# (task #3): memory safety is load-bearing, not optional. The reason
+# changed with the weft fork and it did not go away. This process no
+# longer parses client input, because a plane has no networking. It
+# still runs untrusted guest programs under libriscv, and it still
+# parses whatever the edge hands it over iceoryx.
 
 on:
   push:
@@ -72,7 +75,7 @@ jobs:
       - name: Unit test -- XRGridEntityPacket vs lean-entity-packet's golden vectors
         run: |
           export PATH="/opt/filc/bin:$PATH"
-          # This one has no h2o/FDB/picoquic dependency, so it builds and
+          # This one has no h2o/FDB dependency, so it builds and
           # actually runs here (unlike the syntax-only check above) --
           # differential test against v-sekai-multiplayer-fabric/lean-entity-packet's
           # Plausible-verified golden vectors (task #10).

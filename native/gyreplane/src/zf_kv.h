@@ -26,8 +26,8 @@
  * Task #14: entity storage value is now xr_grid_entity_packet_t verbatim
  * (task #10's lean-entity-packet-generated codec) -- not a hand-rolled
  * float struct. Storing the exact wire packet means no lossy
- * float<->integral conversion happens between "what's in FDB" and "what
- * goes out over WebTransport," and the FDB value bytes are the same 100
+ * float<->integral conversion happens between "what's in FDB" and what
+ * this plane hands to the edge, and the FDB value bytes are the same 100
  * bytes xr_grid_entity_packet_encode() produces, verifiable against
  * lean-entity-packet's golden vectors the same way test/unit/ already
  * does for the codec itself.

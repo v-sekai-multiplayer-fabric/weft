@@ -109,9 +109,6 @@ finding Brotli.
 
 This build also requires OpenSSL and the FoundationDB C client
 (`libfdb_c`), both on the include/library path (see `CMakeLists.txt`).
-It requires `mbedtls` too, built from source, not the system package.
-Apt's `libmbedtls-dev` does not include `mbedtls_config.h`.
-
 It also requires the vendored `thirdparty/` content (`QCBOR`,
 `libriscv`), checked in directly (no separate init/fetch step), built
 via `cmake/qcbor.cmake`.
