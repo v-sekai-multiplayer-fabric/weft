@@ -7,7 +7,7 @@ Most people hear YAGNI as advice about thrift: do not build the expensive thing.
 reading is wrong, and getting it wrong produces a codebase full of clever deferrals
 that cost more than the thing they avoided.
 
-YAGNI is about **timing**, not cost. Structure built ahead of the feature that needs it
+YAGNI is a question of **timing**. Structure built ahead of the feature that needs it
 spends an option early and delays a return. The same structure built when the need
 arrives costs the same and earns immediately. Nothing is saved by never building it.
 Something is lost by building it too soon.
@@ -69,7 +69,7 @@ Worth separating clearly: YAGNI defers structure that a future need might justif
 never defers the thing that makes the current design terminate. "We will add cleanup
 later" is not YAGNI, it is a bug with a schedule.
 
-## The proof is the product, not a benchmark
+## A benchmark proves less than the product does
 
 A transport microbenchmark proves that a transport is fast. It does not prove that
 anybody can be present in a shared world. The proof we care about is the product
@@ -121,8 +121,8 @@ machine fills or fails, and the store plane already carries it at 12918 commits 
 second. Handoff is a fence and a page fetch, not a stream.
 
 **Reaching a plane that is somewhere else at all.** Commands, lifecycle, and page fetches.
-`the-plane-link.md` is about that, and it is worth building, because a plane that cannot be
-elsewhere is not a plane, it is a thread.
+`the-plane-link.md` is about that, and it is worth building. A plane that cannot run
+somewhere else is a thread with extra ceremony.
 
 Neither one is a cross-machine tick. Both are on the path, and the tick is not.
 

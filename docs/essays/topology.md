@@ -122,7 +122,7 @@ worlds_for_each_machine = B / (players K b f 8)
 ```
 
 Which settles the scaling question in an unusual way. A faster CPU buys nothing, because
-nothing is CPU-bound. Vertical scaling is not merely inefficient here, it is inert. The
+nothing is CPU-bound. Vertical scaling does nothing at all here. The
 only direction that moves is sideways: more machines, more worlds, and worlds never talk
 to each other.
 
@@ -153,7 +153,7 @@ count actually crosses the line.
 The last row is the one people argue with. Surely a world should have a hot standby?
 
 It cannot. An entity is authoritative on exactly one zone, so two live copies of a world
-are two writers, and two writers is not a degraded mode — it is a corrupted world. This
+are two writers, and two writers corrupt the world rather than degrade it. This
 is not a limitation of the deployment that a better deployment would fix. It is the
 single-writer rule, which is also the thing that makes the rest of the system simple.
 
