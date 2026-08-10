@@ -58,10 +58,12 @@ services:
   # tests availability first and exits 0 when the database is already configured.
   #
   # The storage engine is ssd and not memory. The memory engine holds the whole database
-  # in RAM and stops at 100 MB. The store plane writes 4 kB pages, so a short test run
-  # passes that limit, and the cluster then refuses every write and reports that it is
-  # unavailable. An existing cluster moves with
-  # `configure storage_migration_type=aggressive ssd`.
+  # in RAM, and one process is capped by `--storage-memory`, which defaults to 1 GiB. The
+  # memory of the host does not raise that cap, so a large machine does not help.
+  #
+  # The store plane writes 4 kB pages, so a soak run and a crash point search pass 1 GiB
+  # in minutes. The cluster then refuses every write and reports that it is unavailable.
+  # An existing cluster moves with `configure storage_migration_type=aggressive ssd`.
   fdb-init:
     image: foundationdb/foundationdb:7.3.76
     depends_on:
