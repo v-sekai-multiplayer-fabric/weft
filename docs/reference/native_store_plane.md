@@ -150,6 +150,17 @@ Against a live FoundationDB in a container, 500 rows, beside SQLite on a local f
 run with the journal in memory, so neither number includes an fsync. The local file is a
 reference and not a floor: it is one machine with no durability across machines.
 
+The shape of the cluster changes every number below, so it is part of the measurement. The
+table comes from a cluster of one process. That is not a shape to run, because FoundationDB
+gives one role to one process, and a single process runs the commit proxy, the resolver,
+the log, and the storage together. On a cluster of seven processes with the classes split,
+on the same machine, the same commit path reads 233 each second rather than 561. A commit
+crosses more processes, and this is one machine.
+
+More processes raise the ceiling under load, and they lower the rate of one commit at a
+time. The store plane commits one at a time and waits, so it takes the second cost and not
+the first. A machine with cores to spare does not have this problem.
+
 | op | local file/s | FoundationDB/s | ratio |
 | --- | --- | --- | --- |
 | insert, one commit each | 269105 | 561 | 480x |
