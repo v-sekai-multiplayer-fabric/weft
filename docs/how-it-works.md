@@ -1,21 +1,23 @@
 # How weft works
 
-This page explains weft to a new reader. It uses simple words and no jargon. Read this
-page first. Then read `planes.md` for the full architecture.
+If you have seen a screenshot of weft and had no idea what you were looking at, this
+page is for you. You need to know nothing about Elixir, and nothing about game engines.
 
-You do not need to know Elixir. You do not need to know game engines.
+Read this first, then `planes.md` for the full architecture.
 
 ## What weft does
 
 weft runs one shared 3D world. Many people join that world at the same time. Each
 person controls an avatar. Each person sees the other people move.
 
-Low latency is the first rule. When you move your hand, the other people must see it
-almost at once. A slow world makes a headset user sick. So every design choice below
-protects latency first.
+The hard part is not drawing the world. It is that everyone has to see roughly the same
+world at roughly the same moment, and "roughly" has to be measured in milliseconds. When
+you move your hand, everyone else should see it move now, not a beat later. Every choice
+below is downstream of that.
 
-How many people can join one world? We do not know yet. Read "What we have not proven"
-at the end of this page before you quote a number.
+How many people fit in one world? We do not know. Nobody has tested it. There is a
+section at the end called "What we have not proven", and it is worth reading before you
+quote any number from this page.
 
 ## The usual way: one main loop
 
@@ -26,20 +28,23 @@ turn of the loop does three steps:
 2. Move every object in the world.
 3. Send the new state to every player.
 
-This design is simple, and it works well for a small world. It has three limits.
+For a small world this is exactly right, and it is what almost everything does. It has
+three problems, and they all show up at the same time — when the world gets busy.
 
-- **One loop uses one core.** More players make each turn longer. The world slows down.
-- **Every step waits for the slowest step.** A slow physics step delays the network step.
-- **One fault stops everything.** A crash in any step stops the whole world.
+- **One loop uses one core.** More players make each turn longer, so the world slows
+  down precisely when it is most popular.
+- **Every step waits for the slowest step.** A slow physics step delays the network
+  step, even though the two have nothing to do with each other.
+- **One fault stops everything.** A crash anywhere in the loop stops the whole world.
 
 ## The new way: the loop becomes a mesh
 
-weft cuts the main loop into parts. Each part becomes its own program. Each program
-does one job, keeps its own cores, and runs at its own speed. The parts together are
-the **mesh**.
+So weft turns the loop inside out. Each step of it becomes a separate program with its
+own cores, running at its own speed. Together they are the **mesh**.
 
-Nothing waits for a turn of one loop. Each part reads the newest data it can find, does
-its job, and writes the result. This is the inversion: the loop becomes a mesh.
+Nothing waits for a turn of the loop, because there is no loop to take a turn in. Each
+part reads the newest data it can find, does its job, and writes the result. Nobody is
+in charge of the tempo.
 
 ```mermaid
 flowchart LR
@@ -91,10 +96,14 @@ Instead the parts share one small piece of memory, called the **ring**. The phys
 writes the newest world state into the ring. It overwrites the old state each time. The
 control part reads whatever is in the ring at that moment.
 
-This has one useful property. A reader never waits for a writer, and a writer never
-waits for a reader. A reader that falls behind does not slow the writer down. It simply
-reads the next newest state. In a live world the newest state is the only state that
-matters. Old positions have no value.
+Which sounds careless. If the writer overwrites the slot while a reader is behind, that
+reader misses updates entirely.
+
+That turns out to be the right behaviour, not a defect. Think about what a missed update
+actually is: somebody's position from three frames ago. Nobody wants it. Delivering it
+reliably would be work spent moving data that is already wrong. A reader that falls
+behind should skip to the newest state, which is exactly what this does — and because
+nobody ever waits for anybody, it is also much faster.
 
 ## An example: one hand movement
 

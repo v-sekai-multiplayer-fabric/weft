@@ -1,8 +1,12 @@
-# Runtime choice for the >15M snapshots/sec goal
+# Runtime choice
 
-Question: for the data-plane producer, is it faster to use
+We set out to answer what looked like a straightforward question: for the data-plane
+producer, is
 [`fabric-stage-runtime`](https://github.com/v-sekai-multiplayer-fabric/fabric-stage-runtime)
-or the Godot engine? We let the benchmark lead.
+faster, or is the Godot engine?
+
+The benchmark answered a different question than the one we asked, which is the useful
+kind of answer.
 
 ## What each actually is
 
@@ -26,13 +30,17 @@ or the Godot engine? We let the benchmark lead.
 
 Native clears 15M by ~9× on a single core. `bench/ring_native.c` reproduces it.
 
-## Conclusion
+## The answer is neither
 
-**Neither fabric-stage-runtime nor Godot is the >15M producer.** OpenUSD stage
-composition and Godot scene-tree/physics ops run at microseconds to milliseconds
-each — one to five orders of magnitude over the 66 ns budget. The hot loop is
-**native** (Jolt physics + Seastar/DPDK ingest) writing the ring; the BEAM samples
-it (~3 µs/read, `docs/data-plane.md`).
+**Neither candidate is the producer.** Not "one is 20% better" — both are out by one to
+five orders of magnitude. OpenUSD stage composition and Godot scene-tree operations cost
+microseconds to milliseconds each, against a 66 ns budget.
+
+When a comparison comes back that lopsided, the comparison was wrong. We had been
+choosing a runtime for the hot loop from a shortlist that contained nothing capable of
+running the hot loop. The producer has to be native code — Jolt physics and kernel-bypass
+ingest writing the ring directly — and the BEAM samples it at about 3 µs per read. See
+`docs/data-plane.md`.
 
 They are not competing for the hot path — they are **stage-tier** choices (world
 representation and authoring, at Hz). For the _server-side_ stage runtime,

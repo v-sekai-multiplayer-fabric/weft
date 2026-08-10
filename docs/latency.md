@@ -1,56 +1,112 @@
 # Latency
 
-Low latency is the first priority in weft. Each choice below is justified by
-latency. Where a choice would trade latency for something else, we keep the
-low-latency path and move the other work off the critical path.
+Every distributed system says it cares about latency. The question worth asking is
+sharper: when latency conflicts with something else you want, which one loses?
 
-## Control plane in the BEAM, heavy work in planes
+In weft, the other thing loses. That sounds like a slogan until you follow it into the
+places where it hurts, which is where this page goes.
 
-The BEAM does only coordination, which is microsecond work. Heavy work runs in
-native planes. A scheduler is never parked on slow work, so control-plane calls
-stay in the low microseconds. A long NIF would park a scheduler for milliseconds;
-we never do that.
+## The BEAM is the wrong place for work, and that is why we use it
 
-## iceoryx for IPC
+Start with an apparent contradiction. weft is an Elixir project, and Elixir runs the
+whole control plane. Yet the rule is that no real work happens there.
 
-Planes talk over iceoryx (zero-copy). A message is a pointer, not a copy and not a
-serialize step. This is the lowest-latency IPC available: sub-microsecond, no kernel
-round trip, no socket. A socket or a Port would add copies and system calls.
+The reason is that the BEAM's scheduler is cooperative. A process that runs long does
+not just take time itself, it delays every other process queued behind it on that
+scheduler. Coordination work — deciding which node owns a zone, restarting a crashed
+thing, looking up an address — takes microseconds, and microseconds do not disturb
+anyone. A physics step or a glb parse takes milliseconds, and milliseconds do.
 
-## Small NIF pokes, nothing long on the hot path
+So the BEAM is not chosen because it is fast at computing. It is chosen because it is
+excellent at coordinating, and coordination is the only thing we let it do. A long NIF
+would park a scheduler for milliseconds, so we never write one.
 
-The BEAM side of a plane is one small NIF call: take a sample or send a request,
-then return. It never busy-polls and never runs long. The schedulers keep low
-latency no matter what the planes do.
+This has a consequence people find surprising: making the BEAM do less is what keeps
+it fast. Every plane we move out is not a workaround for the BEAM being slow. It is
+what preserves the property we wanted from the BEAM.
 
-## Native data plane
+## The cheapest message is the one you never copy
 
-Packet decode and physics run native (Seastar and Jolt), at nanoseconds per packet.
-The BEAM never touches a packet. Putting packets in the BEAM would add a per-message
-copy and garbage collection, which raises tail latency.
+Once heavy work lives outside the BEAM, those processes have to talk. The obvious
+answer is a socket, or a Port, and the obvious answer is wrong by three orders of
+magnitude.
 
-## Sample the latest, do not stream every update
+A socket copies the bytes, crosses into the kernel, and comes back. iceoryx hands over
+a pointer into shared memory. Nothing is copied and nothing is serialized, so the cost
+is sub-microsecond rather than tens of microseconds.
 
-The BEAM samples the latest state. It does not receive one message per update. That
-is one copy at tick rate, not one copy per item, so ingest latency stays flat as the
-update rate rises.
+That single decision then constrains the whole deployment, which is the part worth
+noticing. Shared memory does not cross a machine. So planes cannot be spread across
+machines, a world cannot be split across machines, and a Kubernetes Pod cannot help,
+because the memory is what binds them. `topology.md` follows that thread. A transport
+choice turned into a deployment architecture, and it is worth being honest that we
+took the constraint on knowingly.
 
-## Store: local fast writes, async durability
+## Do not deliver every update. Deliver the newest one
 
-Actor state is written locally and fast (about a microsecond) and acked at once.
-Durability and cross-machine handoff happen asynchronously, off the write path. We
-do not write synchronously to FoundationDB on each change: that is about 1
-millisecond, roughly 14 times the local write, and it would sit on the critical
-path. FoundationDB holds ownership and receives async replication for handoff.
-Accepted cost: a crash may lose the last few unreplicated writes.
+Here is the counter-intuitive one.
 
-## Transport: H3/WebTransport
+The naive design sends the BEAM one message per state update. It is correct, it is
+simple, and it caps out near 1.38M snapshots per second, because each message copies a
+full term into a mailbox.
 
-Reliable control uses separate WebTransport streams, so one slow transfer does not
-block another. Real-time updates use datagrams with an app sequence number, so a
-late packet is dropped, not queued. Both cut tail latency.
+The alternative is a shared slot. The worker overwrites it, the BEAM reads whatever is
+there. Measured: 2.85M per second on one core, 27.7M on sixteen.
 
-## Sandbox cost is one-time
+The interesting part is not the speed, it is what you give up. Reads can miss updates
+entirely. A reader that falls behind never catches up on what it missed — it just sees
+the newest value.
 
-bubblewrap and networking-off add process setup cost once, at start, not per call.
-They do not touch the hot path.
+For a live world this is not a loss, it is the correct semantics. An avatar's position
+from three frames ago has no value to anybody. Nobody wants a queue of stale
+positions delivered reliably. The naive design was doing extra work to preserve
+something worthless, and dropping that work made it 20 times faster.
+
+Sampling costs about 3 microseconds, so reading at 60 Hz is free.
+
+## Durability belongs off the write path
+
+A write to local SQLite takes about 70 microseconds. A synchronous FoundationDB
+transaction takes about 1 millisecond, roughly 14 times more.
+
+If durability sat on the write path, every actor write would pay that millisecond. So
+it does not. A write acks locally, and replication to FoundationDB happens afterwards,
+off the path.
+
+The honest cost is that a crash can lose the last few unreplicated writes. We take
+that trade deliberately, and it is worth stating plainly rather than burying: weft
+prefers to lose a few milliseconds of the newest state over making every write 14
+times slower. For a world of moving avatars that is obviously right. For a bank it
+would be obviously wrong. Knowing which kind of system you are building is the whole
+decision.
+
+FoundationDB still holds ownership and receives the replica, so an actor can move to
+another machine and find its state there.
+
+## Tail latency is the number that matters
+
+Average latency is a comfortable number that hides the problem. What a person feels is
+the worst frame, not the mean one.
+
+Most of the choices above are really about tails:
+
+- Reliable control rides separate WebTransport streams, so one slow transfer does not
+  block another behind it.
+- Live updates ride datagrams with a sequence number, so a late packet is dropped
+  rather than queued. Queueing a late packet delays every packet after it.
+- No game packet enters the BEAM, so no packet triggers garbage collection.
+- The sandbox costs process setup once, at start, and never on a call.
+
+The pattern is the same each time: refuse to let slow work sit in front of fast work.
+
+## What this page does not claim
+
+These are the measured properties of parts, on one developer machine. weft has never
+run with real players, and the whole system under real load is not measured. See
+"What we have not proven" in `how-it-works.md`.
+
+One number puts the rest in proportion. Everything above is measured in microseconds,
+and the network trip to a person's headset is measured in tens of milliseconds. The
+internal budget is under half a percent of the total. That is not a reason to stop
+caring about it. It is a reason to know why we care: not to win the total, but so that
+nothing internal ever becomes the thing that stutters.

@@ -1,72 +1,93 @@
-# YAGNI pass
+# YAGNI
 
 Reference:
 [RFD 0071, yagni times structure to need](https://v-sekai-multiplayer-fabric.github.io/multiplayer-fabric-manuals/rfd/0071-yagni-times-structure-to-need/index.html).
-YAGNI is a timing rule, not a thrift rule: building structure ahead of the feature
-that needs it spends an option and delays a return. Build structure only when a real
-near-term need arrives.
 
-## Result: the pass converged
+Most people hear YAGNI as advice about thrift: do not build the expensive thing. That
+reading is wrong, and getting it wrong produces a codebase full of clever deferrals
+that cost more than the thing they avoided.
 
-The items that looked like structure ahead of need are one coherent near-term
-product with one consumer, so they are load-bearing, not speculative:
+YAGNI is about **timing**, not cost. Structure built ahead of the feature that needs it
+spends an option early and delays a return. The same structure built when the need
+arrives costs the same and earns immediately. Nothing is saved by never building it.
+Something is lost by building it too soon.
 
-> **Play and observe the SUMO world from a Godot client, on HMD, desktop, and TUI.
-> The whole system builds, tests, and releases in GitHub Actions. VR is the priority
+So the question is never "is this expensive?" It is "does a real need arrive soon?"
+
+## The pass, and the surprise in it
+
+We ran that question over everything weft had designed but not built. The expectation
+going in was that a list of speculative items would fall out.
+
+Almost nothing did.
+
+The reason turned out to be a property of the product rather than discipline on our
+part. Every item that looked speculative in isolation had the same single consumer:
+
+> **Play and observe the SUMO world from a Godot client, on HMD, desktop, and TUI. The
+> whole system builds, tests, and releases in GitHub Actions. VR is the priority
 > experience. TUI is automated CI QA. The runtime host is deferred.**
 
-Data flow:
+Once that sentence exists, the pieces stop looking like a platform someone might want
+and start looking like a chain, where removing any link breaks the demo:
 
-- The **SUMO game data plane** plays back the traffic simulation. Its entity movement
-  is the world we observe. Playback of the SUMO data is a game data plane.
-- The **asset CDN** stores the SUMO simulation (world stage plus recorded data) and
-  delivers the world to the client.
+- The **SUMO game data plane** plays the traffic simulation. That is the world.
+- The **asset CDN** stores it and delivers it to the client.
 - The **interest feed** serves the headset its area-of-interest replicas
-  (`CH_INTEREST`), per the authority/interest split.
-- The **gateway** routes the headset to its zone over WebTransport.
-- The **Godot VR headset client** observes: drop-stale datagrams for live world state,
-  reliable streams for pulling the stored world from the asset CDN.
-- The **store** holds durable control-plane state, with compaction so it does not grow
-  without bound.
+  (`CH_INTEREST`).
+- The **gateway** routes the headset to its zone.
+- The **Godot client** observes it, in VR, on the desktop, or as text in CI.
+- The **store** holds the durable state underneath.
 
-## Build now
+That is the useful outcome of a YAGNI pass, and it is not the outcome we expected.
+It did not produce a list of things to cut. It produced evidence that the design has
+one consumer rather than several imagined ones. A design serving one real consumer is
+load-bearing. A design serving several imagined consumers is a platform, and a
+platform is the thing YAGNI is warning you about.
 
-VR first. All of these serve the product above.
+## Where it did bite
 
-- **Godot client**, desktop and VR modes (one client, two display and input paths).
-  Desktop is local QA. VR is the priority experience. TUI runs on GitHub Actions for
-  automated QA.
-- **SUMO game data plane** (live playback into the ring). The observed world.
-- **Interest feed** (`CH_INTEREST` to the headset). One plane, one path from one
-  headset to a thousand or more. No scale threshold and no second mode, which are hard
-  to QA.
-- **Asset CDN** (stores the SUMO simulation; delivers the world to the client).
-- **Gateway** (routes the headset to its zone).
-- **Store with compaction.** Compaction (DELTA to SHARD) is required, not optional:
-  without cleanup the DELTA rows grow without bound and the system halts on
-  resources.
+Two places, and both are worth naming because they are the ones we could have got
+wrong.
 
-## The proof
+**Two modes for interest.** It is tempting to serve one headset with a simple path and
+switch to a different path above some threshold. That is a scale optimization ahead of
+scale, and worse, it doubles what QA must cover forever. So the interest feed is one
+plane at every scale, from one headset to a thousand. There is no threshold and no
+second mode. `planes.md` calls this the no-branching rule.
 
-The proof is not an abstract transport microbenchmark. It is the product working:
+**Spatial partitioning.** The maths says one zone holds the target with a margin near
+20 times. See `topology.md`. Building zone splitting now would be structure with no
+need behind it.
+
+## Compaction is not optional, which is a different thing
+
+Compaction folds DELTA rows into SHARD. It looks like an optimization and it is not.
+Without it the log grows without bound and the system stops on resources.
+
+Worth separating clearly: YAGNI defers structure that a future need might justify. It
+never defers the thing that makes the current design terminate. "We will add cleanup
+later" is not YAGNI, it is a bug with a schedule.
+
+## The proof is the product, not a benchmark
+
+A transport microbenchmark proves that a transport is fast. It does not prove that
+anybody can be present in a shared world. The proof we care about is the product
+question:
 
 > **Can we carry our players without motion sickness, with presence, at scale?**
 
 - **No motion sickness.** Head and hand pose render locally at headset rate with
-  reprojection, so the network never gates motion-to-photon. The network carries world
-  state; drop-stale datagrams keep it fresh so it never stalls or judders.
-- **Presence.** World state stays fresh and stable, no rubber-banding, no stale pops.
-- **Scale.** Many entities and many headsets.
+  reprojection, so the network never gates motion-to-photon.
+- **Presence.** World state stays fresh, with no rubber-banding and no stale pops.
+- **Scale.** Many entities and many headsets at once.
 
-The SUMO-in-VR pipeline is the testbed for this proof.
+The SUMO world in VR is the testbed for that proof.
 
-## Nothing is gated
+## Documenting is not building
 
-The pass converged fully. There is no gated item and no open question. The interest
-feed is one plane at any scale, so there is no two-mode spectator path to defer. The
-1000-headset requirement sets the single design; we always use it.
+The plane and CDN designs stay written down even where the code does not exist.
 
-## Note on the docs
-
-The plane and CDN designs stay documented. Documenting a design is cheap and keeps
-the road not taken. The rule bites on building the structure, not on describing it.
+Writing a design is cheap, and it keeps the road not taken visible so the next person
+does not rediscover it. YAGNI bites on building the structure, not on describing it.
+This page is itself an instance of the rule.
