@@ -36,7 +36,7 @@ defmodule Weft.LimitsTest do
       # A C++ plane cannot call Elixir, so native/harness/src/snapshot.hpp transcribes the
       # limits it needs. A transcription that nothing checks is a copy that goes stale,
       # and the stale one still reads as authoritative. This reads the header.
-      header = "native/harness/src/snapshot.hpp"
+      header = "native/harness/include/weft/limits.hpp"
 
       body =
         case File.read(header) do
@@ -46,13 +46,20 @@ defmodule Weft.LimitsTest do
 
       pairs = [
         {"SNAPSHOT_BATCH", :snapshot_batch},
-        {"ACTION_MS", :action_ms}
+        {"ACTION_MS", :action_ms},
+        {"KEY_BYTES", :key_bytes},
+        {"VALUE_BYTES", :value_bytes},
+        {"IN_FLIGHT", :in_flight}
       ]
 
       for {constant, limit} <- pairs do
         found =
-          case Regex.run(~r/\b#{constant}\s*=\s*(\d+)\s*;/, body) do
-            [_, digits] -> String.to_integer(digits)
+          case Regex.run(~r/\b#{constant}\s*=\s*([0-9 *]+?)\s*;/, body) do
+            [_, expr] ->
+              expr
+              |> String.split("*")
+              |> Enum.map(&(&1 |> String.trim() |> String.to_integer()))
+              |> Enum.product()
             nil -> flunk("#{header} does not define #{constant}")
           end
 

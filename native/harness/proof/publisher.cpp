@@ -12,8 +12,8 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 #include "iox2_api.h"
-#include "iox2_load.hpp"
-#include "snapshot.hpp"
+#include "weft/bus.hpp"
+#include "weft/snapshot.hpp"
 
 #include <cstdio>
 #include <cstdlib>
@@ -22,7 +22,7 @@
 int main(int argc, char** argv) {
     const int count = (argc > 1) ? std::atoi(argv[1]) : 8;
 
-    if (!weft::load_iceoryx2()) {
+    if (!weft::load_bus()) {
         return 1;
     }
     iox2_set_log_level_from_env_or(iox2_log_level_e_ERROR);

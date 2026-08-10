@@ -5,8 +5,8 @@
 // holds no Rust artifact, and a plane that cannot find the bus says so in one line.
 //
 // SPDX-License-Identifier: Apache-2.0
-#ifndef WEFT_HARNESS_IOX2_LOAD_HPP
-#define WEFT_HARNESS_IOX2_LOAD_HPP
+#ifndef WEFT_BUS_HPP
+#define WEFT_BUS_HPP
 
 #include "native/harness/iceoryx2_stubs.h"
 
@@ -19,7 +19,7 @@ namespace weft {
 
 // The names to try, in order. A soname first, because that is what an installed package
 // gives. The bare name second, so LD_LIBRARY_PATH and a local build prefix work.
-inline bool load_iceoryx2() {
+inline bool load_bus() {
     std::vector<std::string> paths;
 
     if (const char* from_env = std::getenv("WEFT_ICEORYX2_PATH")) {

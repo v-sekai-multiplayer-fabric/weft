@@ -13,10 +13,10 @@
 #include "iox2/iceoryx2.h"
 #else
 #include "iox2_api.h"
-#include "iox2_load.hpp"
+#include "weft/bus.hpp"
 #endif
 
-#include "snapshot.hpp"
+#include "weft/snapshot.hpp"
 
 #include <algorithm>
 #include <chrono>
@@ -46,7 +46,7 @@ int main(int argc, char** argv) {
     const int batch = (argc > 3) ? std::atoi(argv[3]) : 1;
 
 #ifndef WEFT_ICEORYX2_DIRECT
-    if (!weft::load_iceoryx2()) {
+    if (!weft::load_bus()) {
         return 1;
     }
 #endif

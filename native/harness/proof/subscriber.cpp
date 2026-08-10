@@ -8,8 +8,8 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 #include "iox2_api.h"
-#include "iox2_load.hpp"
-#include "snapshot.hpp"
+#include "weft/bus.hpp"
+#include "weft/snapshot.hpp"
 
 #include <cstdio>
 #include <cstdlib>
@@ -18,7 +18,7 @@
 int main(int argc, char** argv) {
     const int expect = (argc > 1) ? std::atoi(argv[1]) : 8;
 
-    if (!weft::load_iceoryx2()) {
+    if (!weft::load_bus()) {
         return 1;
     }
     iox2_set_log_level_from_env_or(iox2_log_level_e_ERROR);
@@ -72,7 +72,7 @@ int main(int argc, char** argv) {
     // holds 60 s for one action, and this loop polls at 10 ms, so the count is that
     // limit divided by that period. A publisher that is alive answers in 20 ms, which is
     // three orders of magnitude sooner.
-    const int give_up_after = weft::ACTION_MS / 10;
+    const int give_up_after = weft::limits::ACTION_MS / 10;
 
     while (seen < expect && idle < give_up_after) {
         iox2_sample_h sample = nullptr;

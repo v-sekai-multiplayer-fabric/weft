@@ -2,11 +2,35 @@
 
 Goal: one runtime model for every plane. A thin C++ thread-per-core loop over iceoryx2.
 
-State: the bus is proved. The harness is not written.
+State: the library exists and the loop does not.
 
-- **Proved.** `native/harness` passes a message between two processes with no copy and no
-  daemon. The run is below.
-- **Not built.** The thread-per-core loop. No plane uses this yet.
+- **Built.** `weft::harness`, a library every plane and edge links. It holds the bus, the
+  limits, and the payload type.
+- **Proved.** `native/harness/proof` passes a message between two processes with no copy
+  and no daemon. The run is below.
+- **Not built.** The thread-per-core loop. No plane uses the library yet.
+
+## One harness, not one for each plane
+
+weft has several planes and two edges, and the number grows. Each one needs the bus and
+each one needs the limits.
+
+Left alone, each would grow its own copy of both, and the copies would drift the way a
+decision written twice always drifts. That is the failure `Weft.VocabularyTest` was
+written for, in a different form.
+
+So there is one. `native/CMakeLists.txt` builds the harness first, and every plane below
+it links `weft::harness`.
+
+| what it gives | where | why it is shared |
+| --- | --- | --- |
+| the bus | `iceoryx2.sigs`, and the table generated from it | one C ABI, one dispatch table |
+| the limits | `include/weft/limits.hpp` | every value is `Weft.Limits`, which is rivet's |
+| the payload | `include/weft/snapshot.hpp` | both ends of a service must agree exactly |
+
+`Weft.PlaneNetworkingTest` holds that shape. It fails if a second `.sigs` file appears, if
+a plane declares a limit of its own, or if a directory with a `CMakeLists.txt` is missing
+from the root build.
 
 ## Nothing links iceoryx2
 
