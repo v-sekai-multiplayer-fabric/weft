@@ -64,7 +64,7 @@ exists.
 
 Read what the request carries and the design falls out of it. `expectedGeneration` and
 `expectedHeadTxid` are a fence, checked on every read rather than at commit time, which is
-the bug `../../native/storeplane/README.md` records weft finding in its own VFS.
+the bug weft found in its own VFS, which `fabric-store-plane` records.
 `SqliteFetchedPage.bytes` is optional, so a page that was never written comes back absent
 rather than as zeroes.
 
