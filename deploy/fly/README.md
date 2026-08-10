@@ -1,9 +1,9 @@
 # Run weft on Fly machines
 
-A machine is the unit. `docs/planes.md` says iceoryx does not cross machines. So every
+A machine is the unit. `docs/reference/architecture.md` says iceoryx does not cross machines. So every
 plane and every edge of one world runs on one machine. They share memory through
 `/dev/shm`. A world does not cross a machine, and one machine holds many worlds. See
-`docs/topology.md`.
+`docs/essays/topology.md`.
 
 There is no Kubernetes here, and there is no orchestrator to learn. A machine runs the
 OTP release, the planes, and the edges. The `.deb` and the `.rpm` do the same with
@@ -20,7 +20,7 @@ Kubernetes gave nothing this deploy needs, and it took work to hold back:
   CPU manager policy of the kubelet. On a machine, the harness pins its own threads.
 - One world is one machine, so there is nothing to schedule and nothing to spread.
 
-The cost is also lower. See `docs/topology.md`.
+The cost is also lower. See `docs/essays/topology.md`.
 
 ## The image
 
@@ -62,7 +62,7 @@ fly secrets set RELEASE_COOKIE="$(openssl rand -base64 32)" --config deploy/fly/
 
 FoundationDB is not here. It crosses machines, so it is not part of a world machine, and
 Fly has no operator for it. Run it as its own machines with volumes, with `triple`
-redundancy and an odd count of coordinators. `docs/topology.md` gives the
+redundancy and an odd count of coordinators. `docs/essays/topology.md` gives the
 counts.
 
 `WEFT_FDB_CLUSTER_FILE` points weft at that cluster.

@@ -1,7 +1,7 @@
 defmodule Weft.Interest do
   @moduledoc """
   Interest feed logic: it produces the read-only area-of-interest replica for an
-  observer, the `CH_INTEREST` snapshot in `docs/planes.md`. Interest is separate from
+  observer, the `CH_INTEREST` snapshot in `docs/reference/architecture.md`. Interest is separate from
   authority: a peer sees an entity without owning it (the authority/interest split,
   formalized in `lean-interest-mgmt`).
 

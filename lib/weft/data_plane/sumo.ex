@@ -2,7 +2,7 @@ defmodule Weft.DataPlane.Sumo do
   @moduledoc """
   SUMO game-data-plane producer: it plays back a traffic simulation into a zone's
   ring, one frame per tick. Each vehicle is an entity, each simulation step a frame.
-  The BEAM samples the ring at its own tick rate (contract 2 in `docs/data-plane.md`);
+  The BEAM samples the ring at its own tick rate (contract 2 in `docs/reference/data-plane.md`);
   nothing is copied per snapshot.
 
   This is the Elixir producer for the ring. The production plane is a native process

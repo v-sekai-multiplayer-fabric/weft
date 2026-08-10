@@ -3,7 +3,7 @@
 If you have seen a screenshot of weft and had no idea what you were looking at, this
 page is for you. You need to know nothing about Elixir, and nothing about game engines.
 
-Read this first, then `planes.md` for the full architecture.
+Read this first, then `../reference/architecture.md` for the full architecture.
 
 ## What weft does
 
@@ -157,7 +157,7 @@ describe a finished system. Do not quote a player count from it.
 
 **We have never run this with real players.** Not 1000 people. Not 100 people. Not one
 person in a headset. The client is not built yet. The number of people one world can
-hold is an open question, and `tasks.md` records it as unstarted work.
+hold is an open question, and `../reference/tasks.md` records it as unstarted work.
 
 **The measured numbers test parts, not the whole.** They come from one developer
 machine. They show that the physics work and the ring are fast enough. They do not show
@@ -172,27 +172,27 @@ the same as an avatar. That load is real movement, and the mesh handles it. Vehi
 are not players, so this does not answer the player question.
 
 So: the parts are fast, and the shape of the design holds up on a real workload. The
-system is early. `tasks.md` lists what remains.
+system is early. `../reference/tasks.md` lists what remains.
 
 ## Words you will see
 
-| Word          | Meaning                                                                 |
-| ------------- | ----------------------------------------------------------------------- |
+| Word          | Meaning                                                                  |
+| ------------- | ------------------------------------------------------------------------ |
 | plane         | One part of the mesh. One program with one job. It has no network.       |
 | edge          | A plane with networking. It decodes the network and gives the result on. |
-| control plane | The manager. The Elixir program named weft.                             |
-| zone          | One region of the world. It simulates the things inside it.             |
-| entity        | One thing in the world with a position, such as an avatar or a vehicle. |
-| authority     | The one part that may change an entity. Exactly one part per entity.    |
-| interest      | A read-only copy of the world near a player.                            |
-| ring          | The shared memory slot that holds the newest state.                     |
-| iceoryx       | The method the parts use to share memory on one machine.                |
-| FoundationDB  | The shared database that remembers state across machines.               |
+| control plane | The manager. The Elixir program named weft.                              |
+| zone          | One region of the world. It simulates the things inside it.              |
+| entity        | One thing in the world with a position, such as an avatar or a vehicle.  |
+| authority     | The one part that may change an entity. Exactly one part per entity.     |
+| interest      | A read-only copy of the world near a player.                             |
+| ring          | The shared memory slot that holds the newest state.                      |
+| iceoryx       | The method the parts use to share memory on one machine.                 |
+| FoundationDB  | The shared database that remembers state across machines.                |
 
 ## Read more
 
-- `planes.md` is the full architecture and the plane rules.
-- `data-plane.md` is the boundary between the manager and the heavy parts.
+- `../reference/architecture.md` is the full architecture and the plane rules.
+- `../reference/data-plane.md` is the boundary between the manager and the heavy parts.
 - `latency.md` explains why each choice keeps latency low.
-- `store.md` explains how weft remembers the world.
+- `../reference/store.md` explains how weft remembers the world.
 - `benchmarks.md` holds the measured numbers.

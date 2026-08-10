@@ -25,7 +25,7 @@ primary_region = "sea"
   # without this the nodes never connect.
   ERL_AFLAGS = "-proto_dist inet6_tcp"
 
-# The client transport is HTTP/3 and WebTransport, which is UDP. See docs/protocol.md.
+# The client transport is HTTP/3 and WebTransport, which is UDP. See docs/reference/protocol.md.
 [[services]]
   internal_port = 4000
   protocol = "udp"
@@ -35,5 +35,5 @@ primary_region = "sea"
 
 [[vm]]
   # A world is bound by bytes to the client, not by compute. The simulation of 1000
-  # entities is 0.15 percent of one core. See docs/topology.md.
+  # entities is 0.15 percent of one core. See docs/essays/topology.md.
   size = "performance-1x"

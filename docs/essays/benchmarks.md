@@ -56,17 +56,17 @@ Two mechanisms for getting digested snapshots (8 entities each) into the BEAM:
 
 **Takeaway.** Passing one Erlang message per snapshot copies a full term into the
 mailbox and caps out around 1.4M/s — the wrong tool at this rate. The
-contract-2 mechanism from `docs/data-plane.md` is a lock-free shared slot
+contract-2 mechanism from `docs/reference/data-plane.md` is a lock-free shared slot
 (`Weft.DataPlane.Ring`, backed by `:atomics`): the worker overwrites it, the BEAM
 samples it. That alone doubles single-core throughput (no copy, no mailbox), and
 because each zone has its own ring it scales across cores: **>15M snapshots/sec is
 reached at 8 cores (21.6M), and 27.7M at 16.** Sampling costs ~3 µs, so reading at
 60 Hz is free.
 
-The real producers are the C++ Seastar/iceoryx/Jolt workers writing the same ring
-through a NIF (faster than an Elixir producer), and the BEAM only samples the
-latest — so the raw 15M+ pps packet flood never enters the VM, and the digested
-snapshot rate is not BEAM-bound either.
+The real producers are the native C++ planes writing the same ring through a NIF
+(faster than an Elixir producer), and the BEAM only samples the latest — so the raw
+15M+ pps packet flood never enters the VM, and the digested snapshot rate is not
+BEAM-bound either.
 
 ## SUMO plane — real workload, not synthetic (`bench/sumo/`)
 
@@ -74,7 +74,7 @@ The numbers above use synthetic packets. To confirm them on real, coherent movem
 weft acts as the engine for a SUMO (Eclipse traffic microsimulation) run: a 25 by 25
 grid city, dense traffic, each vehicle an entity, each simulation step a state frame.
 The trace is 600 frames, 11,947 distinct vehicles, 8,637 peak concurrent, 2,950,620
-entity updates. See `bench/sumo/README.md` to reproduce and `docs/protocol.md` for
+entity updates. See `bench/sumo/README.md` to reproduce and `docs/reference/protocol.md` for
 the full analysis.
 
 Nasty hot-path decode plus apply (`bench/sumo/replay.c`), on the real trace:
@@ -90,7 +90,7 @@ Nasty hot-path decode plus apply (`bench/sumo/replay.c`), on the real trace:
 confirms the synthetic ceiling: apply is never the bottleneck. The same trace drives
 the cheap-versus-nasty wire-format comparison (`bench/sumo/encode_compare.py`): nasty
 bitpacked is 12 B/entity, cheap CBOR JSON-LD is 28 B/entity (2.3× raw, 1.4× after
-last-frame zstd). Details in `docs/protocol.md`.
+last-frame zstd). Details in `docs/reference/protocol.md`.
 
 ## Packet decode+apply — is 15M pps compute- or I/O-bound? (`bench/pps_native.c`)
 

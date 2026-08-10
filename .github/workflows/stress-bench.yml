@@ -1,5 +1,5 @@
 # Sim the stress bench on CI. It records the SUMO console playback for local replay
-# (asciinema, uploaded as an artifact), and it gathers the docs/benchmarks.md numbers:
+# (asciinema, uploaded as an artifact), and it gathers the docs/essays/benchmarks.md numbers:
 # the native C benches and the Elixir benches.
 name: stress bench
 

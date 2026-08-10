@@ -4,7 +4,7 @@ defmodule Weft.Zone do
   for the entities currently in its region.
 
   This is the port of the rivet custom zone actors onto weft's control/data-plane
-  split (`docs/data-plane.md`):
+  split (`docs/reference/data-plane.md`):
 
     * **authority** — the zone is the single writer for its entities. Ownership and
       handoff decisions live here in the BEAM; hot entity *positions* live in
