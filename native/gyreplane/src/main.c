@@ -7,7 +7,7 @@
  *
  * weft note: this process is a plane, and a plane has no networking. The
  * QUIC/UDP listener that thread 0 used to bind moved to
- * native/gyreedge/transport, which is the edge. Nothing feeds the
+ * native/edge/transport, which is the edge. Nothing feeds the
  * ZoneTick until iceoryx carries the decoded input from the edge.
  *
  * h2o is down to one job here: h2o_evloop_create() and h2o_evloop_run(),

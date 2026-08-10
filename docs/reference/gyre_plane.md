@@ -1,47 +1,44 @@
-# The Gyre plane and its edge
+# The Gyre plane
 
 Goal: host The Gyre in weft, and let a browser play it.
 
-State: two forks are here. Neither one holds the game.
+State: the zone server is here. The game is not.
 
 - **Here.** `native/gyreplane` is a fork of `zone-server-h2o`. It is an FDB zone tick and
   nothing else. It has no networking and no vendored dependency.
-- **Here.** `native/gyreedge` is a fork of `zone-guest-gyre`. It is the browser client,
-  three.js and SlugHorn, and the QUIC transport that will serve it.
 - **Specified.** `../spec/Gyre.lean` proves the properties of the room graph and the
   objective that any port must keep.
 - **Missing.** The domain itself. Read the section below.
 - **Not built.** The iceoryx link. `Weft` says it plainly: there is no iceoryx code at all.
+- **Elsewhere.** The edges. `native/edge` is generic now, and it serves every client and
+  not only this one. Read `../../native/edge/README.md`.
 
 The domain does not run in the BEAM, and it must not. The BEAM runs the control plane
 only, and every heavy plane is a native process outside it.
 
 ## Which side is which
 
-The plane is the server, and the edge is what faces the browser. This is the split the two
-directories record.
+`zone-server-h2o` holds authority. It runs one zone for each process, and it ticks against
+FoundationDB. That is plane work.
 
-`zone-server-h2o` holds authority. It runs one zone for each process, it ticks against
-FoundationDB, and it runs guest code under libriscv. That is plane work.
+It also terminated QUIC, which is not. That split is done, and the transport is in
+`native/edge` now.
 
-It also terminated QUIC, which is not. The split below is done.
+The browser client is neither. A client is not an edge, and it is not a plane. It lives in
+`zone-guest-gyre`, and weft does not hold a copy.
 
-`zone-guest-gyre` holds the client and the transport that serves it. The edge terminates
-that transport. So the client repository sits on the edge side, because the edge exists to
-serve it.
-
-## The domain is in neither fork
+## The domain is in neither repository
 
 `../spec/Gyre.lean` specifies two rooms, `decanting_floor` and `splicers_den`. That logic
-is not in `native/gyreplane` and it is not in `native/gyreedge`.
+is not in `native/gyreplane` and it is not in `native/edge`.
 
 `zone-server-h2o` deleted it. The commit is `f96d5b2`, "Remove the MUD subsystem (phase 2
 of the CDN-guest move)". It removed `mud/`, `src/mud/`, and the QCBOR, libriscv, and
 SlugHorn vendored copies that only the MUD used.
 
 The logic moved to a third repository, `zone-guest-middleham`. The client repository kept
-the design record, `../../native/gyreedge/docs/0003-the-gyre-mud-domain-and-mode-selector.md`,
-and the renderer. It did not keep the rules.
+the renderer and the design record, `docs/0003-the-gyre-mud-domain-and-mode-selector.md`.
+It did not keep the rules.
 
 So the earlier plan step, "move the domain behind the harness", has nothing to move yet.
 Either `zone-guest-middleham` comes in as a third directory, or the domain is written against
@@ -56,17 +53,17 @@ negotiates WebTransport. The transport work is not a green field.
 It ran in the process that holds authority, which a plane may not do. So the code moved
 rather than being written again.
 
-- `src/transport` is now `native/gyreedge/transport`.
+- `src/transport` is now `native/edge/transport`.
 - `thirdparty/picoquic`, `thirdparty/picotls`, and the Godot patches are now under
-  `native/gyreedge/thirdparty`.
-- `cmake/picoquic.cmake` is now `native/gyreedge/cmake/picoquic.cmake`.
+  `native/edge/thirdparty`.
+- `cmake/picoquic.cmake` is now `native/edge/cmake/picoquic.cmake`.
 - `src/main.c` lost the listener, the `-p` port flag, and the `-t` and `-k` TLS flags.
 - `scripts/generate-tls-cert.sh` moved. A plane needs no certificate.
 - The plane build links no picoquic and no picotls. Its `CMakeLists.txt` says so.
 - The Fil-C workflow justified memory safety by the untrusted client input this process
   parsed. It parses none now. The reason is the untrusted guest under libriscv instead.
 
-`native/gyreedge/TRANSPORT.md` holds the full list and the two deployment facts that moved
+`native/edge/TRANSPORT.md` holds the full list and the two deployment facts that moved
 with it.
 
 The plane fell from 22 MB to 5.0 MB, and then to 280 kB. The edge rose to 18 MB.
@@ -178,17 +175,16 @@ The client transport is HTTP/3 and WebTransport, and never HTTP/1.1. Firefox spe
 weft does not commit a binary to git, and it uploads one as a CI artifact instead. Four
 files now break that rule.
 
-- `native/gyreedge/web/slughorn.wasm`, 188 kB, and a vendored bundle at 672 kB. Upstream
-  commits them on purpose. Its web server serves that directory from the docroot, and its
-  image carries no Emscripten toolchain.
-- `native/gyreedge/thirdparty/picoquic` carries two documentation images and two test
-  fixtures. They belong to picoquic and not to weft.
+`native/edge/thirdparty/picoquic` carries two documentation images and two test fixtures.
+They belong to picoquic and not to weft.
 
-The reason upstream gives belongs to the deployment upstream has, and not to the one weft
-has. This is a conflict to settle. Either the build gains the toolchain and the artifacts
-leave git, or weft records the two directories as exceptions.
+The other two are gone. `slughorn.wasm` at 188 kB and a vendored bundle at 672 kB came in
+with the browser client, and the client left with them. Upstream commits them on purpose,
+and its reason is real: its web server serves that directory from the docroot, and its
+image carries no Emscripten toolchain. That reason belonged to the deployment upstream has.
+weft does not have it.
 
-`native/gyreedge` adds 18 MB to a checkout. Almost all of it is `thirdparty`.
+`native/edge` adds 17 MB to a checkout. Almost all of it is `thirdparty`.
 
 ## The order to build it
 
@@ -199,6 +195,7 @@ leave git, or weft records the two directories as exceptions.
    already here. What is missing is the `main` that used to live in the plane.
 4. Find the domain. Subtree `zone-guest-middleham`, or write it against `../spec/Gyre.lean`.
    It has no sandbox to run in now, so decide where a guest runs before you bring it back.
+   The browser client stays in `zone-guest-gyre`, because a client is not an edge.
 5. Wire a TLS certificate, and prove the result with Firefox. A command line client proves
    the transport and not the product, because the client is a browser.
 

@@ -1,22 +1,21 @@
-# Local stand-in for .github/workflows/real-build.yml, run via podman +
+# Local build of native/gyreplane, run via podman +
 # systemd quadlet instead of GitHub Actions. Built 2026-08-06 because
 # GitHub Actions itself was in a platform-wide major outage (confirmed
 # via githubstatus.com, "Workflow runs are failing or delayed in
 # starting, and some queued jobs may time out") and task #18 (reverify
 # the real build after the mbedtls-to-OpenSSL switch) could not wait on
-# it. Mirrors real-build.yml's steps as closely as possible so a pass
-# here means the same thing a green real-build.yml run means -- see
+# it. Mirrors the plane's own CI steps as closely as possible -- see
 # that file for the reasoning behind each dependency.
 #
 # Deliberately NOT a cache-optimized multi-stage build: each RUN step
-# below is a straight transcription of a real-build.yml step, in the
+# below is a straight transcription of that CI step, in the
 # same order, so a failure here points at the same step name a CI log
 # would. `podman build` failing at any RUN is the same signal a red CI
 # job step is.
 FROM docker.io/library/ubuntu:24.04
 
 # clang, make, and zlib1g-dev are not listed explicitly in
-# real-build.yml's own "Install build deps" step because GitHub's
+# that CI's own "Install build deps" step because GitHub's
 # ubuntu-latest runner image ships all three preinstalled (make via
 # build-essential, zlib1g-dev as part of the image's base dev tooling)
 # -- confirmed here by two real errors the first local build attempts
@@ -24,8 +23,8 @@ FROM docker.io/library/ubuntu:24.04
 # without make, then h2o's own CMakeLists.txt's "Could NOT find ZLIB"
 # without zlib1g-dev. A plain ubuntu:24.04 base has none of the three,
 # so all are added here to make this image self contained; everything
-# else in this RUN matches real-build.yml's list verbatim.
-# adduser is not in real-build.yml's list either, for the same "ships
+# else in this RUN matches that list verbatim.
+# adduser is not in that CI list either, for the same "ships
 # preinstalled on the GitHub runner" reason as clang/make/zlib1g-dev
 # above -- confirmed by the real error here: foundationdb-server's
 # postinst needs it, and a bare ubuntu:24.04 container image (unlike
@@ -65,18 +64,21 @@ RUN curl -LSs "https://github.com/apple/foundationdb/releases/download/${FDB_VER
 WORKDIR /work
 # Build context is the checked-out repo working tree. There is no
 # thirdparty/ any more, so there is nothing to initialize or fetch
-# before this COPY. picoquic and picotls moved to native/gyreedge,
+# before this COPY. picoquic and picotls moved to native/edge,
 # because a plane has no networking. libriscv went with the sandbox.
 # QCBOR and taskweft-nif had no caller left at all.
-COPY . /work
+# The build context is the weft repo root, not the plane directory, so
+# that this file and the entrypoint below come from deploy/ where every
+# ship and run artifact lives.
+COPY native/gyreplane /work
 
 RUN cmake -B build -DCMAKE_PREFIX_PATH="/opt/h2o" -DCMAKE_BUILD_TYPE=RelWithDebInfo
 
 # The real link this whole image exists to prove out, same as
-# real-build.yml's own comment on this step.
+# that CI's own comment on this step.
 RUN cmake --build build -j
 
-# Same per-test recipes as real-build.yml's own step, verbatim,
+# Same per-test recipes as that CI step, verbatim,
 # including the "no recipe -> fail, don't skip silently" rule.
 RUN set -e; \
     for t in test/unit/test_*.c; do \
@@ -107,6 +109,6 @@ RUN set -e; \
 # artifact (a `podman build` pass here means everything above passed)
 # and the deploy image (task #20), rather than rebuilding the same
 # binary a second time in a separate image.
-COPY ci-local/zone-server-h2o-entrypoint.sh /entrypoint.sh
+COPY deploy/gyre/zone-server-h2o-entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 ENTRYPOINT ["/entrypoint.sh"]

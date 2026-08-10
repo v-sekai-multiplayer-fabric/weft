@@ -1,6 +1,6 @@
 # Single-process FoundationDB server, local stand-in for a real FDB
 # cluster (task #20's deployment needs one to be real, not a mock).
-# Same FDB_VERSION real-build.yml and ci-local/Containerfile already
+# Same FDB_VERSION the plane's own CI already
 # install, same .deb packages, so this is the same FDB build the rest
 # of this project is verified against, not a different one.
 FROM docker.io/library/ubuntu:24.04

@@ -1,9 +1,9 @@
 # Local CI, via podman + systemd quadlet
 
 `Containerfile` in this directory is a step-by-step mirror of
-`.github/workflows/real-build.yml` -- same dependency versions, same
+the plane's own CI, which weft has not wired yet -- same dependency versions, same
 build flags, same per-test compile recipes, in the same order. A pass
-here means the same thing a green `real-build.yml` run means.
+here means the same thing a green CI run means.
 
 It exists for one concrete reason. GitHub Actions itself was in a
 platform-wide major outage on 2026-08-06. Githubstatus.com reported
@@ -14,7 +14,7 @@ the real build after the mbedtls-to-OpenSSL switch.
 ## Usage
 
 ```sh
-cp ci-local/zone-server-h2o-ci.build.example \
+cp deploy/gyre/zone-server-h2o-ci.build.example \
    ~/.config/containers/systemd/zone-server-h2o-ci.build
 sed -i "s|REPO_PATH|$(pwd)|g" \
    ~/.config/containers/systemd/zone-server-h2o-ci.build
@@ -54,7 +54,7 @@ section, so neither starts at boot or auto-restarts.
 podman volume create zone-server-h2o-fdb-data
 
 for f in zone-server-h2o-fdb.build zone-server-h2o-fdb.container zone-server-h2o.container; do
-  cp "ci-local/$f.example" "$HOME/.config/containers/systemd/$f"
+  cp "deploy/gyre/$f.example" "$HOME/.config/containers/systemd/$f"
   sed -i "s|REPO_PATH|$(pwd)|g" \
     "$HOME/.config/containers/systemd/$f"
 done
@@ -66,7 +66,7 @@ journalctl --user -u zone-server-h2o.service -f
 
 A successful start logs `zone-server-h2o: zone 0, 1 worker(s), no
 transport (a plane has no networking)`. There is no UDP listener to
-check any more: the transport moved to `native/gyreedge`. `ss -tln |
+check any more: the transport moved to `native/edge`. `ss -tln |
 grep 4500` confirms FDB's real TCP listener. FDB's wire protocol is
 TCP, not UDP.
 
@@ -77,10 +77,10 @@ Check SELinux mode first with `getenforce`. Under `Enforcing`, the
 shared FDB volume needs `:z` (lowercase -- two different containers
 read it). The `.example` files already have it on the right line. The
 cert directory that needed `:Z` is gone with the transport; that note
-now lives in `native/gyreedge/TRANSPORT.md`. See
+now lives in `native/edge/TRANSPORT.md`. See
 `zone-server-h2o.container.example`'s own comment.
 
-## Why a few packages are listed here that real-build.yml does not list
+## Why a few packages are listed here that the plane's own CI does not
 
 GitHub's `ubuntu-latest` runner image ships `make`, `clang`,
 `zlib1g-dev`, and `adduser` preinstalled. A plain `ubuntu:24.04`
@@ -88,5 +88,5 @@ container image ships none of these. This `Containerfile` installs
 them explicitly, confirmed by the real errors the first few local
 build attempts hit without each one (`CMAKE_MAKE_PROGRAM is not set`,
 `Could NOT find ZLIB`, FoundationDB's postinst needing `adduser`), not
-guessed. Every other dependency and step matches `real-build.yml`
+guessed. Every other dependency and step matches that CI
 verbatim.
