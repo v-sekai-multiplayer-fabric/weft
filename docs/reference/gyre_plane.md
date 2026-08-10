@@ -143,8 +143,8 @@ store plane over iceoryx.
 So `src/fdb_database.c` and `src/zf_kv.c` are temporary. The zone tick moves onto SQLite in
 the store plane, which gives it a database rather than a key range.
 
-It cannot move yet. The store plane has no iceoryx harness either, which is the same step 1
-that blocks everything else here.
+It cannot move yet. The store plane has no thread-per-core loop either, which is the same
+step 2 that blocks everything else here. The bus below it works. See `harness.md`.
 
 ## What the split costs
 

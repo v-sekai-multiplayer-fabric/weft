@@ -162,7 +162,9 @@ machine. They show that the physics work and the ring are fast enough. They do n
 that the whole mesh holds together under a real load.
 
 **Some parts of the mesh are not built yet.** The store plane and the asset baker still
-run as prototypes, not as native planes. The interest plane is a design.
+run as prototypes, not as native planes. The interest plane is a design. The shared bus
+that all of them will use passes a message between two processes and nothing more, which
+is a foundation rather than a part.
 
 **One number is real, and it is a real workload.** weft replays a traffic simulation of
 11,947 vehicles, with 8,637 of them moving at the same time. Each vehicle is an entity,

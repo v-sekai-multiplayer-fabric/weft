@@ -8,10 +8,15 @@ defmodule Weft do
   > **A plane has no networking. An edge is a plane with networking.**
 
   > **What is built.** The control plane runs. The ring, the store, the interest
-  > producer, and the SUMO producer run in the BEAM. **No plane and no edge exists yet,
-  > and there is no iceoryx code at all.** `native/dataplane` links only threads. So this
-  > page describes the design that the code is written toward, not a running system. See
-  > the task pages in `docs/reference/` for the state of each item, and
+  > producer, and the SUMO producer run in the BEAM. **No plane and no edge exists yet.**
+  > `native/dataplane` links only threads.
+  >
+  > The bus is the one part that changed. `native/harness` passes a message between two
+  > processes over iceoryx2, checked at the far end, with no daemon. Nothing calls it yet,
+  > so it proves the bus and not a plane. See `../docs/reference/harness.md`.
+  >
+  > So this page describes the design that the code is written toward, not a running
+  > system. See the task pages in `docs/reference/` for the state of each item, and
   > `docs/essays/yagni.md` for why the order is what it is.
 
   The BEAM does coordination: placement, lifecycle, supervision, routing,
