@@ -34,7 +34,7 @@ transaction rather than once for each write.
 What is genuinely on the path now is a page miss, at the same 1080 microseconds. That is a
 different cost than the prototype had, and read-ahead is what pays it down.
 
-## Rollback belongs to the engine, not the store
+## The engine owns rollback, and storage never sees it
 
 This is the one worth taking next.
 
@@ -77,7 +77,7 @@ weft's compaction has to rewrite PIDX because a weft page does not say what it i
 a real difference in how much can go wrong during a fold, and
 `../logbook/store_plane.md` records that weft has already had one fold bug.
 
-## Placement is a ring, not a counter
+## Placement rides a hash ring
 
 `envoy-load-balancing.md` solves a problem weft has not reached: which host takes a new
 actor. It is a virtual node ring keyed by xxh3, with a knob K.

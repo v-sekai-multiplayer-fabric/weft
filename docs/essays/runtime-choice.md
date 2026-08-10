@@ -13,7 +13,7 @@ kind of answer.
 - **fabric-stage-runtime = OpenUSD** (Pixar Universal Scene Description, 26.05), a
   C++ scene-_description/composition_ library shipped as a prebuilt per-triplet
   archive consumed through Elixir NIFs. It represents and composes world/scene
-  state. It is not a physics tick engine.
+  state. Physics ticks are somebody else's job.
 - **Godot** is a full game engine: scene tree, physics, renderer, GDScript VM.
   Server-side it is heavyweight, and GDScript is interpreted and single-threaded.
 
@@ -38,8 +38,8 @@ running the hot loop. The producer has to be native code — Jolt physics and ke
 ingest writing the ring directly — and the BEAM samples it at about 3 µs per read. See
 `Weft.DataPlane`.
 
-They are not competing for the hot path — they are **stage-tier** choices (world
-representation and authoring, at Hz). For the _server-side_ stage runtime,
+Both are **stage-tier** choices, which means world representation and authoring at Hz.
+Neither one goes near the hot path. For the _server-side_ stage runtime,
 **fabric-stage-runtime (OpenUSD) fits better than embedding Godot**: it is a headless
 library (no renderer/input/VM baggage), composition- and interchange-oriented. It
 runs as a plane over iceoryx v1 (a separate native process), not as an in-BEAM NIF,

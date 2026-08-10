@@ -33,9 +33,9 @@ response start, a response chunk, a response abort, and four WebSocket frames. S
 actor's own traffic rides the runner's connection, and the actor never learns what carried
 it.
 
-**Liveness is a task, not a field.** `ping_task.rs` is its own file, and it updates the
-ping of every runner at once rather than per connection. Liveness is not a property the
-data path reports as a side effect.
+**Liveness has its own task.** `ping_task.rs` is a file of its own, and it updates the ping
+of every runner at once rather than per connection. Nothing infers health from traffic on
+the data path.
 
 **Size is the transport's problem.** `universalpubsub/src/chunking.rs` splits a message
 into a start and chunks with a message id, and reassembles behind a buffer with a maximum
@@ -86,12 +86,12 @@ Take the five, and take the page protocol. Do not take the transport.
 
 One thing is not there to take. rivet's GUARD is not Envoy. `engine/` has no match for
 `envoyproxy`, `xds`, or `XDS`. `guard-core` is their own Rust on hyper, with a certificate
-resolver, a proxy service, and a custom serve trait. `pegboard-envoy` is their own package
-and the word means an emissary, not the proxy.
+resolver, a proxy service, and a custom serve trait. `pegboard-envoy` is their own package,
+and there the word means an emissary.
 
 rivet's H3 and WebTransport code, in `guard-core/src/h3_server.rs` and
-`datagram_transport.rs`, was hacked in rather than designed in. It is not the part worth
-copying, and reading it as a model would copy a shortcut.
+`datagram_transport.rs`, was hacked in rather than designed in. Reading it as a model would
+copy a shortcut.
 
 Take the transport decision instead, which weft already made for a different reason. The
 client transport is HTTP/3 and WebTransport, never HTTP/1.1. picoquic is already vendored
@@ -106,21 +106,20 @@ iceoryx2 v0.9.3 ships one, in `iceoryx2-services/tunnel`, over zenoh. Run
 `iox2 tunnel zenoh` on each host and publish-subscribe spans machines. It works today,
 which nothing weft would write does.
 
-Three costs, and each one undoes a decision weft already made.
+Three costs come with it, and each one undoes a decision weft already made.
 
-It is a daemon, one for each host. weft left the first generation of iceoryx partly because
-it needed a daemon beside every plane, and this is that shape returning under another
-name.
+The tunnel runs as a daemon, one for each host. weft left the first generation of iceoryx
+partly to stop running a daemon beside every plane, and this brings that shape back under
+another name.
 
-It is not in the C ABI. `iceoryx2.h` has no `tunnel` symbol, so the `.sigs` dispatch table
-cannot reach it. It is a Rust binary to run, not a library to call, which puts it outside
-the arrangement that keeps Rust out of weft's build graph.
+`iceoryx2.h` has no `tunnel` symbol, so the `.sigs` dispatch table cannot reach it. Running
+a Rust binary puts it outside the arrangement that keeps Rust out of weft's build graph.
 
-It is a second QUIC implementation. weft already carries picoquic for the edge, and zenoh
-brings its own.
+zenoh carries its own QUIC, and weft already carries picoquic for the edge. Two
+implementations of one protocol in one fabric.
 
-None of that makes it wrong. It makes it a different bet: a working tunnel now against one
-transport later. Measuring it between two machines would decide, and nobody has.
+That is a bet rather than a mistake: a working tunnel now against one transport later.
+Measuring it between two machines would decide it, and nobody has.
 
 ## The part that is still not solved
 

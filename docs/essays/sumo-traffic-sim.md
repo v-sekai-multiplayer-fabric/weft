@@ -59,7 +59,7 @@ SUMO can hand its pedestrians to JuPedSim, which models them as bodies in contin
 with contact forces rather than as positions on a stripe. `../../test/bench/sumo/README.md`
 holds the configuration.
 
-The cost is not small, and it is worth naming before anyone reaches for it.
+The cost is worth naming before anyone reaches for it.
 
 It is a second simulation engine, with its own model and its own parameters. The walkable
 areas are polygons somebody draws by hand in an editor, and every one of them needs entry
