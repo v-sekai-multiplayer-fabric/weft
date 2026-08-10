@@ -292,7 +292,18 @@ defmodule Weft.Limits do
   defp await(ref, pid) do
     receive do
       {__MODULE__, ^pid, result} ->
-        Process.demonitor(ref, [:flush])
+        # Wait for the process to end, and not only for its result. The supervisor frees
+        # the slot when the child dies, which is just after it sends. A caller that
+        # returned on the result alone could be refused for the slot of its own call that
+        # had already finished.
+        receive do
+          {:DOWN, ^ref, :process, ^pid, _reason} -> :ok
+        after
+          @action_ms ->
+            Process.demonitor(ref, [:flush])
+            :ok
+        end
+
         {:ok, result}
 
       {:DOWN, ^ref, :process, ^pid, reason} ->

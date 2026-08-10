@@ -70,28 +70,13 @@ The rate scales nearly with the cores to 8 physical cores, at 7.9 times the rate
 core. Each core owns its ring, so the planes share nothing. One core alone passes the
 target of 15 M by more than 12 times.
 
-## The iceoryx2 publish and subscribe bench
+## The transport weft did not take
 
-The own bench of iceoryx2, on a Ryzen 7 3800X. It pins two threads to two cores and
-measures the round trip of the zero copy path. The pinning uses
-`iceoryx2_bb_posix::thread::ThreadBuilder::affinity()`. Each run does 10 million round
-trips from A to B to A.
-
-| path | 12 B | 768 B | 8192 B |
-| --- | --- | --- | --- |
-| IPC zero copy, across processes | 236 ns | 233 ns | 239 ns |
-| inside one process | 254 ns | 239 ns | — |
-| IPC, the thread safe variant | 282 ns | 269 ns | 268 ns |
-| IPC, `--send-copy` | — | 226 ns | — |
-
-The one way latency is about 118 ns. It stays flat from 12 B to 8 kB, which is what
-proves the copy does not happen. Only an offset crosses.
-
-Across processes costs the same as inside one process. One serial link runs 2.11 million
-round trips each second, and a streaming link runs far above the 15 M the ring produces.
-
-This measured iceoryx2. weft runs iceoryx v1, and `../essays/runtime-choice.md` says why
-the choice went the other way.
+The round trip of the transport that was evaluated and rejected is not here. It measures a
+product weft does not use, and the name of that product is retired. A retired term may
+appear only in the page that records why it was retired, which the vocabulary test
+enforces. So that measurement stays in `../essays/runtime-choice.md`, beside the decision
+it informed.
 
 ## Decode and apply, cache hot
 
