@@ -118,8 +118,8 @@ two rows whatever the log holds. `../spec/Store.lean` proves this as
 ### A commit is one transaction
 
 The VFS holds the pages SQLite writes in memory. It sends them when SQLite syncs the
-file, which is the end of a commit. So the pages of one SQLite commit reach FoundationDB
-together, and a crash leaves the whole commit or none of it.
+file, which is the end of a commit. So the pages of one commit reach FoundationDB
+together. A crash leaves the whole commit, or it leaves none of it.
 
 A commit that fits one transaction is one transaction. That is the common case, and it
 costs one round trip.
@@ -152,7 +152,7 @@ reference and not a floor: it is one machine with no durability across machines.
 
 | op | local file/s | FoundationDB/s | ratio |
 | --- | --- | --- | --- |
-| insert, one commit each | 267346 | 420 | 637x |
+| insert, one commit each | 269105 | 561 | 480x |
 | insert, one commit for all | 607002 | 80450 | 7.5x |
 | point read | 2141392 | 2026893 | **1.1x** |
 | scan | 13946612 | 13350778 | **1.0x** |
@@ -160,23 +160,56 @@ reference and not a floor: it is one machine with no durability across machines.
 A read costs what a local read costs. A write pays for the network, which is the trade the
 design takes.
 
-The atomic commit is faster than the torn one it replaced. The layout that committed each
-`xWrite` gave 404 commits each second. Staging the pages and then moving the head gave 280,
-because it costs two round trips. Putting a commit that fits into one transaction gave 420.
+The atomic commit is faster than the torn one it replaced.
+
+| the commit path | commits/s |
+| --- | --- |
+| one transaction for each `xWrite`, not atomic | 404 |
+| staged, two transactions | 280 |
+| one transaction | 420 |
+| one transaction, three reads removed | **561** |
 
 ### The write path is latency, not work
 
-One commit costs about 2.4 ms, and almost all of it is the round trip and FoundationDB's
-own commit. The gap between the first row and the second says the rest: the same rows in
-one transaction go 190 times faster.
+FoundationDB commits in about 1.1 ms whatever the commit carries. One key of 64 bytes and
+eight pages of 4 kB both cost 1080 us. So a commit is a round trip, and the payload is
+almost free until it is large.
 
-So the write path does not need a faster client. It needs fewer commits for the same rows,
-or more commits in flight at once. Batching the writes of many actors into one transaction
-is the lever, and it is the reason the plane is one process that many actors reach over
-iceoryx rather than one process for each actor.
+That number is the ceiling for one writer that waits for each commit. The VFS reached 420
+of a possible 928, because it made five round trips for each commit. It read the fence,
+read the log count, committed, and then read two more counts to decide about compaction.
 
-Reads have no such room. They are already at parity with a local file, because the page
-cache absorbs them and no round trip happens at all.
+Three of those reads asked the database for numbers the writer already knew. A single
+writer owns the log count and the base count, so the handle keeps both. What is left is
+the fence read and the commit. The fence read has to stay: a writer that lost ownership
+between two of its own commits conflicts with nothing, so nothing else would catch it.
+
+### Where an order of magnitude is
+
+Not in a faster client, and not in more connections to FoundationDB.
+
+| | commits/s |
+| --- | --- |
+| one commit at a time | 928 |
+| 2 in flight | 1902 |
+| 8 in flight | 7733 |
+| 32 in flight | 19162 |
+| 128 in flight | **40993** |
+| 32 in flight over 2 handles | 19024 |
+| 32 in flight over 4 handles | 15648 |
+| 32 in flight over 8 handles | 18500 |
+
+Commits in flight are worth 44 times. More database handles are worth nothing, because one
+client process has a single network thread and every handle shares it. The parallelism has
+to come from transactions in flight.
+
+One database cannot pipeline its own commits. SQLite waits inside `xSync` until the commit
+returns, so the next commit has not been asked for yet. The parallelism has to come from
+many actors committing at once inside one plane. That is what iceoryx is for. It is also why
+the plane is one process that many actors reach, and not one process for each actor.
+
+Reads have no such room. They are already at parity with a local file. The page cache
+absorbs them, and no round trip happens at all.
 
 ### One pragma is worth 2266 times
 
@@ -228,10 +261,10 @@ The loss became a loud failure. That is the whole point: a store may refuse a wr
 it may not accept a write and drop it.
 
 The fence guards every write transaction, and not only the commit. The first version
-checked it in the commit alone, and a stale writer could still compact. Compaction drops
-the shard version that the owner is reading, so the owner then read pages that were no
-longer there. Both writers failed, and the database was intact but unusable. A fence that
-covers one write path and not the others is not a fence.
+checked it in the commit alone, so a stale writer could still compact. Compaction drops
+the shard version that the owner reads. The owner then read pages that were gone, and both
+writers failed against a database that was intact. A fence that covers one write path and
+not the others is not a fence.
 
 ## A crash point is a better test than a delay
 
@@ -278,9 +311,9 @@ the caller as `SQLITE_READONLY`.
 - **Nothing writes a pin.** Compaction reads the pin range and keeps every version at or
   above the oldest pin. No reader creates one, so only the newest version survives, and
   a read below the head has nothing to hold.
-- **A commit larger than one transaction cannot be indexed.** The pages of a large commit
-  stage across transactions, but the index rows must fit one. The limit is derived from
-  the FoundationDB transaction size, not chosen.
+- **A very large commit cannot be indexed.** The pages of a large commit stage across
+  transactions. The index rows must still fit one transaction. The limit comes from the
+  FoundationDB transaction size, and it is not chosen.
 - **One writer commits, not many.** The fence gives one owner at a time. Committing from
   several actors at once needs the parallel commit protocol, modelled in
   [ParallelCommits.tla][pc]. That is a different problem from the one the fence solves.
