@@ -1,0 +1,4 @@
+% Matches problem_three_deliveries_2robots.jsonld: robot_1 at dock,
+% robot_2 at shipping.
+n_packages = 3;
+agent_starts_at_dock = [true, false];

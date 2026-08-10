@@ -1,0 +1,6 @@
+% Swapped starts: robot_1 at shipping, robot_2 at dock -- the
+% adversarial case, since the planner's "delivered" goal method always
+% tries robot_1 first, regardless of which agent actually starts at
+% dock.
+n_packages = 3;
+agent_starts_at_dock = [false, true];

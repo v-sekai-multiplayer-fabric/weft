@@ -1,0 +1,39 @@
+# Line-ending policy for this repo.
+#
+# thirdparty/ (picoquic, picotls, QCBOR) is vendored via git subtree at
+# exact upstream fork commits (see README.md). Any normalization there
+# would diff it away from that pinned commit, including its own native
+# Windows project files (*.sln, *.vcxproj, *.ps1). Exempt it completely:
+# -text disables all of git's line-ending handling for these paths, so
+# checkout/checkin never touches a single byte.
+thirdparty/** -text
+
+# Everything this repo actually owns: normalize to LF on checkin
+# regardless of what line ending a given checkout produced, and check
+# out as LF. This is a Linux/POSIX server codebase; CRLF has no reason
+# to appear here outside the vendored dirs above.
+*.c text eol=lf
+*.h text eol=lf
+*.cpp text eol=lf
+*.hpp text eol=lf
+*.cc text eol=lf
+CMakeLists.txt text eol=lf
+*.cmake text eol=lf
+*.sh text eol=lf
+*.md text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.json text eol=lf
+*.js text eol=lf
+*.ts text eol=lf
+*.html text eol=lf
+*.toml text eol=lf
+*.gd text eol=lf
+*.tscn text eol=lf
+*.godot text eol=lf
+
+# Binary, never subject to any text handling.
+*.png binary
+*.jpg binary
+*.a binary
+*.so binary

@@ -1,0 +1,509 @@
+diff -u a/picoquic/ech.c b/picoquic/ech.c
+--- a/picoquic/ech.c	2026-04-18 11:39:16
++++ b/picoquic/ech.c	2026-04-18 11:38:43
+@@ -28,9 +28,9 @@
+ #endif
+ #include <picotls.h>
+ #ifdef _WINDOWS
+-#include <picotls\pembase64.h>
+-#include <picotls\minicrypto.h>
+-#include <picotls\asn1.h>
++#include <picotls/pembase64.h>
++#include <picotls/minicrypto.h>
++#include <picotls/asn1.h>
+ #else
+ #include <picotls/pembase64.h>
+ #include <picotls/minicrypto.h>
+diff -u a/picoquic/picoquic.h b/picoquic/picoquic.h
+--- a/picoquic/picoquic.h	2026-04-18 11:39:16
++++ b/picoquic/picoquic.h	2026-04-18 11:38:43
+@@ -25,8 +25,8 @@
+ #include <stdint.h>
+ #include <stdarg.h>
+ #ifdef _WINDOWS
+-#include <WS2tcpip.h>
+-#include <Ws2def.h>
++#include <ws2tcpip.h>
++#include <ws2def.h>
+ #include <winsock2.h>
+ #else
+ #include <arpa/inet.h>
+diff -u a/picoquic/picoquic_crypto_provider_api.h b/picoquic/picoquic_crypto_provider_api.h
+--- a/picoquic/picoquic_crypto_provider_api.h	2026-04-18 11:39:16
++++ b/picoquic/picoquic_crypto_provider_api.h	2026-04-18 11:38:43
+@@ -37,7 +37,7 @@ extern "C" {
+     void picoquic_register_hpke_cipher_suite(ptls_hpke_cipher_suite_t* hpke_cipher_suite);
+     void picoquic_register_hpke_kem(ptls_hpke_kem_t* hpke_kem);
+ 
+-    typedef int (*picoquic_set_tls_key_provider_t)(ptls_context_t* ctx, const uint8_t* data, size_t len);
++    typedef int (*picoquic_set_private_key_from_buffer_t)(ptls_context_t* ctx, const uint8_t* data, size_t len);
+     typedef uint8_t* (*picoquic_get_private_key_from_file_t)(char const* file_name, int* key_length);
+     typedef int (*picoquic_set_private_key_from_file_t)(char const* keypem, ptls_context_t* ctx);
+     typedef int (*picoquic_get_public_key_from_private_t)(char const* keypem, uint8_t ** pubkey, size_t * pubkey_len);
+@@ -59,6 +59,8 @@ extern "C" {
+         picoquic_dispose_sign_certificate_t dispose_sign_certificate_fn,
+         picoquic_get_certs_from_file_t get_certs_from_file_fn,
+         picoquic_get_public_key_from_private_t get_public_key_from_private_fn);
++
++    void picoquic_register_private_key_from_buffer_fn(picoquic_set_private_key_from_buffer_t set_key_fn);
+ 
+     void picoquic_register_verify_certificate_fn(picoquic_get_certificate_verifier_t certificate_verifier_fn,
+         picoquic_dispose_certificate_verifier_t dispose_certificate_verifier_fn,
+diff -u a/picoquic/picoquic_mbedtls.c b/picoquic/picoquic_mbedtls.c
+--- a/picoquic/picoquic_mbedtls.c	2026-04-18 11:39:16
++++ b/picoquic/picoquic_mbedtls.c	2026-04-18 11:38:43
+@@ -111,6 +111,9 @@ void picoquic_mbedtls_load(int unload)
+             picoquic_mbedtls_get_certs_from_file,
+             NULL);
+ 
++        picoquic_register_private_key_from_buffer_fn(
++            ptls_mbedtls_load_private_key_from_buffer);
++
+         picoquic_register_verify_certificate_fn(
+             picoquic_mbedtls_get_certificate_verifier,
+             ptls_mbedtls_dispose_verify_certificate,
+diff -u a/picoquic/picosocks.h b/picoquic/picosocks.h
+--- a/picoquic/picosocks.h	2026-04-18 11:39:16
++++ b/picoquic/picosocks.h	2026-04-18 11:38:43
+@@ -25,11 +25,11 @@
+ #ifdef _WINDOWS
+ /* clang-format off */
+ #define WIN32_LEAN_AND_MEAN
+-#include <Windows.h>
+-#include <Ws2def.h>
+-#include <WinSock2.h>
++#include <windows.h>
++#include <ws2def.h>
++#include <winsock2.h>
+ #include <ws2ipdef.h>
+-#include <Mswsock.h>
++#include <mswsock.h>
+ #include <assert.h>
+ #include <iphlpapi.h>
+ #include <stdint.h>
+diff -u a/picoquic/quicctx.c b/picoquic/quicctx.c
+--- a/picoquic/quicctx.c	2026-04-18 11:39:16
++++ b/picoquic/quicctx.c	2026-04-18 11:38:43
+@@ -1146,7 +1146,8 @@ void picoquic_free(picoquic_quic_t* quic)
+             picohash_delete(quic->table_cnx_by_secret, 0);
+         }
+ 
+-        if (quic->verify_certificate_callback != NULL) {
++        if (quic->verify_certificate_callback != NULL ||
++            quic->free_verify_certificate_callback_fn != NULL) {
+             picoquic_dispose_verify_certificate_callback(quic);
+         }
+ 
+diff -u a/picoquic/sockloop.c b/picoquic/sockloop.c
+--- a/picoquic/sockloop.c	2026-04-18 11:39:16
++++ b/picoquic/sockloop.c	2026-04-18 11:38:43
+@@ -35,8 +35,8 @@
+ 
+ #ifdef _WINDOWS
+ #define WIN32_LEAN_AND_MEAN
+-#include <WinSock2.h>
+-#include <Windows.h>
++#include <winsock2.h>
++#include <windows.h>
+ #include <assert.h>
+ #include <iphlpapi.h>
+ #include <stdint.h>
+@@ -122,6 +122,24 @@
+ #include "picoquic_packet_loop.h"
+ #include "picoquic_unified_log.h"
+ 
++/* Atomic helpers for the thread_should_close shutdown flag. The flag is
++ * written by the deleter thread and read by the packet-loop thread; without
++ * acquire/release semantics, ThreadSanitizer flags every access as a race.
++ * GCC/Clang __atomic builtins emit the right barriers and are visible to
++ * TSAN; MSVC falls back to plain volatile access (which it documents as
++ * sequentially consistent for aligned ints). */
++#if defined(__GNUC__) || defined(__clang__)
++static inline int picoquic_atomic_load_int(volatile int* p) {
++    return __atomic_load_n(p, __ATOMIC_ACQUIRE);
++}
++static inline void picoquic_atomic_store_int(volatile int* p, int v) {
++    __atomic_store_n(p, v, __ATOMIC_RELEASE);
++}
++#else
++static inline int picoquic_atomic_load_int(volatile int* p) { return *p; }
++static inline void picoquic_atomic_store_int(volatile int* p, int v) { *p = v; }
++#endif
++
+ #if defined(_WINDOWS)
+ #ifdef UDP_SEND_MSG_SIZE
+ static int udp_gso_available = 1;
+@@ -1231,7 +1249,7 @@ void* picoquic_packet_loop_v3(void* v_ctx)
+     /* Wait for packets */
+     /* TODO: add stopping condition, was && (!just_once || !connection_done) */
+     /* Actually, no, rely on the callback return code for that? */
+-    while (ret == 0 && !thread_ctx->thread_should_close) {
++    while (ret == 0 && !picoquic_atomic_load_int(&thread_ctx->thread_should_close)) {
+         int socket_rank = -1;
+         int64_t delta_t = 0;
+         uint8_t received_ecn;
+@@ -1309,7 +1327,7 @@ void* picoquic_packet_loop_v3(void* v_ctx)
+ 
+         if (bytes_recv < 0) {
+             /* The interrupt error is expected if the loop is closing. */
+-            ret = (thread_ctx->thread_should_close) ? PICOQUIC_NO_ERROR_TERMINATE_PACKET_LOOP : -1;
++            ret = picoquic_atomic_load_int(&thread_ctx->thread_should_close) ? PICOQUIC_NO_ERROR_TERMINATE_PACKET_LOOP : -1;
+         }
+         else if (bytes_recv == 0 && is_wake_up_event) {
+             ret = loop_callback(quic, picoquic_packet_loop_wake_up, loop_callback_ctx, NULL);
+@@ -1840,16 +1858,20 @@ void picoquic_delete_network_thread(picoquic_network_t
+ void picoquic_delete_network_thread(picoquic_network_thread_ctx_t* thread_ctx)
+ {
+     /* set the should_close flag, so the thread knows the loop should stop */
+-    thread_ctx->thread_should_close = 1;
+-    /* Delete the wake up event. This ought to create a fault 
+-     * in the wait for event call, causing the thread to wake up,
+-     * notice the flag, and exit.
+-     */
+-    picoquic_close_network_wake_up(thread_ctx);
++    picoquic_atomic_store_int(&thread_ctx->thread_should_close, 1);
++    /* Wake the loop via its existing wake-up channel so it observes the
++     * flag and returns. Closing the pipe/event from under the still-running
++     * loop races with its poll/select on the same FD (TSAN flags it). */
++    if (thread_ctx->wake_up_defined) {
++        picoquic_wake_up_network_thread(thread_ctx);
++    }
+     /* delete the thread */
+     if (thread_ctx->is_threaded) {
+         thread_ctx->thread_delete_fn((void**)&thread_ctx->pthread);
+     }
++    /* Now that the loop thread has exited, the wake-up FDs are nobody's
++     * concern — close them. */
++    picoquic_close_network_wake_up(thread_ctx);
+     /* Free the context */
+     free(thread_ctx);
+ }
+diff -u a/picoquic/tls_api.c b/picoquic/tls_api.c
+--- a/picoquic/tls_api.c	2026-04-18 11:39:16
++++ b/picoquic/tls_api.c	2026-04-18 11:38:43
+@@ -98,6 +98,7 @@ picoquic_set_private_key_from_file_t picoquic_set_priv
+ ptls_hpke_cipher_suite_t* picoquic_hpke_cipher_suites[PICOQUIC_HPKE_CIPHER_SUITE_NB_MAX + 1] = { 0 };
+ ptls_hpke_kem_t* picoquic_hpke_kems[PICOQUIC_HPKE_KEM_NB_MAX + 1] = { 0 };
+ picoquic_set_private_key_from_file_t picoquic_set_private_key_from_file_fn = NULL;
++picoquic_set_private_key_from_buffer_t picoquic_set_private_key_from_buffer_fn = NULL;
+ picoquic_dispose_sign_certificate_t picoquic_dispose_sign_certificate_fn = NULL;
+ picoquic_get_certs_from_file_t picoquic_get_certs_from_file_fn = NULL;
+ picoquic_get_public_key_from_private_t picoquic_get_public_key_from_private_fn = NULL;
+@@ -186,6 +187,7 @@ static void picoquic_tls_api_zero(void)
+     memset((void*)picoquic_key_exchange_secp256r1, 0, sizeof(picoquic_key_exchange_secp256r1));
+ 
+     picoquic_set_private_key_from_file_fn = NULL;
++    picoquic_set_private_key_from_buffer_fn = NULL;
+     picoquic_dispose_sign_certificate_fn = NULL;
+     picoquic_get_certs_from_file_fn = NULL;
+     picoquic_get_public_key_from_private_fn = NULL;
+@@ -335,6 +337,11 @@ void picoquic_register_tls_key_provider_fn(
+     }
+ }
+ 
++void picoquic_register_private_key_from_buffer_fn(picoquic_set_private_key_from_buffer_t set_key_fn)
++{
++    picoquic_set_private_key_from_buffer_fn = set_key_fn;
++}
++
+ void picoquic_register_verify_certificate_fn(picoquic_get_certificate_verifier_t certificate_verifier_fn,
+     picoquic_dispose_certificate_verifier_t dispose_certificate_verifier_fn,
+     picoquic_set_tls_root_certificates_t set_tls_root_certificates_fn)
+@@ -610,6 +617,17 @@ int picoquic_set_private_key_from_file(picoquic_quic_t
+ int picoquic_set_private_key_from_file(picoquic_quic_t* quic, char const* file_name)
+ {
+     return set_private_key_from_file(file_name, quic->tls_master_ctx);
++}
++
++int picoquic_set_tls_key(picoquic_quic_t* quic, const uint8_t* data, size_t len)
++{
++    if (picoquic_set_private_key_from_buffer_fn == NULL) {
++        return -1;
++    }
++    if (quic == NULL || quic->tls_master_ctx == NULL) {
++        return -1;
++    }
++    return picoquic_set_private_key_from_buffer_fn(quic->tls_master_ctx, data, len);
+ }
+ 
+ /* Clear certificate objects allocated by the crypto stack for a certificate
+diff -u a/picoquic/util.c b/picoquic/util.c
+--- a/picoquic/util.c	2026-04-18 11:39:16
++++ b/picoquic/util.c	2026-04-18 11:38:43
+@@ -24,9 +24,9 @@
+ /* Simple set of utilities */
+ #ifdef _WINDOWS
+ #define WIN32_LEAN_AND_MEAN
+-#include <Windows.h>
+-#include <WinSock2.h>
+-#include <Ws2def.h>
++#include <windows.h>
++#include <winsock2.h>
++#include <ws2def.h>
+ #else
+ #include <sys/socket.h>
+ #include <netinet/in.h>
+@@ -1164,11 +1164,11 @@ void picoquic_delete_thread(picoquic_thread_t * thread
+     *thread = NULL;
+ #else
+     if (pthread_join(*thread, NULL) != 0) {
+-# ifdef ANDROID
++#if defined(ANDROID) || defined(__ANDROID__)
+         pthread_kill(*thread, SIGTERM);
+-# else
++#else
+         (void)pthread_cancel(*thread);
+-# endif
++#endif
+     }
+ #endif
+ }
+diff -u a/picoquic/wincompat.h b/picoquic/wincompat.h
+--- a/picoquic/wincompat.h	2026-04-18 11:39:16
++++ b/picoquic/wincompat.h	2026-04-18 11:38:43
+@@ -22,6 +22,19 @@
+ #ifndef WINCOMPAT_H
+ #define WINCOMPAT_H
+ 
++/* MinGW's _mingw.h defines __CRT_INLINE which ws2tcpip.h uses for IN6_*
++ * helpers.  On some cross-compile toolchains __CRT_INLINE resolves to
++ * "extern __inline__" (no __gnu_inline__), which in C99+ emits a real
++ * external definition in every TU → multiple-definition link errors.
++ * Include _mingw.h first (burns its include guard so Winsock2.h won't
++ * re-trigger it), then force __CRT_INLINE to use GNU inline semantics
++ * which never emit standalone copies. */
++#ifdef __MINGW32__
++#  include <_mingw.h>
++#  undef __CRT_INLINE
++#  define __CRT_INLINE extern inline __attribute__((__gnu_inline__))
++#endif
++
+ #include <stdint.h>
+ #define ssize_t int
+ #include <Winsock2.h>
+@@ -39,10 +52,13 @@ extern "C" {
+ extern "C" {
+ #endif
+ 
++    /* MinGW's time.h already defines struct timezone */
++#ifndef __MINGW32__
+     struct timezone {
+         int tz_minuteswest;     /* minutes west of Greenwich */
+         int tz_dsttime;         /* type of DST correction */
+     };
++#endif
+ 
+     int wintimeofday(struct timeval* tv, struct timezone* tz);
+ 
+@@ -52,4 +68,4 @@ extern "C" {
+ 
+ #endif
+ 
+-#endif /* WINCOMPAT_H */
+\ No newline at end of file
++#endif /* WINCOMPAT_H */
+diff -u a/picoquic/winsockloop.c b/picoquic/winsockloop.c
+--- a/picoquic/winsockloop.c	2026-04-18 11:39:16
++++ b/picoquic/winsockloop.c	2026-04-18 11:38:43
+@@ -48,8 +48,8 @@ int picoquic_packet_loop_win(picoquic_quic_t* quic,
+ }
+ #else
+ #define WIN32_LEAN_AND_MEAN
+-#include <WinSock2.h>
+-#include <Windows.h>
++#include <winsock2.h>
++#include <windows.h>
+ #include <assert.h>
+ #include <iphlpapi.h>
+ #include <stdint.h>
+diff -u a/picoquic_mbedtls/ptls_mbedtls.h b/picoquic_mbedtls/ptls_mbedtls.h
+--- a/picoquic_mbedtls/ptls_mbedtls.h	2026-04-18 11:39:16
++++ b/picoquic_mbedtls/ptls_mbedtls.h	2026-04-18 11:38:43
+@@ -80,6 +80,7 @@ int ptls_mbedtls_load_private_key(char const* pem_fnam
+ } mbedtls_message_verify_ctx_t;
+ 
+ int ptls_mbedtls_load_private_key(char const* pem_fname, ptls_context_t* ctx);
++int ptls_mbedtls_load_private_key_from_buffer(ptls_context_t* ctx, const uint8_t* data, size_t len);
+ void ptls_mbedtls_dispose_sign_certificate(ptls_sign_certificate_t* _self);
+ int ptls_mbedtls_sign_certificate(ptls_sign_certificate_t* _self, ptls_t* tls, ptls_async_job_t** async,
+     uint16_t* selected_algorithm, ptls_buffer_t* outbuf, ptls_iovec_t input,
+diff -u a/picoquic_mbedtls/ptls_mbedtls_sign.c b/picoquic_mbedtls/ptls_mbedtls_sign.c
+--- a/picoquic_mbedtls/ptls_mbedtls_sign.c	2026-04-18 11:39:16
++++ b/picoquic_mbedtls/ptls_mbedtls_sign.c	2026-04-18 11:38:43
+@@ -571,6 +571,45 @@ int ptls_mbedtls_set_available_schemes(ptls_mbedtls_si
+ * a convenience API.
+ */
+ 
++/* PSA ECDSA returns raw r||s; TLS CertificateVerify requires DER SEQUENCE { INTEGER r, INTEGER s }.
++ * Converts raw[0..raw_len) → der[0..*der_len) in-place via temp buffer.
++ * Returns 0 on success, -1 if der_cap too small (max = 2 + 2*(2+1+n), n=raw_len/2). */
++static int ecdsa_raw_to_der(const uint8_t *raw, size_t raw_len,
++                            uint8_t *der, size_t der_cap, size_t *der_len)
++{
++    size_t n = raw_len / 2;
++    const uint8_t *r = raw, *s = raw + n;
++
++    size_t ri = 0, si = 0;
++    while (ri < n - 1 && r[ri] == 0) ri++;
++    while (si < n - 1 && s[si] == 0) si++;
++
++    size_t rl = n - ri, sl = n - si;
++    size_t rp = (r[ri] >> 7) & 1;
++    size_t sp = (s[si] >> 7) & 1;
++    size_t r_enc = rl + rp, s_enc = sl + sp;
++    size_t seq_len = 2 + r_enc + 2 + s_enc;
++    size_t total = 2 + seq_len;
++
++    if (total > der_cap)
++        return -1;
++
++    uint8_t *p = der;
++    *p++ = 0x30;
++    *p++ = (uint8_t)seq_len;
++    *p++ = 0x02;
++    *p++ = (uint8_t)r_enc;
++    if (rp) *p++ = 0x00;
++    memcpy(p, r + ri, rl); p += rl;
++    *p++ = 0x02;
++    *p++ = (uint8_t)s_enc;
++    if (sp) *p++ = 0x00;
++    memcpy(p, s + si, sl); p += sl;
++
++    *der_len = total;
++    return 0;
++}
++
+ int ptls_mbedtls_sign_certificate(ptls_sign_certificate_t *_self, ptls_t *tls, ptls_async_job_t **async,
+     uint16_t *selected_algorithm, ptls_buffer_t *outbuf, ptls_iovec_t input,
+     const uint16_t *algorithms, size_t num_algorithms)
+@@ -616,11 +655,26 @@ int ptls_mbedtls_sign_certificate(ptls_sign_certificat
+             } else if (sign_algo != PSA_ALG_RSA_PKCS1V15_SIGN_RAW) {
+                 nb_bytes *= 2;
+             }
+-            if ((ret = ptls_buffer_reserve(outbuf, nb_bytes)) == 0) {
++            /* For ECDSA, PSA returns raw r||s but TLS needs DER SEQUENCE{r,s};
++             * reserve extra headroom: max DER overhead = 6 bytes + 2 sign-extension = 8. */
++            int is_ecdsa = PSA_ALG_IS_ECDSA(sign_algo);
++            size_t reserve_bytes = nb_bytes + (is_ecdsa ? 8 : 0);
++            if ((ret = ptls_buffer_reserve(outbuf, reserve_bytes)) == 0) {
+                 size_t signature_length = 0;
+-                if (psa_sign_hash(self->key_id, sign_algo, hash_value, hash_length, outbuf->base + outbuf->off, nb_bytes,
++                uint8_t *sig_out = outbuf->base + outbuf->off;
++                if (psa_sign_hash(self->key_id, sign_algo, hash_value, hash_length, sig_out, nb_bytes,
+                     &signature_length) != 0) {
+                     ret = PTLS_ERROR_INCOMPATIBLE_KEY;
++                } else if (is_ecdsa) {
++                    /* convert PSA raw r||s → DER in-place using temp buffer */
++                    uint8_t der_buf[150]; /* enough for secp521r1 max ~139 bytes */
++                    size_t der_len = 0;
++                    if (ecdsa_raw_to_der(sig_out, signature_length, der_buf, sizeof(der_buf), &der_len) != 0) {
++                        ret = PTLS_ERROR_INCOMPATIBLE_KEY;
++                    } else {
++                        memcpy(sig_out, der_buf, der_len);
++                        outbuf->off += der_len;
++                    }
+                 } else {
+                     outbuf->off += signature_length;
+                 }
+@@ -892,6 +946,78 @@ int ptls_mbedtls_load_private_key(char const *pem_fnam
+     return ret;
+ }
+ 
++/* Load a private key from a PEM or DER buffer (no file I/O).
++ * Mirrors ptls_mbedtls_load_private_key but takes (data, len) instead of a file path.
++ */
++int ptls_mbedtls_load_private_key_from_buffer(ptls_context_t *ctx, const uint8_t *data, size_t len)
++{
++    int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
++    mbedtls_pem_context pem = {0};
++    mbedtls_pk_type_t pk_type = 0;
++    size_t key_length = 0;
++    size_t key_index = 0;
++    ptls_mbedtls_sign_certificate_t *signer = (ptls_mbedtls_sign_certificate_t *)malloc(sizeof(ptls_mbedtls_sign_certificate_t));
++
++    if (signer == NULL) {
++        return (PTLS_ERROR_NO_MEMORY);
++    }
++    memset(signer, 0, sizeof(ptls_mbedtls_sign_certificate_t));
++    signer->attributes = psa_key_attributes_init();
++
++    ret = ptls_mbedtls_get_der_key(&pem, &pk_type, (unsigned char *)data, len, NULL, 0, NULL, NULL);
++
++    if (ret == 0) {
++        if (pk_type == MBEDTLS_PK_RSA) {
++            key_length = pem.private_buflen;
++            ptls_mbedtls_set_rsa_key_attributes(signer, pem.private_buf, key_length);
++        } else if (pk_type == MBEDTLS_PK_ECKEY) {
++            ret = ptls_mbedtls_parse_ecdsa_field(pem.private_buf, pem.private_buflen, &key_index, &key_length);
++            if (ret == 0) {
++                ret = ptls_mbedtls_set_ec_key_attributes(signer, key_length);
++            }
++        } else if (pk_type == MBEDTLS_PK_NONE) {
++            size_t oid_index = 0;
++            size_t oid_length = 0;
++
++            psa_set_key_usage_flags(&signer->attributes, PSA_KEY_USAGE_SIGN_HASH);
++            ret = ptls_parse_private_key_field(pem.private_buf, pem.private_buflen, &oid_index, &oid_length, &key_index, &key_length);
++            if (ret == 0) {
++                if (oid_length == sizeof(ptls_mbedtls_oid_ec_key) &&
++                    memcmp(pem.private_buf + oid_index, ptls_mbedtls_oid_ec_key, sizeof(ptls_mbedtls_oid_ec_key)) == 0) {
++                    ret = ptls_mbedtls_parse_ec_private_key(pem.private_buf, pem.private_buflen, &key_index, &key_length);
++                    if (ret == 0) {
++                        ret = ptls_mbedtls_set_ec_key_attributes(signer, key_length);
++                    }
++                } else if (oid_length == sizeof(ptls_mbedtls_oid_rsa_key) &&
++                    memcmp(pem.private_buf + oid_index, ptls_mbedtls_oid_rsa_key, sizeof(ptls_mbedtls_oid_rsa_key)) == 0) {
++                    ptls_mbedtls_set_rsa_key_attributes(signer, pem.private_buf + key_index, key_length);
++                } else {
++                    ret = PTLS_ERROR_NOT_AVAILABLE;
++                }
++            }
++        } else {
++            ret = -1;
++        }
++
++        if (ret == 0) {
++            psa_status_t status = psa_import_key(&signer->attributes, pem.private_buf + key_index, key_length, &signer->key_id);
++            if (status != PSA_SUCCESS) {
++                ret = -1;
++            } else {
++                ret = ptls_mbedtls_set_available_schemes(signer);
++            }
++        }
++        mbedtls_pem_free(&pem);
++    }
++    if (ret == 0) {
++        signer->super.cb = ptls_mbedtls_sign_certificate;
++        ctx->sign_certificate = &signer->super;
++    } else {
++        ptls_mbedtls_dispose_sign_certificate(&signer->super);
++    }
++    return ret;
++}
++
+ /* Handling of certificates.
+ * Certificates in picotls are used both at the client and the server side.
+ * 
+@@ -1327,8 +1453,8 @@ ptls_verify_certificate_t* ptls_mbedtls_get_certificat
+             verifier = ptls_mbedssl_init_verify_certificate_complete(chain_head, NULL, NULL, NULL);
+         }
+         else {
+-
+             mbedtls_x509_crt_free(chain_head);
++            free(chain_head);
+         }
+     }
+     return (verifier==NULL)?NULL:&verifier->super;
+@@ -1341,10 +1467,12 @@ void ptls_mbedtls_dispose_verify_certificate(ptls_veri
+     if (verifier != NULL) {
+         if (verifier->trust_ca != NULL) {
+             mbedtls_x509_crt_free(verifier->trust_ca);
++            free(verifier->trust_ca);
+             verifier->trust_ca = NULL;
+         }
+         if (verifier->trust_crl != NULL) {
+             mbedtls_x509_crl_free(verifier->trust_crl);
++            free(verifier->trust_crl);
+         }
+         memset(verifier, 0, sizeof(ptls_mbedtls_verify_certificate_t));
+         free(verifier);

@@ -1,0 +1,475 @@
+{
+  "@context": {
+    "vsekai": "https://v-sekai.org/",
+    "domain": "vsekai:planning/domain/"
+  },
+  "@type": "domain:Definition",
+  "name": "warehouse_delivery_domain",
+  "variables": [
+    {
+      "name": "at",
+      "init": {
+        "robot_1": "dock",
+        "package_1": "storage",
+        "package_2": "storage"
+      }
+    },
+    {
+      "name": "carrying",
+      "init": {
+        "robot_1": null
+      }
+    },
+    {
+      "name": "delivered",
+      "init": {
+        "package_1": false,
+        "package_2": false
+      }
+    },
+    {
+      "name": "charged",
+      "init": {
+        "robot_1": false
+      }
+    }
+  ],
+  "actions": {
+    "move": {
+      "duration": "PT2M",
+      "params": [
+        "agent",
+        "from",
+        "to"
+      ],
+      "body": [
+        {
+          "pointer/set": "/at/{agent}",
+          "value": "{to}"
+        },
+        {
+          "pointer/set": "/charged/{agent}",
+          "value": false
+        }
+      ]
+    },
+    "pickup": {
+      "duration": "PT1M",
+      "params": [
+        "agent",
+        "pkg",
+        "loc"
+      ],
+      "body": [
+        {
+          "pointer/set": "/carrying/{agent}",
+          "value": "{pkg}"
+        },
+        {
+          "pointer/set": "/at/{pkg}",
+          "value": "{agent}"
+        }
+      ]
+    },
+    "dropoff": {
+      "duration": "PT1M",
+      "params": [
+        "agent",
+        "pkg",
+        "loc"
+      ],
+      "body": [
+        {
+          "pointer/set": "/carrying/{agent}",
+          "value": null
+        },
+        {
+          "pointer/set": "/at/{pkg}",
+          "value": "{loc}"
+        },
+        {
+          "pointer/set": "/delivered/{pkg}",
+          "value": true
+        }
+      ]
+    },
+    "recharge": {
+      "duration": "PT5M",
+      "params": [
+        "agent"
+      ],
+      "body": [
+        {
+          "pointer/set": "/charged/{agent}",
+          "value": true
+        }
+      ]
+    }
+  },
+  "methods": {
+    "go_storage": {
+      "params": [
+        "agent"
+      ],
+      "alternatives": [
+        {
+          "name": "already_storage",
+          "check": [
+            {
+              "eval": {
+                "type": "math/eq",
+                "a": {
+                  "type": "pointer/get",
+                  "pointer": "/at/{agent}"
+                },
+                "b": "storage"
+              }
+            }
+          ],
+          "subtasks": []
+        },
+        {
+          "name": "dock_to_storage",
+          "check": [
+            {
+              "eval": {
+                "type": "math/eq",
+                "a": {
+                  "type": "pointer/get",
+                  "pointer": "/at/{agent}"
+                },
+                "b": "dock"
+              }
+            }
+          ],
+          "subtasks": [
+            [
+              "move",
+              "{agent}",
+              "dock",
+              "storage"
+            ]
+          ]
+        },
+        {
+          "name": "shipping_to_storage",
+          "check": [
+            {
+              "eval": {
+                "type": "math/eq",
+                "a": {
+                  "type": "pointer/get",
+                  "pointer": "/at/{agent}"
+                },
+                "b": "shipping"
+              }
+            }
+          ],
+          "subtasks": [
+            [
+              "move",
+              "{agent}",
+              "shipping",
+              "dock"
+            ],
+            [
+              "move",
+              "{agent}",
+              "dock",
+              "storage"
+            ]
+          ]
+        }
+      ]
+    },
+    "go_shipping": {
+      "params": [
+        "agent"
+      ],
+      "alternatives": [
+        {
+          "name": "already_shipping",
+          "check": [
+            {
+              "eval": {
+                "type": "math/eq",
+                "a": {
+                  "type": "pointer/get",
+                  "pointer": "/at/{agent}"
+                },
+                "b": "shipping"
+              }
+            }
+          ],
+          "subtasks": []
+        },
+        {
+          "name": "dock_to_shipping",
+          "check": [
+            {
+              "eval": {
+                "type": "math/eq",
+                "a": {
+                  "type": "pointer/get",
+                  "pointer": "/at/{agent}"
+                },
+                "b": "dock"
+              }
+            }
+          ],
+          "subtasks": [
+            [
+              "move",
+              "{agent}",
+              "dock",
+              "shipping"
+            ]
+          ]
+        },
+        {
+          "name": "storage_to_shipping",
+          "check": [
+            {
+              "eval": {
+                "type": "math/eq",
+                "a": {
+                  "type": "pointer/get",
+                  "pointer": "/at/{agent}"
+                },
+                "b": "storage"
+              }
+            }
+          ],
+          "subtasks": [
+            [
+              "move",
+              "{agent}",
+              "storage",
+              "dock"
+            ],
+            [
+              "move",
+              "{agent}",
+              "dock",
+              "shipping"
+            ]
+          ]
+        }
+      ]
+    },
+    "go_dock": {
+      "params": [
+        "agent"
+      ],
+      "alternatives": [
+        {
+          "name": "already_dock",
+          "check": [
+            {
+              "eval": {
+                "type": "math/eq",
+                "a": {
+                  "type": "pointer/get",
+                  "pointer": "/at/{agent}"
+                },
+                "b": "dock"
+              }
+            }
+          ],
+          "subtasks": []
+        },
+        {
+          "name": "storage_to_dock",
+          "check": [
+            {
+              "eval": {
+                "type": "math/eq",
+                "a": {
+                  "type": "pointer/get",
+                  "pointer": "/at/{agent}"
+                },
+                "b": "storage"
+              }
+            }
+          ],
+          "subtasks": [
+            [
+              "move",
+              "{agent}",
+              "storage",
+              "dock"
+            ]
+          ]
+        },
+        {
+          "name": "shipping_to_dock",
+          "check": [
+            {
+              "eval": {
+                "type": "math/eq",
+                "a": {
+                  "type": "pointer/get",
+                  "pointer": "/at/{agent}"
+                },
+                "b": "shipping"
+              }
+            }
+          ],
+          "subtasks": [
+            [
+              "move",
+              "{agent}",
+              "shipping",
+              "dock"
+            ]
+          ]
+        }
+      ]
+    },
+    "ensure_charged": {
+      "params": [
+        "agent"
+      ],
+      "alternatives": [
+        {
+          "name": "already_charged",
+          "check": [
+            {
+              "eval": {
+                "type": "math/eq",
+                "a": {
+                  "type": "pointer/get",
+                  "pointer": "/charged/{agent}"
+                },
+                "b": true
+              }
+            }
+          ],
+          "subtasks": []
+        },
+        {
+          "name": "go_charge",
+          "check": [
+            {
+              "eval": {
+                "type": "math/eq",
+                "a": {
+                  "type": "pointer/get",
+                  "pointer": "/charged/{agent}"
+                },
+                "b": false
+              }
+            }
+          ],
+          "subtasks": [
+            [
+              "go_dock",
+              "{agent}"
+            ],
+            [
+              "recharge",
+              "{agent}"
+            ]
+          ]
+        }
+      ]
+    },
+    "deliver_pkg": {
+      "params": [
+        "agent",
+        "pkg"
+      ],
+      "alternatives": [
+        {
+          "name": "deliver_from_storage",
+          "subtasks": [
+            [
+              "ensure_charged",
+              "{agent}"
+            ],
+            [
+              "go_storage",
+              "{agent}"
+            ],
+            [
+              "pickup",
+              "{agent}",
+              "{pkg}",
+              "storage"
+            ],
+            [
+              "ensure_charged",
+              "{agent}"
+            ],
+            [
+              "go_shipping",
+              "{agent}"
+            ],
+            [
+              "dropoff",
+              "{agent}",
+              "{pkg}",
+              "shipping"
+            ]
+          ]
+        }
+      ]
+    },
+    "delivered": {
+      "params": [
+        "pkg"
+      ],
+      "alternatives": [
+        {
+          "name": "already_delivered",
+          "check": [
+            {
+              "eval": {
+                "type": "math/eq",
+                "a": {
+                  "type": "pointer/get",
+                  "pointer": "/delivered/{pkg}"
+                },
+                "b": true
+              }
+            }
+          ],
+          "subtasks": []
+        },
+        {
+          "name": "deliver_now",
+          "subtasks": [
+            [
+              "deliver_pkg",
+              "robot_1",
+              "{pkg}"
+            ]
+          ]
+        }
+      ]
+    }
+  },
+  "capabilities": {
+    "entities": {
+      "robot_1": [
+        "navigate",
+        "manipulate",
+        "dock_access"
+      ]
+    },
+    "actions": {
+      "move": [
+        "navigate"
+      ],
+      "pickup": [
+        "manipulate"
+      ],
+      "dropoff": [
+        "manipulate"
+      ],
+      "recharge": [
+        "dock_access"
+      ]
+    }
+  }
+}
