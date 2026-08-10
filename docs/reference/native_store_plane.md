@@ -286,8 +286,9 @@ means it did.
 [pwd]: https://github.com/fire/plausible-witness-dag
 
 Against the layout that committed each `xWrite` on its own, the search finds a witness at
-the first rung after nine crashes. Against the layout above, it covers 2500 candidates and
-finds none.
+the first rung after nine crashes. Against the layout above, it covers 1100 candidates and
+finds none. Those are the crash points 1 to 220, at commit sizes of 1, 8, 64, 400, and 2000
+rows.
 
 ## Every transaction retries
 

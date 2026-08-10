@@ -727,8 +727,6 @@ static fdb_error_t delta_body(FDBTransaction *tr, void *ctx, int *final) {
 static fdb_error_t put_head(FDBTransaction *tr, struct flush_ctx *c) {
 	FdbFile *f = c->f;
 	uint8_t key[KEYMAX], to[KEYMAX];
-	fdb_error_t err;
-	int got = 0;
 	int klen;
 
 	for (int i = 0; i < f->ndirty; i++) {
