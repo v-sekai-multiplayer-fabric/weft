@@ -42,9 +42,52 @@ into a start and chunks with a message id, and reassembles behind a buffer with 
 age of 300 s. Above that sits a driver: memory, NATS, or Postgres. The application never
 sees a size limit, and the driver can be swapped.
 
+## The one that answers the store plane too
+
+Looking for something else found this, which is the part worth the most.
+
+`pegboard-envoy` has `actor_sqlite_page_task.rs` and `actor_remote_sqlite_task.rs`, and
+`envoy-protocol` carries what they need:
+
+    type SqliteGetPagesRequest struct {
+        actorId: Id
+        pgnos: list<SqlitePgno>
+        expectedGeneration: optional<u64>
+        expectedHeadTxid: optional<u64>
+    }
+    type SqliteFetchedPage struct { pgno: SqlitePgno, bytes: optional<SqlitePageBytes> }
+    type SqliteDirtyPage   struct { pgno: SqlitePgno, bytes: SqlitePageBytes }
+
+**The pages travel over the connection.** A runner asks for page numbers and gets page
+bytes back. It does not hold a FoundationDB client, and it does not know FoundationDB
+exists.
+
+Read what the request carries and the design falls out of it. `expectedGeneration` and
+`expectedHeadTxid` are a fence, checked on every read rather than at commit time, which is
+the bug `../../native/storeplane/README.md` records weft finding in its own VFS.
+`SqliteFetchedPage.bytes` is optional, so a page that was never written comes back absent
+rather than as zeroes.
+
+For weft this is one substitution and not a rewrite. `fdb_vfs.c` already gives SQLite its
+pages one at a time. Today `xRead` reaches FoundationDB with `libfdb_c`. Point it at the
+link instead and a plane on another machine runs SQLite with no client, no cluster file,
+and no credentials.
+
+It also settles the rule in `Weft.Limits` about who holds the FoundationDB client. The
+answer stops being "the store plane, and every other plane asks it" and becomes "the
+control plane, and a plane asks for pages". One fewer process holds a database client.
+
+The cost is a round trip for a page miss. `../logbook/store_plane.md` measures that floor
+at 1080 us, and it is why read-ahead is the engineering in a VFS over a network.
+
 ## What weft should take, and what it should not
 
-Take the five. Do not take the transport.
+Take the five, and take the page protocol. Do not take the transport.
+
+One thing is not there to take. rivet's GUARD is not Envoy. `engine/` has no match for
+`envoyproxy`, `xds`, or `XDS`. `guard-core` is their own Rust on hyper, with a certificate
+resolver, a proxy service, and a custom serve trait. `pegboard-envoy` is their own package
+and the word means an emissary, not the proxy.
 
 rivet's H3 and WebTransport code, in `guard-core/src/h3_server.rs` and
 `datagram_transport.rs`, was hacked in rather than designed in. It is not the part worth
