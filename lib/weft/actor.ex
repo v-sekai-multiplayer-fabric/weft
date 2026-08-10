@@ -28,7 +28,7 @@ defmodule Weft.Actor do
   @spec via(id()) :: {:via, module(), {module(), id()}}
   def via({_name, _key} = id), do: {:via, Horde.Registry, {Weft.Registry, id}}
 
-  @spec put(GenServer.server(), term(), term()) :: :ok
+  @spec put(GenServer.server(), term(), term()) :: :ok | {:error, Weft.Limits.error()}
   def put(server, k, v) do
     :telemetry.span([:weft, :actor, :put], %{}, fn ->
       {GenServer.call(server, {:put, k, v}), %{}}
@@ -57,6 +57,8 @@ defmodule Weft.Actor do
       store: store,
       handle: handle,
       kv: kv,
+      # What the actor holds, so a put can check the storage limit without a scan.
+      bytes: held_bytes(kv),
       idle_ms: Application.get_env(:weft, :actor_idle_ms, :infinity),
       created_at: System.system_time(:millisecond)
     }
@@ -66,9 +68,18 @@ defmodule Weft.Actor do
 
   @impl true
   def handle_call({:put, k, v}, _from, state) do
-    # Write through to durable storage before acknowledging, then update the cache.
-    :ok = state.store.put(state.handle, k, v)
-    {:reply, :ok, %{state | kv: Map.put(state.kv, k, v)}, state.idle_ms}
+    # The limits of `Weft.Limits`, checked before the write. A store refuses the write, and
+    # it does not take the write and then drop it.
+    case allowed(state, k, v) do
+      {:error, reason} ->
+        {:reply, {:error, reason}, state, state.idle_ms}
+
+      {:ok, bytes} ->
+        # Write through to durable storage before acknowledging, then update the cache.
+        :ok = state.store.put(state.handle, k, v)
+        state = %{state | kv: Map.put(state.kv, k, v), bytes: bytes}
+        {:reply, :ok, state, state.idle_ms}
+    end
   end
 
   def handle_call({:get, k}, _from, state) do
@@ -90,5 +101,29 @@ defmodule Weft.Actor do
   def terminate(_reason, state) do
     if state[:store] && state[:handle], do: state.store.close(state.handle)
     :ok
+  end
+
+  defp held_bytes(kv) do
+    Enum.reduce(kv, 0, fn {k, v}, acc ->
+      acc + byte_size(:erlang.term_to_binary(k)) + byte_size(:erlang.term_to_binary(v))
+    end)
+  end
+
+  # What the actor would hold after this write, or the limit that refuses it. A key that
+  # is already there replaces its old value, so its old size comes off first.
+  defp allowed(state, k, v) do
+    with {:ok, key_bytes} <- Weft.Limits.check_key(k),
+         {:ok, value_bytes} <- Weft.Limits.check_value(v),
+         held = state.bytes - entry_bytes(state.kv, k),
+         {:ok, bytes} <- Weft.Limits.check_storage(held, key_bytes + value_bytes) do
+      {:ok, bytes}
+    end
+  end
+
+  defp entry_bytes(kv, k) do
+    case Map.fetch(kv, k) do
+      :error -> 0
+      {:ok, v} -> byte_size(:erlang.term_to_binary(k)) + byte_size(:erlang.term_to_binary(v))
+    end
   end
 end
