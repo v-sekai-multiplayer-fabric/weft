@@ -36,12 +36,16 @@ Two hosts appear below, and the difference between them is load bearing.
 | FDB put, one transaction | 1.0 K | about 1006 us | 14.4x |
 
 **Invalid. Do not cite it.** It measured `Store.Sqlite`, which uses the rollback journal
-and fsyncs on each commit. That is not the store the design turns on. The store weft uses
-is `Store.Replicated`, which uses WAL with `synchronous=NORMAL` and does not fsync on
-each commit. It had never been measured at all.
+and fsyncs on each commit. The design at the time turned on `Store.Replicated`, which used
+WAL with `synchronous=NORMAL` and skipped the fsync, and nobody had measured it at all.
 
-The lesson is not that the numbers were slow. It is that nobody had asked which store the
-bench opened.
+The lesson is that nobody had asked which store the bench opened.
+
+**Later, 2026-08-10.** `Store.Replicated` is deleted. Its compaction folded in place, which
+`../spec/Store.lean` proves loses a page, and a CI run caught a read returning 200 and then
+84. The real implementation is `fabric-store-plane`, and every actor here uses
+`Store.Sqlite`. So the row above measures the store weft actually runs, and the entry stays
+invalid for the original reason rather than this one.
 
 ## The store that weft uses
 

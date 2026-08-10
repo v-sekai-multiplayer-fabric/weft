@@ -30,11 +30,19 @@ defmodule Weft.Actor.Store do
 
   ## weft's design
 
-  > **What is built.** `Weft.Actor.Store.Replicated` and `.Replicator` run in the BEAM
-  > and pass their tests against a live FoundationDB. They do **not** implement the
-  > design below: they replicate logical key and value rows, not WAL frames, and
-  > compaction folds in place. That difference is a live bug, and `../spec/Store.lean`
-  > proves why. The store plane is not native and does not use iceoryx yet.
+  > **What is built.** `Weft.Actor.Store.Sqlite`, a local file for each actor. Every actor
+  > uses it, and it does not replicate.
+  >
+  > There was an Elixir prototype of the design below, `Weft.Actor.Store.Replicated` and
+  > `.Replicator`. It is deleted. It replicated logical key and value rows rather than WAL
+  > frames, and its compaction folded in place, which `../spec/Store.lean` proves loses a
+  > page. That was written down as a live bug and then kept, and it eventually failed in
+  > CI: a read returned 200 and the next read returned 84.
+  >
+  > The real implementation lives in
+  > [`fabric-store-plane`](https://github.com/v-sekai-multiplayer-fabric/fabric-store-plane),
+  > where SQLite runs over a VFS whose pages are in FoundationDB. Keeping a second store
+  > that was known to be wrong bought nothing, and it cost a red build.
 
   One store design for every actor:
 
@@ -101,14 +109,11 @@ defmodule Weft.Actor.Store do
   control plane reaches it over iceoryx. The reason is crash isolation. See
   `Weft`, "why not a dirty NIF".
 
-  The store plane does not use rivet's synchronous VFS to FoundationDB. A local SQLite WAL
-  file is the primary write path, and replication to FoundationDB is asynchronous. See
-  `../essays/latency.md` for the measured reason.
-
-  The logic is prototyped in Elixir today (`Weft.Actor.Store.Replicated` plus
-  `Weft.Actor.Store.Replicator`), tested against a live FoundationDB, so the design is
-  proven before the native port. The production store plane ports this same logic to a
-  native process behind iceoryx.
+  The store plane holds no local database file. SQLite runs over a VFS whose pages live in
+  FoundationDB, so an actor's database moves between machines with no copy and no restore.
+  rivet lists the same rule as binding, for the same reason. `../essays/latency.md`
+  explains why that still keeps durability off the write path: a write touches the page
+  cache, and only a commit crosses the network.
 
   The boundary still holds: this store holds control-plane actor KV only, not game or
   entity or world state. That is the data plane (`Weft.DataPlane`); its durable form is
