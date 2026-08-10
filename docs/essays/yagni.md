@@ -84,6 +84,57 @@ question:
 
 The SUMO world in VR is the testbed for that proof.
 
+## The gap we are not filling
+
+`../logbook/data_plane.md` has a row with nothing in it: per-tick state across machines,
+no design and no number. It is the most visible hole in the whole picture, and it is
+deliberate.
+
+Work out how much world one machine holds and the reason is arithmetic rather than taste.
+
+| at 60 Hz | entity updates in one tick |
+| --- | --- |
+| one core, the ring | 3156667 |
+| 16 cores, the ring | 41796667 |
+| 16 cores, apply against DRAM | 1958333 |
+| the 15 M target, one core | 250000 |
+
+Take the pessimistic row, because it is the honest one. The apply rate against a 2 GB
+entity table stops near 117 M each second across 16 cores, which is the DRAM bandwidth
+wall and not a code problem. That still leaves 1.96 M entity updates in every tick at
+60 Hz.
+
+Now put the one real workload beside it. The SUMO trace is 11947 vehicles with 8637 moving
+at once, and it is 4918 updates in each frame. One core at the DRAM bound covers about
+1493 of those worlds.
+
+So the gap opens at a scale nothing here approaches. Building the link that closes it
+means designing for a workload we have never seen, which is the thing this whole page is
+against.
+
+### What is needed, and is not the same thing
+
+Two things get confused with it, and both are real.
+
+**Moving a zone or an actor to another machine.** That is not per-tick. It happens when a
+machine fills or fails, and the store plane already carries it at 12918 commits each
+second. Handoff is a fence and a page fetch, not a stream.
+
+**Reaching a plane that is somewhere else at all.** Commands, lifecycle, and page fetches.
+`the-plane-link.md` is about that, and it is worth building, because a plane that cannot be
+elsewhere is not a plane, it is a thread.
+
+Neither one is a cross-machine tick. Both are on the path, and the tick is not.
+
+### What would change the answer
+
+A measured workload that does not fit in one machine. Not an estimate of one, and not a
+worry about one. `../logbook/data_plane.md` would gain a run, and this section would name
+it.
+
+Until then the row stays empty, and it stays empty on purpose. An empty row that says why
+is worth more than a design nobody can test.
+
 ## Documenting is not building
 
 The plane and CDN designs stay written down even where the code does not exist.

@@ -313,7 +313,10 @@ and it only appears at this size.
 - **A real network card.** `test/bench/fly/netbench.c` is ready to run between two
   machines on Fly, and it is held until a run that is bounded in cost. Loopback cannot
   give this number, as the entry above shows.
-- **Per-tick state across machines.** No design and no number. See the entry above.
+- **Per-tick state across machines.** No design and no number, and this one stays that way
+  on purpose. One core at the DRAM bound covers about 1493 SUMO-scale worlds, so the gap
+  opens at a scale nothing here approaches. `../essays/yagni.md` holds the arithmetic and
+  says what would change the answer.
 - **The bus under load.** The table above is one publisher and one subscriber in one
   process. A real plane has one for each core, and the numbers will differ.
 - **Scattered entities under real traffic.** The two apply numbers bracket it. The truth
