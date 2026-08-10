@@ -123,6 +123,7 @@ defmodule Weft do
   | SUMO        | Eclipse SUMO traffic microsimulation               | publish-subscribe | out of BEAM                 |
   | Interest    | thread-per-core C++ harness                        | publish-subscribe | out of BEAM                 |
   | Asset baker | OpenUSD + Adobe glTF plugin (fabric-stage-runtime) | request-response  | out of BEAM, crash-isolated |
+  | Godot       | fabric-godot-core, headless                        | publish-subscribe | out of BEAM, crash-isolated |
   | Store       | native SQLite (WAL) + FoundationDB replica         | request-response  | out of BEAM, crash-isolated |
 
   No row above has networking.
@@ -301,12 +302,19 @@ defmodule Weft do
   desktop mode swaps the tracker for keyboard and mouse, and the headset for a window.
   The TUI mode swaps the render for printed text. Two separations apply.
 
-  ### Client, not a plane
+  ### The client is a plane
 
-  A SteamVR HMD is a remote client across the network over WebTransport, not on
-  iceoryx, so it is a client like Godot, not a plane. The word plane stays for
-  server-side iceoryx processes. The server-side parts that feed and consume the
-  headset's data are planes.
+  A Godot client is a plane. It is a native process outside the BEAM that does heavy work,
+  which is the whole definition. It reaches the rest of weft over iceoryx the same way any
+  plane does.
+
+  The headset is not the plane. A SteamVR HMD is a device on the far side of a
+  WebTransport session, and that session ends at an edge. What runs on the machine is a
+  Godot process, and that process is a plane.
+
+  This matters for the TUI mode most. It needs no display and no GPU, so it runs on GitHub
+  Actions, which means weft hosts it rather than shipping it. A hosted Godot process with
+  no networking of its own is a plane by every rule in this page.
 
   ### Authority and interest, both
 
