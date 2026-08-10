@@ -203,6 +203,14 @@ is wrong did not answer. Full `status` gave the cause:
 Performance limited by server aed4c46cb0ff5258: Storage server running out of space (approaching 100MB limit).
 ```
 
+The 100 MB in that line is not the cap. It is the headroom that FoundationDB warns about.
+The cap is `--storage-memory`, and it defaults to 1 GiB for each process. The host has 128
+GB of memory, and none of it raises that cap. The cap is a parameter, and it is not a
+measure of the machine.
+
+So there were two ways out. Raise `--storage-memory`, which the container image does not
+expose. Or hold the data on disk, which the container already has.
+
 `deploy/compose.yaml` now configures `ssd`. An existing cluster moves with
 `configure storage_migration_type=aggressive ssd`.
 
