@@ -244,6 +244,29 @@ defmodule Weft do
   - **iceoryx**: same machine, zero-copy, hot path, between planes.
   - **FoundationDB**: across machines, durable state, over the network.
 
+  ### Who holds the FoundationDB client
+
+  Two processes hold it, and only two. The control plane holds `erlfdb`. The store plane
+  holds `libfdb_c`. No other plane links a FoundationDB client.
+
+  A plane that needs durable state asks the store plane over iceoryx, request-response.
+  The store plane answers from SQLite, and SQLite reads its pages through the VFS. So a
+  plane sees a database and not a key range.
+
+  The rule exists because the second client is never only a client. It repeats the API
+  version, the network thread, `fdb_setup_network`, `fdb_run_network`, and the
+  `fdb_transaction_on_error` retry loop. Each copy then chooses its own key layout, its own
+  transaction size, and its own answer to error 1020. Those choices drift, and a reader
+  cannot tell which copy is right.
+
+  This does not make the store plane a networked plane. A plane has no networking, which
+  means it terminates no transport and accepts no connection. FoundationDB sits below the
+  planes, and reaching down to it is not the same as facing a client.
+
+  **Not held today.** `native/gyreplane` links its own `libfdb_c` in `src/fdb_database.c`,
+  with its own key layout in `src/zf_kv.c`. It cannot stop until the store plane has an
+  iceoryx harness. See `../docs/reference/gyre_plane.md`.
+
   ## Results
 
   - The BEAM stays fast. It never does slow work, so scheduler latency stays low no

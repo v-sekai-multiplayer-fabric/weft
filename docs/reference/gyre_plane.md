@@ -127,6 +127,26 @@ are the same thread. A handoff between them is the thing the model exists to rem
 `test/cbmc/spsc_harness.c` and `test/verification/` went with it. They proved that ring. A
 proof of code that is not here proves nothing about what runs.
 
+## The second FoundationDB client
+
+`src/fdb_database.c` links `libfdb_c` and drives it with `fdb_future_set_callback` on the
+event loop. `native/storeplane/fdb_vfs.c` links `libfdb_c` too, and drives it with
+`fdb_future_block_until_ready`.
+
+Both call `fdb_select_api_version`, `fdb_setup_network`, `fdb_run_network`,
+`fdb_create_database`, `fdb_database_create_transaction`, and `fdb_transaction_on_error`.
+That is the client bootstrap and the retry loop, written twice, in two styles.
+
+`Weft` states the rule. The control plane holds `erlfdb`, the store plane holds
+`libfdb_c`, and no other plane links a client. A plane that needs durable state asks the
+store plane over iceoryx.
+
+So `src/fdb_database.c` and `src/zf_kv.c` are temporary. The zone tick moves onto SQLite in
+the store plane, which gives it a database rather than a key range.
+
+It cannot move yet. The store plane has no iceoryx harness either, which is the same step 1
+that blocks everything else here.
+
 ## What the split costs
 
 The plane and the edge were one process. Now they are two, and nothing joins them.
