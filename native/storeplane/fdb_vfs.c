@@ -14,7 +14,6 @@
 //   weft/db/<name>/SHARD/<as_of>/<pgno> a compacted base, versioned by as_of
 //   weft/db/<name>/SHARDN/<as_of>       the page count of a shard version
 //   weft/db/<name>/LOGN                 the page count of the log since compaction
-//   weft/db/<name>/PIN/<txid>           a read that holds a shard version
 //
 // A read finds the owner in PIDX and then reads one of DELTA or SHARD. So a read touches
 // two rows whatever the log holds, which `Store.lean` proves as `read_touches_two_rows`.
@@ -881,7 +880,6 @@ struct finish_ctx {
 	FdbFile *f;
 	uint64_t as_of;
 	uint32_t kept;
-	uint64_t oldest_pin;
 };
 
 // Make the new shard version the one a read uses, and drop what it replaced. One
@@ -904,9 +902,12 @@ static fdb_error_t finish_body(FDBTransaction *tr, void *ctx, int *final) {
 	clear_prefix(tr, f->name, "PIDX");
 	clear_prefix(tr, f->name, "DELTA");
 
-	// Retention follows demand. A shard version below the oldest pin is one that nobody
-	// can still read, so it goes. With no pin, only the new version is kept.
-	uint64_t keep_from = c->oldest_pin < c->as_of ? c->oldest_pin : c->as_of;
+	// Every shard version below the new one goes, because a read is served at the head
+	// and nothing holds an older version. `Store.lean` calls this evict, with the oldest
+	// pin at the head. A read below the head needs a pin to hold its version, and nothing
+	// writes one, so there is no pin to read here. Adding that read before a reader needs
+	// it would cost a round trip on every compaction to find nothing.
+	uint64_t keep_from = c->as_of;
 	int flen = key_shard_version(from, f->name, 0);
 	int tlen = key_shard_version(to, f->name, keep_from);
 	fdb_transaction_clear_range(tr, from, flen, to, tlen);
@@ -916,29 +917,6 @@ static fdb_error_t finish_body(FDBTransaction *tr, void *ctx, int *final) {
 
 	klen = key_meta(key, f->name, "LOGN");
 	set_u64(tr, key, klen, 0);
-	return 0;
-}
-
-struct pin_ctx {
-	FdbFile *f;
-	uint64_t oldest;
-};
-
-// The oldest read that still holds a shard version. Nothing writes a pin yet, so this
-// finds none and compaction keeps only the version it just made.
-static fdb_error_t pin_body(FDBTransaction *tr, void *ctx, int *final) {
-	(void)final;
-	struct pin_ctx *p = ctx;
-	uint8_t from[KEYMAX], to[KEYMAX];
-	uint64_t oldest = 0;
-	int found = 0;
-
-	int flen = key_prefix(from, p->f->name, "PIN");
-	int tlen = key_after(to, from, flen);
-	fdb_error_t err = edge_number(tr, from, flen, to, tlen, 0, &oldest, &found);
-	if (err) return err;
-
-	p->oldest = found ? oldest : UINT64_MAX;
 	return 0;
 }
 
@@ -977,10 +955,7 @@ static int compact(FdbFile *f) {
 	free(c.present);
 	if (rc != SQLITE_OK) return rc;
 
-	struct pin_ctx p = {f, UINT64_MAX};
-	if ((rc = run_txn(pin_body, &p, 0, SQLITE_IOERR_READ)) != SQLITE_OK) return rc;
-
-	struct finish_ctx fin = {f, as_of, kept, p.oldest};
+	struct finish_ctx fin = {f, as_of, kept};
 	if ((rc = run_txn(finish_body, &fin, 1, SQLITE_IOERR_WRITE)) != SQLITE_OK) return rc;
 
 	f->has_shard = 1;
