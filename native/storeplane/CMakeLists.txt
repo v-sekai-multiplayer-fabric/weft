@@ -22,5 +22,8 @@ target_include_directories(weft_fdb_vfs PUBLIC
 target_compile_definitions(weft_fdb_vfs PUBLIC FDB_API_VERSION=730)
 target_link_libraries(weft_fdb_vfs PUBLIC ${FDB_LIBRARY} ${SQLITE_LIBRARY} Threads::Threads)
 
-add_executable(prove_handoff prove_handoff.c)
-target_link_libraries(prove_handoff PRIVATE weft_fdb_vfs)
+# One program for each property the store plane must hold, plus the load harness.
+foreach(prog prove_handoff prove_concurrency prove_crash integrity bench_vfs)
+  add_executable(${prog} ${prog}.c)
+  target_link_libraries(${prog} PRIVATE weft_fdb_vfs)
+endforeach()
