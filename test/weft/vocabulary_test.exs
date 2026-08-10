@@ -9,6 +9,10 @@ defmodule Weft.VocabularyTest do
   being Seastar, `iceoryx2` after v1 was picked, a company name after it was removed,
   and old document paths after the split. Each was found by hand.
 
+  One entry below reversed. `iceoryx2` was retired and is now the choice, and `RouDi` and
+  `iceoryx v1` are retired in its place. A retirement is not permanent, and this test does
+  not claim it is. It claims one name for one concept today.
+
   This test finds them instead. A term below is retired, and it may appear only in the
   file that records why it was retired.
   """
@@ -16,8 +20,12 @@ defmodule Weft.VocabularyTest do
   @retired [
     {"Seastar", ["docs/essays/runtime-choice.md", "lib/weft.ex", "CLAUDE.md"],
      "The harness is a thin C++ layer over iceoryx v1. See lib/weft.ex."},
-    {"iceoryx2", ["docs/essays/runtime-choice.md", "CLAUDE.md"],
-     "weft uses iceoryx v1, which needs the RouDi daemon. See CLAUDE.md."},
+    {"RouDi", ["docs/essays/runtime-choice.md"],
+     "iceoryx2 is brokerless. No daemon runs beside a plane. See CLAUDE.md."},
+    {"iceoryx v1",
+     ["docs/essays/runtime-choice.md", "CLAUDE.md", "docs/reference/harness.md",
+      "deploy/Containerfile", "test/weft/vocabulary_test.exs"],
+     "weft uses iceoryx2. v1 does not build here, because it needs libacl. See CLAUDE.md."},
     {"VRChat", [], "Do not name another company or product. See CLAUDE.md."},
     {"docs/planes.md", [], "It is the Weft moduledoc in lib/weft.ex."},
     {"docs/reference/architecture.md", [], "It is the Weft moduledoc in lib/weft.ex."},

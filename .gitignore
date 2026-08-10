@@ -44,8 +44,10 @@ test/bench/udp_recv
 test/bench/zstd_frames
 test/bench/fly/netbench
 
-# Native planes and edges (C++): build output is not committed.
+# Native planes and edges (C++): build output is not committed. gen/ holds the dlsym
+# dispatch table and the prototypes, both generated from native/harness/iceoryx2.sigs.
 native/**/build/
+native/**/gen/
 
 # iceoryx v1 and RouDi, built from source for a local run. The container image builds
 # them too, so the source tree never holds the result. See deploy/Containerfile.

@@ -97,10 +97,12 @@ defmodule Weft do
      copies the bytes into a BEAM binary, and returns at once. No long work, no
      busy-poll, no blocked scheduler. The hard rules in `Weft.DataPlane` apply to
      every plane.
-  5. **A plane is a thread-per-core process over iceoryx v1.** Every plane runs a thin
+  5. **A plane is a thread-per-core process over iceoryx2.** Every plane runs a thin
      C++ harness. The harness pins one thread per core and runs a poll loop on an
-     iceoryx `WaitSet`. iceoryx v1 needs the RouDi daemon. The project does not use Rust,
-     so the plane is C++. There is one runtime model for all planes, not a choice per
+     iceoryx `WaitSet`. iceoryx2 is brokerless, so no daemon runs beside a plane. weft
+     writes no Rust, so the harness is C++ over iceoryx2's C++ bindings. iceoryx2 itself
+     is Rust, and it is a dependency and not weft code. There is one runtime model for
+     all planes, not a choice per
      plane. A CPU-bound plane busy-polls. An I/O-bound plane runs blocking worker threads
      over the same iceoryx transport. See `../essays/runtime-choice.md` for the measured basis.
   6. **The control plane orchestrates.** It decides where a plane runs, its lifecycle,
@@ -224,8 +226,8 @@ defmodule Weft do
   The thread-per-core harness is the loop every plane runs, not a plane by itself. In
   the game data plane, the harness runs the loop, drives Jolt (physics), and reaches the
   control plane and other planes through iceoryx. Every plane uses the harness the same
-  way. The harness is a thin C++ layer over iceoryx v1, not Seastar and not Rust. Linux
-  is the primary target. Windows support in iceoryx v1 is experimental. See
+  way. The harness is a thin C++ layer over iceoryx2, not Seastar and not Rust. Linux
+  is the primary target. Windows support in iceoryx2 is experimental. See
   `../essays/runtime-choice.md` for the measured basis.
 
   ## Durable state: FoundationDB

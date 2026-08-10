@@ -113,7 +113,7 @@ end
 
 defmodule Weft.DataPlane.Worker do
   @moduledoc """
-  Contract for a zone's data-plane worker: the C++ harness + iceoryx v1 + Jolt stack,
+  Contract for a zone's data-plane worker: the C++ harness + iceoryx2 + Jolt stack,
   or a stub. The real implementation is a Port or dirty-NIF to a separate OS
   process that owns pinned cores; it **pushes** digested snapshots to the
   subscriber as messages, so the BEAM stays event-driven and never busy-polls. See
@@ -135,7 +135,7 @@ defmodule Weft.DataPlane.Stub do
   Stand-in data-plane worker for exercising the boundary before the C++ exists. It
   models the right shape: it schedules its own ticks (event-driven, not a busy
   loop) and pushes synthetic snapshots to the subscriber. The real worker replaces
-  this module with a NIF to the native plane over iceoryx v1. The contract is identical.
+  this module with a NIF to the native plane over iceoryx2. The contract is identical.
   """
 
   @behaviour Weft.DataPlane.Worker

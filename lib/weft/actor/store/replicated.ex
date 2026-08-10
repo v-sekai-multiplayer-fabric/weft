@@ -2,7 +2,7 @@ defmodule Weft.Actor.Store.Replicated do
   @moduledoc """
   Elixir prototype of the store plane's logic (see `Weft.Actor.Store`). In production
   the store runs natively in its own process for crash isolation, reached over
-  iceoryx v1; this module proves the same logic in the BEAM and is tested against a
+  iceoryx2; this module proves the same logic in the BEAM and is tested against a
   live FoundationDB before the native port.
 
   A local SQLite file per actor in WAL mode is the fast primary

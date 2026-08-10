@@ -160,11 +160,39 @@ thread-per-core harness, in Rust, and drop Seastar. The native planes are not bu
 so the switch is cheap now and expensive later. This change rewrites `Weft` rule 5.
 Treat that rewrite as an open question until we decide.
 
-## Decision: iceoryx v1 in C++, because Rust is blocklisted
+## Reversed: iceoryx2, because v1 does not build
+
+The decision below stood until the day someone tried to build it. It failed on the first
+file.
+
+iceoryx v2.0.8 includes `<sys/acl.h>` in its Linux platform layer and links `acl`, and
+libacl is not allowed here. Neither part can be turned off from the command line. The
+`LINUX` guard is a normal CMake variable that shadows the cache, and `ICEORYX_PLATFORM`
+is a `CACHE PATH FORCE`. Upstream does ship an ACL-free `unix` layer that stubs the whole
+API, but reaching it needs a patch to two build files, which makes iceoryx a third fork.
+
+Note what that version number says. The C++ project releases `v1.0.3` and then `v2.0.x`.
+"v1" was never a version. It named the first-generation project, and the thing that told
+the two apart was the daemon.
+
+So the cost table below was already written. Read it again as the price of the reversal
+rather than the price of the choice. The one that flipped sign is the daemon: iceoryx2 is
+brokerless, so a machine runs one less process, and every deployment page that named
+RouDi loses a line rather than gaining one.
+
+The reversal is proved and not assumed. `native/harness` publishes eight snapshots from
+one process and checks all eight in another, in order and intact, with no daemon running.
+`docs/reference/harness.md` holds the commands and the output.
+
+What this costs is the rule below it. Rust is blocklisted, and iceoryx2 is Rust with C and
+C++ bindings on top. So weft still writes no Rust, and it now builds some. That is a
+narrower rule than the one it replaces, and narrowing a rule is a real loss.
+
+## Superseded: iceoryx v1 in C++, because Rust is blocklisted
 
 The target environment blocklists Rust. So the plane cannot use Rust or iceoryx2, since
-iceoryx2 is Rust-first. The decision is iceoryx v1 (the C++ implementation) with a thin
-C++ thread-per-core harness. This is the current design in `Weft` rule 5.
+iceoryx2 is Rust-first. The decision was iceoryx v1 (the C++ implementation) with a thin
+C++ thread-per-core harness. The section above reverses it. The harness is still C++.
 
 The cost of this decision, versus iceoryx2:
 
