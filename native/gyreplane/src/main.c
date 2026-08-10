@@ -1,37 +1,28 @@
 /*
- * zone-server-h2o main entry point.
+ * The zone plane entry point.
  *
- * Status: basic-ZoneTick spike (plan step 0 / task #11). Boots an event
- * loop and the FDB scaffold inherited from weftspun/h2o-bench-tpcc, and
- * drives a bare `position += velocity * dt` ZoneTick.
+ * Status: basic-ZoneTick spike. It boots the FoundationDB scaffold inherited from
+ * weftspun/h2o-bench-tpcc and drives a bare `position += velocity * dt` ZoneTick.
  *
- * weft note: this process is a plane, and a plane has no networking. The
- * QUIC/UDP listener that thread 0 used to bind moved to
- * native/edge/transport, which is the edge. Nothing feeds the
- * ZoneTick until iceoryx carries the decoded input from the edge.
+ * weft note: this process is a plane, and a plane has no networking. The transport it
+ * used to bind moved to native/edge, which splits it in two: an ingest edge for player
+ * input datagrams and a gateway edge for control streams.
  *
- * h2o is down to one job here: h2o_evloop_create() and h2o_evloop_run(),
- * so that fdb_future_set_callback has a loop to fire on and h2o_timer_t
- * has one to time out against. h2o's config, its per-thread context, and
- * its host table are gone -- they exist to route HTTP requests, and this
- * process routes none. Removing h2o_context_init() also removed the
- * dummy "default" host that only existed to satisfy its assertion.
+ * h2o is gone with it. It survived one change longer than the transport did, for its
+ * event loop, and that loop drove nothing: fdb_thread_init stored it and no code ever
+ * read it back. A worker thread ran h2o_evloop_run on a loop with no handle registered.
+ * So this build links no h2o, and the worker threads wait rather than poll.
  *
- * That last event-loop job is what the thread-per-core harness over
- * iceoryx takes over. When it does, h2o leaves this build entirely. See
- * WEFT.md.
- *
- * The libriscv guest sandbox went too. A plane runs one runtime model,
- * and a second sandbox inside it is not that model.
+ * Nothing feeds the ZoneTick until iceoryx2 carries the decoded input from an edge. That
+ * is the next thing to build, and ../harness/README.md holds the bus it will use.
  *
  * Usage:
  *   zone-server-h2o -a<thread_count> -c<cluster_file> -z<zone_id>
  */
 
-#include <h2o.h>
-
 #include <pthread.h>
 #include <signal.h>
+#include <time.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -42,7 +33,6 @@
 #include "global_data.h"
 
 typedef struct {
-    h2o_loop_t *loop;
     fdb_thread_state_t fdb_state;
     pthread_t tid;
     config_t *config;
@@ -68,8 +58,13 @@ static void *worker_main(void *arg)
 {
     thread_ctx_t *tctx = (thread_ctx_t *)arg;
 
+    /* Nothing to poll. The transport is at the edge, and the bus that will replace it is
+     * not wired, so this thread has no source of work. It waits until main clears
+     * `running` rather than spinning on an empty event loop, which is what it did before
+     * h2o came out. A busy wait here would burn a core to do nothing. */
     while (tctx->running) {
-        h2o_evloop_run(tctx->loop, INT32_MAX);
+        struct timespec idle = { .tv_sec = 0, .tv_nsec = 50 * 1000 * 1000 };
+        nanosleep(&idle, NULL);
     }
 
     return NULL;
@@ -117,9 +112,8 @@ int main(int argc, char *argv[])
         t->config = &config;
         t->running = true;
         t->z_id = (uint32_t)z_id;
-        t->loop = h2o_evloop_create();
 
-        fdb_thread_init(&fdb_global, t->loop, &t->fdb_state);
+        fdb_thread_init(&fdb_global, &t->fdb_state);
 
         pthread_create(&t->tid, NULL, worker_main, t);
     }

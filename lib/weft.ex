@@ -123,7 +123,6 @@ defmodule Weft do
   | SUMO        | Eclipse SUMO traffic microsimulation               | publish-subscribe | out of BEAM                 |
   | Interest    | thread-per-core C++ harness                        | publish-subscribe | out of BEAM                 |
   | Asset baker | OpenUSD + Adobe glTF plugin (fabric-stage-runtime) | request-response  | out of BEAM, crash-isolated |
-  | Godot       | fabric-godot-core, headless                        | publish-subscribe | out of BEAM, crash-isolated |
   | Store       | native SQLite (WAL) + FoundationDB replica         | request-response  | out of BEAM, crash-isolated |
 
   No row above has networking.
@@ -302,19 +301,22 @@ defmodule Weft do
   desktop mode swaps the tracker for keyboard and mouse, and the headset for a window.
   The TUI mode swaps the render for printed text. Two separations apply.
 
-  ### The client is a plane
+  ### Client, not a plane
 
-  A Godot client is a plane. It is a native process outside the BEAM that does heavy work,
-  which is the whole definition. It reaches the rest of weft over iceoryx the same way any
-  plane does.
+  A Godot client is not a plane. A plane talks to the data plane over iceoryx, on the same
+  machine, with no copy. A client does not. It holds a sequenced unreliable WebTransport
+  session to an edge, and the edge is what reaches the planes.
 
-  The headset is not the plane. A SteamVR HMD is a device on the far side of a
-  WebTransport session, and that session ends at an edge. What runs on the machine is a
-  Godot process, and that process is a plane.
+  So the test is what a process talks to and how, and not where it runs or how heavy it
+  is. A headless Godot on a CI runner is still a client, because it still speaks
+  WebTransport to an edge rather than iceoryx to a plane.
 
-  This matters for the TUI mode most. It needs no display and no GPU, so it runs on GitHub
-  Actions, which means weft hosts it rather than shipping it. A hosted Godot process with
-  no networking of its own is a plane by every rule in this page.
+  Sequenced and unreliable is the right shape for that session. State is worth less the
+  older it is, so a lost frame is dropped rather than retransmitted, and a late frame is
+  discarded rather than applied out of order.
+
+  The word plane stays for server-side iceoryx processes. The server-side parts that feed
+  and consume the headset's data are planes.
 
   ### Authority and interest, both
 

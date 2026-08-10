@@ -5,17 +5,16 @@ project(zone-server-h2o)
 # once the Fil-C build is vendored (task #3 in the consolidation plan).
 # Stock clang/gcc works for the pre-Fil-C spike (basic ZoneTick).
 
-find_library(H2O_LIB h2o-evloop REQUIRED)
 find_library(Z_LIB z REQUIRED)
 find_library(SSL_LIB ssl REQUIRED)
 find_library(CRYPTO_LIB crypto REQUIRED)
 find_library(FDB_C_LIB fdb_c REQUIRED)
-# yajl is gone with src/utility.c. It generated JSON response bodies for
-# h2o_req_t, and a plane answers no request. h2o itself is down to
-# h2o_evloop_create/run, so that fdb_future_set_callback has a loop. The
-# thread-per-core harness over iceoryx takes that job, and h2o leaves.
+# h2o is gone, and yajl went with src/utility.c before it. yajl generated
+# JSON response bodies for h2o_req_t, and a plane answers no request. h2o
+# itself was down to an event loop that drove nothing, because the loop
+# was stored in fdb_thread_state_t and read nowhere. This build links
+# FoundationDB, OpenSSL, zlib, and libm.
 
-find_path(H2O_INCLUDE h2o.h REQUIRED)
 find_path(OPENSSL_INCLUDE openssl/ssl.h REQUIRED)
 find_path(FDB_INCLUDE foundationdb/fdb_c.h REQUIRED)
 
@@ -59,11 +58,10 @@ file(GLOB PHYSICS_SOURCES "src/physics/*.c")
 
 add_executable(${PROJECT_NAME} ${HANDLER_SOURCES} ${SOURCES} ${GEN_SOURCES} ${PHYSICS_SOURCES})
 target_include_directories(${PROJECT_NAME} PRIVATE
-    src ${CMAKE_BINARY_DIR} ${H2O_INCLUDE} ${OPENSSL_INCLUDE} ${FDB_INCLUDE})
-target_compile_definitions(${PROJECT_NAME} PRIVATE H2O_USE_LIBUV=0)
+    src ${CMAKE_BINARY_DIR} ${OPENSSL_INCLUDE} ${FDB_INCLUDE})
 target_compile_options(${PROJECT_NAME} PRIVATE ${COMMON_OPTIONS} ${WARNING_OPTIONS})
 target_link_libraries(${PROJECT_NAME} PRIVATE ${COMMON_OPTIONS})
 target_link_libraries(${PROJECT_NAME} PRIVATE
-    ${H2O_LIB} ${FDB_C_LIB} ${SSL_LIB} ${CRYPTO_LIB} ${Z_LIB} m)
+    ${FDB_C_LIB} ${SSL_LIB} ${CRYPTO_LIB} ${Z_LIB} m)
 
 install(TARGETS ${PROJECT_NAME} RUNTIME DESTINATION bin)

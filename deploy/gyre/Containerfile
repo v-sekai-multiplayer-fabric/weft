@@ -20,8 +20,7 @@ FROM docker.io/library/ubuntu:24.04
 # build-essential, zlib1g-dev as part of the image's base dev tooling)
 # -- confirmed here by two real errors the first local build attempts
 # hit without them: "CMAKE_MAKE_PROGRAM is not set" / "Unix Makefiles"
-# without make, then h2o's own CMakeLists.txt's "Could NOT find ZLIB"
-# without zlib1g-dev. A plain ubuntu:24.04 base has none of the three,
+# without make, then a "Could NOT find ZLIB" without zlib1g-dev. A plain ubuntu:24.04 base has none of the three,
 # so all are added here to make this image self contained; everything
 # else in this RUN matches that list verbatim.
 # adduser is not in that CI list either, for the same "ships
@@ -33,27 +32,20 @@ FROM docker.io/library/ubuntu:24.04
 # could not pull it in either, since apt's package lists get removed
 # below for image size and were not available by the time that later
 # RUN step needed them.
-# g++ is still here for h2o's own build below, not for this repo: the
-# guest sandbox went with libriscv, so this build is C only again.
+# g++ is gone with h2o, and so is the whole h2o build stage below it.
+# The plane linked h2o for an event loop that drove nothing, and it
+# links none now. libbrotli-dev went with it, because it existed only
+# so h2o's build would install libh2o-evloop.
+#
 # libyajl-dev went with src/utility.c, bubblewrap and xz-utils went with
 # the guests, and the riscv64 Bootlin cross toolchain went with
 # test/guest. That toolchain was the largest single download in this
 # image.
 RUN apt-get update -qq && \
     apt-get install --no-install-recommends -qqy \
-      cmake make gcc g++ clang libssl-dev pkg-config curl ca-certificates \
-      libbrotli-dev git zlib1g-dev adduser && \
+      cmake make gcc clang libssl-dev pkg-config curl ca-certificates \
+      git zlib1g-dev adduser && \
     rm -rf /var/lib/apt/lists/*
-
-ARG H2O_VERSION=ccea64b17ade832753db933658047ede9f31a380
-RUN mkdir -p /tmp/h2o-build && cd /tmp/h2o-build && \
-    curl -LSs "https://github.com/h2o/h2o/archive/${H2O_VERSION}.tar.gz" | \
-      tar --strip-components=1 -xz && \
-    cmake -B build -DCMAKE_BUILD_TYPE=Release -DWITH_MRUBY=off \
-      -DCMAKE_INSTALL_PREFIX=/opt/h2o -S . && \
-    cmake --build build -j && \
-    cmake --install build && \
-    rm -rf /tmp/h2o-build
 
 ARG FDB_VERSION=7.3.79
 RUN curl -LSs "https://github.com/apple/foundationdb/releases/download/${FDB_VERSION}/foundationdb-clients_${FDB_VERSION}-1_amd64.deb" -o /tmp/fdb-client.deb && \
@@ -72,7 +64,7 @@ WORKDIR /work
 # ship and run artifact lives.
 COPY native/gyreplane /work
 
-RUN cmake -B build -DCMAKE_PREFIX_PATH="/opt/h2o" -DCMAKE_BUILD_TYPE=RelWithDebInfo
+RUN cmake -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo
 
 # The real link this whole image exists to prove out, same as
 # that CI's own comment on this step.

@@ -3,7 +3,6 @@
 
 #define FDB_API_VERSION 730
 
-#include <h2o.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -14,9 +13,15 @@
 /*
  * Async FDB database adapter, ported from h2o-bench-tpcc.
  *
+ * weft note: the h2o event loop is gone. It was stored and never read. See the comment
+ * below and ../WEFT.md.
+ *
  * Replaces the libpq connection pool (database.c) with FDB's C API.
- * FDB futures are integrated into h2o's event loop via
- * fdb_future_set_callback + h2o_timer_t for timeout handling.
+ * FDB futures fire on libfdb_c's own network thread, through
+ * fdb_future_set_callback. The h2o loop and timer that this struct
+ * used to hold were assigned in fdb_thread_init and read nowhere, so
+ * the timeout they implied never existed. The thread-per-core harness
+ * is what will drive these callbacks.
  *
  * Each worker thread gets its own FDBDatabase* handle (thread-safe
  * after fdb_setup_network). Transactions are created per-request.
@@ -50,8 +55,6 @@ typedef struct fdb_op_param {
 /* Per-thread FDB state. */
 typedef struct {
     FDBDatabase *db;
-    h2o_loop_t *loop;
-    h2o_timer_t timer;
     size_t active_transactions;
     size_t max_transactions;
 } fdb_thread_state_t;
@@ -68,7 +71,7 @@ typedef struct {
 int fdb_global_init(fdb_global_t *fdb, const char *cluster_file, size_t num_threads);
 
 /* Initialize per-thread FDB state. */
-int fdb_thread_init(fdb_global_t *fdb, h2o_loop_t *loop, fdb_thread_state_t *state);
+int fdb_thread_init(fdb_global_t *fdb, fdb_thread_state_t *state);
 
 /* Create a transaction on the given thread's FDB database. */
 int fdb_create_transaction(fdb_thread_state_t *state, FDBTransaction **tr);

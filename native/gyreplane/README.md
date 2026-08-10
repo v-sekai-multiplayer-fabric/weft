@@ -1,7 +1,8 @@
 # zone-server-h2o
 
-This is a native `libh2o` + FoundationDB (FDB) zone server for the V-Sekai
-multiplayer fabric. It replaces the Godot
+This is a native FoundationDB (FDB) zone server for the V-Sekai
+multiplayer fabric. The name keeps `h2o` and the code does not: see the
+weft fork note below. It replaces the Godot
 `FabricZone`/`FabricZoneJournal`/`FabricMMOGZone` engine
 (`V-Sekai-fire/multiplayer-fabric-build`, `godot/modules/multiplayer_fabric/`)
 on the **server** side. The client stays Godot engine, unchanged. Only the
@@ -9,12 +10,29 @@ authoritative zone server moves.
 
 ## Status
 
-**weft fork.** A plane has no networking, so the QUIC transport and
-H3/WebTransport session negotiation moved out of this directory to
-`../edge/transport`, together with `picoquic` and `picotls`. This
-process now opens no socket. `h2o` stays for its event loop only.
-Nothing drives the `ZoneTick` until iceoryx carries the decoded input
-from the edge. See `WEFT.md`.
+**weft fork.** Two things left this directory, and neither is coming
+back.
+
+**The transport.** A plane has no networking, so the QUIC and
+H3/WebTransport termination moved to `../edge`, together with `picoquic`
+and `picotls`. This process opens no socket.
+
+It did not move as one piece. `Weft` names two edges, and the split is by
+what the traffic is. The **ingest edge** carries player input datagrams,
+which are unreliable and high rate, and it feeds the game data plane. The
+**gateway edge** carries control streams, which are reliable and low
+rate, and it feeds the control plane. A client holds one session to each,
+so control work cannot delay the datagrams.
+
+**h2o.** It outlived the transport by one change, kept for its event
+loop. That loop drove nothing: `fdb_thread_init` stored an `h2o_loop_t`
+in `fdb_thread_state_t`, and no code ever read it back, so a worker
+thread ran `h2o_evloop_run` on a loop with no handle registered. This
+build links no h2o at all. The worker threads wait rather than spin.
+
+Nothing drives the `ZoneTick` until iceoryx2 carries the decoded input
+from an edge. That is the next thing to build, and
+`../harness/README.md` holds the bus it will use. See `WEFT.md`.
 
 This repo drives a real FDB-backed `ZoneTick` (`src/zf_zonetick.c`).
 Each process runs
@@ -91,10 +109,11 @@ not inline here:
 - `rfd/0087`: avatar IK uses `sinew-mocap/solve`'s `Align.lean`, not
   `kevinzakka/mink`; also the MuJoCo-to-Jolt physics drop.
 - `rfd/0088`: transport is `picoquic` + `picotls`, not `h2o`'s own
-  (absent) QUIC stack. That transport lives in `../edge` now.
+  (absent) QUIC stack. That transport lives in `../edge` now, split into
+  an ingest edge and a gateway edge.
 - `rfd/0072`, `rfd/0073`: the actor-lite architecture and async FDB
-  callback chain the event loop ports as-is from `h2o-bench-tpcc`'s
-  `src/`. The worker pool and the SPSC ring went in the weft fork.
+  callback chain port from `h2o-bench-tpcc`'s `src/`. The event loop, the
+  worker pool, and the SPSC ring went in the weft fork.
 
 Entity and ReBAC types generate from `lean-entity-packet` and
 `lean-rebac-core`, not hand-duplicated per language
@@ -103,7 +122,7 @@ checked against that source Lean repo's own proved theorems or golden
 vectors. Memory safety is built with
 [Fil-C](https://github.com/pizlonator/fil-c) in CI
 (`.github/workflows/build-filc.yml`); the FFI boundary against
-`h2o`/`libfdb_c` (both still stock-compiled) is not resolved yet.
+`libfdb_c`, which is still stock-compiled, is not resolved yet.
 
 ## Build
 
@@ -111,13 +130,11 @@ vectors. Memory safety is built with
 cmake -B build && cmake --build build
 ```
 
-This build requires `libh2o` (evloop build) on the include/library path.
-`libh2o`'s own build needs `libbrotli-dev` present at its build time. See
-`h2o`'s `CMakeLists.txt`: it gates `libh2o-evloop`'s install rule on
-finding Brotli.
-
-This build also requires OpenSSL and the FoundationDB C client
-(`libfdb_c`), both on the include/library path (see `CMakeLists.txt`).
+This build requires OpenSSL and the FoundationDB C client (`libfdb_c`),
+both on the include/library path (see `CMakeLists.txt`). It no longer
+requires `libh2o`, and with it went `libbrotli-dev`, which existed only
+because h2o's own build gates `libh2o-evloop`'s install rule on finding
+Brotli.
 There is no `thirdparty/` any more, and no `cmake/` either. QCBOR lost
 its last caller upstream, `libriscv` went with the guest sandbox, and
 `picoquic` and `picotls` went to `../edge`. This build links system
@@ -135,4 +152,4 @@ of code that is not here proves nothing about what runs.
 
 weft keeps its specifications in `docs/spec/`, and `docs/spec/README.md`
 explains how a test mirrors a proof. A queue invariant belongs there if
-weft ever writes its own queue. It does not, because iceoryx has one.
+weft ever writes its own queue. It does not, because iceoryx2 has one.
