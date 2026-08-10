@@ -39,10 +39,9 @@ int fdb_global_init(fdb_global_t *fdb, const char *cluster_file, size_t num_thre
     return 0;
 }
 
-int fdb_thread_init(fdb_global_t *fdb, h2o_loop_t *loop, fdb_thread_state_t *state)
+int fdb_thread_init(fdb_global_t *fdb, fdb_thread_state_t *state)
 {
     memset(state, 0, sizeof(*state));
-    state->loop = loop;
 
     /* FDB API 730: fdb_create_database returns fdb_error_t directly */
     fdb_error_t db_err = fdb_create_database(fdb->cluster_file, &state->db);
