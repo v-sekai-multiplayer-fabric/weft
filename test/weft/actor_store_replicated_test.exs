@@ -25,6 +25,8 @@ defmodule Weft.Actor.Store.ReplicatedTest do
     Enum.reduce_while(1..1_000, :never, fn _, _ ->
       case List.keyfind(Replicator.hydrate(id), user_key, 0) do
         {^user_key, ^expected} -> {:halt, :ok}
+        # Replication to FoundationDB is asynchronous by design and emits no event, so
+        # there is nothing to be told. Bounded poll, and it fails at the bound.
         _ -> Process.sleep(5) && {:cont, :never}
       end
     end)

@@ -142,11 +142,44 @@ defmodule Weft.Gateway do
   end
 
   defp do_dispatch(%Request{target: {:zone, zone_id}, op: op, args: args}) do
-    # Resolve the zone by lookup rather than catching an exit: no exceptions for
-    # the expected "no such zone" case.
+    case resolve_zone(zone_id) do
+      :ok -> apply_zone(zone_id, op, args)
+      :none -> {:error, :no_zone}
+    end
+  end
+
+  # Resolve a zone by lookup rather than by catching an exit: no exceptions for the
+  # expected "no such zone" case.
+  #
+  # A miss is retried once, and the retry is not a guess. `Horde.Registry.register`
+  # returns before `lookup` can see the name: `Horde.RegistryImpl.on_diffs/2` sends
+  # `{:crdt_update, diffs}` to the registry process, and that process materialises the
+  # name into ETS when it handles the message. So the name is behind one mailbox.
+  #
+  # `../../docs/logbook/control_plane.md` measures it. At 32 registrations at once, 617 of
+  # 640 lookups straight after a register found nothing. After one synchronous call to the
+  # registry, 0 of 640 did.
+  #
+  # That call is the retry. It is a synchronisation point and not a timeout, so there is no
+  # interval to pick and no sleep. `:sys.get_state/1` returns after every earlier message
+  # is handled, and the state it copies is four table references and two node sets, so it
+  # carries no entries.
+  #
+  # This is rivet's shape, from `GUARD.md`: the fast path reads the cache, a failure means
+  # the cached view is stale, and the retry ignores the cache. weft's cache is the ETS
+  # table Horde materialises into.
+  defp resolve_zone(zone_id) do
     case Horde.Registry.lookup(Weft.Registry, {:zone, zone_id}) do
-      [{_pid, _}] -> apply_zone(zone_id, op, args)
-      [] -> {:error, :no_zone}
+      [{_pid, _}] ->
+        :ok
+
+      [] ->
+        _ = :sys.get_state(Weft.Registry)
+
+        case Horde.Registry.lookup(Weft.Registry, {:zone, zone_id}) do
+          [{_pid, _}] -> :ok
+          [] -> :none
+        end
     end
   end
 
