@@ -73,13 +73,23 @@
 // limit below comes from them, so there is no constant to tune. See `Store.lean`.
 #define FDB_TXN_LIMIT 10000000
 
-// The largest commit that fits one transaction. Room is kept for the size, the head, and
-// the log count. `Store.lean` derives the same number as `maxCommitPages`.
-#define MAX_TXN_PAGES ((FDB_TXN_LIMIT - 4 * PAGE) / PAGE)
+// How much of a transaction one page costs, counting the key and not only the bytes. A
+// limit that counts the pages alone overruns the transaction on the keys.
+#define DELTA_ROW (PAGE + KEYMAX)
+#define PIDX_ROW (KEYMAX + 8)
 
-// The largest number of index rows that fit one transaction. A PIDX row is a key and
-// eight bytes, so the bound comes from the longest key the VFS can build.
-#define MAX_TXN_PIDX (FDB_TXN_LIMIT / (KEYMAX + 8))
+// The largest commit that goes in one transaction. Such a commit carries the page and
+// its index row, so it pays for both. `Store.lean` derives the same bound as
+// `maxCommitPages`.
+#define ONE_TXN_PAGES (FDB_TXN_LIMIT / (DELTA_ROW + PIDX_ROW))
+
+// The largest number of pages that one staging transaction carries. Staging writes the
+// pages alone, so it pays for the page rows only.
+#define STAGE_TXN_PAGES (FDB_TXN_LIMIT / DELTA_ROW)
+
+// The largest number of index rows that fit the transaction that moves the head. This is
+// what bounds a commit overall, because the index must land at once.
+#define MAX_TXN_PIDX (FDB_TXN_LIMIT / PIDX_ROW)
 
 static FDBDatabase *g_db;
 static pthread_t g_network_thread;
@@ -353,6 +363,12 @@ typedef struct {
 	uint64_t shard_as_of; // the newest shard version
 	int has_shard;
 
+	// The page counts that decide when to compact. The single writer owns both, so it
+	// keeps them here and does not read them back. A round trip for a number this
+	// process already knows is the most expensive way to learn nothing.
+	uint64_t base_pages; // the pages of the newest shard version
+	uint64_t log_pages;  // the pages committed since that version
+
 	int64_t size;      // the file size, counting what is buffered
 	int64_t sent_size; // the file size the store holds
 
@@ -453,7 +469,7 @@ static fdb_error_t load_head(FDBTransaction *tr, FdbFile *file) {
 // The newest shard version at or below the head. `Store.lean` calls this shardAt, and it
 // is the base a read falls through to when no commit owns the page.
 static fdb_error_t load_newest_shard(FDBTransaction *tr, FdbFile *file) {
-	uint8_t from[KEYMAX], to[KEYMAX];
+	uint8_t from[KEYMAX], to[KEYMAX], key[KEYMAX];
 	uint64_t as_of = 0;
 	int found = 0;
 
@@ -464,6 +480,21 @@ static fdb_error_t load_newest_shard(FDBTransaction *tr, FdbFile *file) {
 
 	file->has_shard = found;
 	file->shard_as_of = found ? as_of : 0;
+
+	// The sizes that decide when to compact are read once, here, and then kept in step
+	// by the commit and by compaction.
+	file->base_pages = 0;
+	if (found) {
+		int got = 0;
+		int klen = key_shardn(key, file->name, as_of);
+		if ((err = get_u64(tr, key, klen, &file->base_pages, &got))) return err;
+		if (!got) file->base_pages = 0;
+	}
+
+	int got = 0;
+	int klen = key_meta(key, file->name, "LOGN");
+	if ((err = get_u64(tr, key, klen, &file->log_pages, &got))) return err;
+	if (!got) file->log_pages = 0;
 	return 0;
 }
 
@@ -717,10 +748,10 @@ static fdb_error_t put_head(FDBTransaction *tr, struct flush_ctx *c) {
 	klen = key_meta(key, f->name, "SIZE");
 	set_u64(tr, key, klen, (uint64_t)f->size);
 
-	uint64_t logn = 0;
+	// The absolute value, not a read and a sum. A single writer knows what the log holds,
+	// so reading it back would cost a round trip to learn a number it already has.
 	klen = key_meta(key, f->name, "LOGN");
-	if ((err = get_u64(tr, key, klen, &logn, &got))) return err;
-	set_u64(tr, key, klen, (got ? logn : 0) + (uint64_t)f->ndirty);
+	set_u64(tr, key, klen, f->log_pages + (uint64_t)f->ndirty);
 
 	klen = key_meta(key, f->name, "HEAD");
 	set_u64(tr, key, klen, c->txid);
@@ -747,7 +778,7 @@ static fdb_error_t commit_body(FDBTransaction *tr, void *ctx, int *final) {
 }
 
 static int compact(FdbFile *f);
-static int should_compact(FdbFile *f, int *yes);
+static int should_compact(FdbFile *f);
 
 // Send everything SQLite wrote as one commit.
 //
@@ -766,13 +797,13 @@ static int flush(FdbFile *f) {
 	struct flush_ctx c = {f, f->head + 1, 0, f->ndirty};
 	int rc;
 
-	if (f->ndirty <= MAX_TXN_PAGES) {
+	if (f->ndirty <= ONE_TXN_PAGES) {
 		rc = run_txn(commit_body, &c, 1, SQLITE_IOERR_WRITE);
 		if (rc != SQLITE_OK) return rc;
 	} else {
-		for (int lo = 0; lo < f->ndirty; lo += MAX_TXN_PAGES) {
+		for (int lo = 0; lo < f->ndirty; lo += STAGE_TXN_PAGES) {
 			c.lo = lo;
-			c.hi = lo + MAX_TXN_PAGES;
+			c.hi = lo + STAGE_TXN_PAGES;
 			if (c.hi > f->ndirty) c.hi = f->ndirty;
 			rc = run_txn(delta_body, &c, 1, SQLITE_IOERR_WRITE);
 			if (rc != SQLITE_OK) return rc;
@@ -783,12 +814,10 @@ static int flush(FdbFile *f) {
 
 	f->head = c.txid;
 	f->sent_size = f->size;
+	f->log_pages += (uint64_t)f->ndirty;
 	clear_dirty(f);
 
-	int yes = 0;
-	rc = should_compact(f, &yes);
-	if (rc != SQLITE_OK) return rc;
-	return yes ? compact(f) : SQLITE_OK;
+	return should_compact(f) ? compact(f) : SQLITE_OK;
 }
 
 // ── Compaction ────────────────────────────────────────────────────────────────
@@ -800,39 +829,12 @@ static int flush(FdbFile *f) {
 // The trigger is a ratio, not a number: fold when the log is as large as the base. A
 // ratio has no units to tune, and it moves with the load. A quiet actor never compacts.
 
-struct ratio_ctx {
-	FdbFile *f;
-	uint64_t base, log;
-};
-
-static fdb_error_t ratio_body(FDBTransaction *tr, void *ctx, int *final) {
-	(void)final;
-	struct ratio_ctx *r = ctx;
-	uint8_t key[KEYMAX];
-	int got = 0;
-	fdb_error_t err;
-
-	r->base = 0;
-	r->log = 0;
-
-	if (r->f->has_shard) {
-		int klen = key_shardn(key, r->f->name, r->f->shard_as_of);
-		if ((err = get_u64(tr, key, klen, &r->base, &got))) return err;
-		if (!got) r->base = 0;
-	}
-	int klen = key_meta(key, r->f->name, "LOGN");
-	if ((err = get_u64(tr, key, klen, &r->log, &got))) return err;
-	if (!got) r->log = 0;
-	return 0;
-}
-
-static int should_compact(FdbFile *f, int *yes) {
-	struct ratio_ctx r = {f, 0, 0};
-	int rc = run_txn(ratio_body, &r, 0, SQLITE_IOERR_WRITE);
-	if (rc != SQLITE_OK) return rc;
-	// Store.lean: shouldCompact s = baseBytes s <= logBytes s.
-	*yes = r.log > 0 && r.base <= r.log;
-	return SQLITE_OK;
+// Compact when the log is as large as the base. `Store.lean` calls this shouldCompact.
+//
+// Both sizes live in the handle, so the decision costs nothing. It used to cost two round
+// trips after every commit, which was more than the commit itself.
+static int should_compact(FdbFile *f) {
+	return f->log_pages > 0 && f->base_pages <= f->log_pages;
 }
 
 struct fold_ctx {
@@ -949,7 +951,7 @@ static int compact(FdbFile *f) {
 
 	// A window is as many pages as one transaction carries, so memory and transaction
 	// size come from the same derived limit.
-	uint32_t window = MAX_TXN_PAGES;
+	uint32_t window = STAGE_TXN_PAGES;
 	if (window > npages) window = npages;
 
 	struct fold_ctx c = {f, as_of, 0, 0, NULL, NULL, 0};
@@ -985,6 +987,8 @@ static int compact(FdbFile *f) {
 
 	f->has_shard = 1;
 	f->shard_as_of = as_of;
+	f->base_pages = kept;
+	f->log_pages = 0;
 	return SQLITE_OK;
 }
 
