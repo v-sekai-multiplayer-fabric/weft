@@ -1,0 +1,122 @@
+# ci.yml -- Configuration QCBOR continuous integration for github workflow
+#
+# Copyright (c) 2024-2026, Laurence Lundblade. All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+#
+# See BSD-3-Clause license in README.md
+#
+
+name: CI
+
+on: [push, pull_request]
+
+
+# Fan out disabling on feature at a time -- too slow to do the full combo fan out
+# Use make for Linux and cmake for windows to exercise both make configurations
+
+jobs:
+  main:
+    strategy:
+      fail-fast: false
+      matrix:
+        c-compiler: [gcc, clang]
+
+        # This list is both cmake config and C preprocessor symbols; the same name is reused
+        # This list is used for all jobs, but has to be in some matrix because it is not a scalar
+        ifdef: &ifdef-array
+          - ""
+          - QCBOR_DISABLE_NON_INTEGER_LABELS
+          - QCBOR_DISABLE_TAGS
+          - USEFULBUF_DISABLE_ALL_FLOAT
+          - QCBOR_DISABLE_FLOAT_HW_USE
+          - QCBOR_DISABLE_PREFERRED_FLOAT
+          - QCBOR_CONFIG_DISABLE_EXP_AND_MANTISSA
+          - QCBOR_DISABLE_ENCODE_USAGE_GUARDS
+          - QCBOR_DISABLE_INDEFINITE_LENGTH_STRINGS
+          - QCBOR_DISABLE_INDEFINITE_LENGTH_ARRAYS
+          - QCBOR_DISABLE_DECODE_CONFORMANCE
+          - USEFULBUF_DISABLE_STREAMING
+
+        config:
+        - os-image: ubuntu-latest
+          container: ubuntu:22.04
+
+    name: ${{ matrix.ifdef }} • ${{ matrix.c-compiler }} • ${{ matrix.config.container }}
+
+    runs-on: ${{ matrix.config.os-image }}
+    container: ${{ matrix.config.container }}
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Install build tools
+      run: |
+        set -ex
+        export DEBIAN_FRONTEND=noninteractive
+        apt-get update
+        apt-get install -y build-essential ${{ matrix.c-compiler }} 
+        echo "CC=${{ matrix.c-compiler }}" >> $GITHUB_ENV
+
+    - name: Build QCBOR
+      run: |
+        set -ex
+        IFD="${{ matrix.ifdef }}"
+        if [ -z "$IFD" ]; then
+          CONDITIONAL=""
+        else
+          CONDITIONAL="CMD_LINE=-D${IFD}"
+        fi
+        make warn $CONDITIONAL
+
+    - name: Run tests
+      run: ./qcbortest
+
+  msvc:
+    name: ${{ matrix.ifdef }} • msvc • windows-latest
+    runs-on: windows-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        ifdef: *ifdef-array
+
+    env:
+      ARCH: x64
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Optional: ensures Dev Cmd environment; the VS generator usually finds MSVC without this,
+      # but keeping it makes detection deterministic.
+      - name: Set up MSVC DevCmd
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: ${{ env.ARCH }}
+
+      - name: Configure (CMake → VS solution)
+        shell: bash
+        run: |
+          IFD="${{ matrix.ifdef }}"
+          if [ -z "$IFD" ]; then
+            CONDITIONAL=""
+          else
+            CONDITIONAL="-D${IFD}=ON"
+          fi
+          ARCH="${{ env.ARCH }}" 
+          cmake -S . -B build -DBUILD_QCBOR_TEST=APP \
+             -A "$ARCH" "$CONDITIONAL"
+
+      - name: Build
+        run: cmake --build build 
+        shell: pwsh
+
+      - name: Run tests
+        shell: pwsh
+        run: |
+          $exe = "build/test/Debug/qcbortest.exe"
+          if (!(Test-Path $exe)) {
+            Write-Error "Test binary not found: $exe"
+          }
+          & $exe 
+

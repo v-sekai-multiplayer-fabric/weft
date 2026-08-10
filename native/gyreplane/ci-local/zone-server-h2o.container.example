@@ -1,0 +1,34 @@
+# zone-server-h2o itself (task #20's actual deployment target),
+# running the same image ci-local/Containerfile builds and tests
+# (task #18's real build, reused as the runtime image too -- see that
+# Containerfile's own comment on why). On-demand, like
+# zone-server-h2o-fdb.container: no [Install] section, not enabled at
+# boot, not auto-restarted.
+#
+# :Z on the certs mount is required, not optional, on hosts with
+# SELinux Enforcing (check with `getenforce`) -- without it,
+# picotls's ptls_load_certificates() fails with "Cannot load
+# certificate" even though the container's own `id` shows root and the
+# host file permissions are 644/600. SELinux denies the read
+# regardless of POSIX permissions until the bind-mounted files are
+# relabeled for container access. Confirmed by hitting this exact
+# failure, enabling picoquic's own DBG_PRINTF output
+# (debug_printf_push_stream, normally a no-op -- DISABLE_DEBUG_PRINTF
+# suppresses it) to see the real error, then fixing it with :Z.
+#
+# Install: copy to ~/.config/containers/systemd/zone-server-h2o.container,
+# replace CERTS_PATH with your checkout's certs/ dir (see
+# scripts/generate-tls-cert.sh and ci-local/README.md's "Local
+# deployment" section).
+
+[Unit]
+Requires=zone-server-h2o-ci-build.service zone-server-h2o-fdb.service
+After=zone-server-h2o-ci-build.service zone-server-h2o-fdb.service
+
+[Container]
+Image=localhost/zone-server-h2o-ci:latest
+ContainerName=zone-server-h2o
+Network=host
+Volume=CERTS_PATH:/certs:ro,Z
+Volume=zone-server-h2o-fdb-data:/var/fdb:ro,z
+Exec=-a1 -c /var/fdb/fdb.cluster -z0 -p 7443 -t /certs/zone-server.crt -k /certs/zone-server.key

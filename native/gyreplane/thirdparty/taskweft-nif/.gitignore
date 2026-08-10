@@ -1,0 +1,42 @@
+# Elixir/Mix
+/_build/
+/deps/
+/priv/libtaskweft_nif.so
+/priv/libtaskweft_nif.dll
+/priv/libtaskweft_nif.dylib
+priv/*.dll
+priv/*.dylib
+*.beam
+
+# CLI build directories
+cli/.build_native/
+cli/.build_riscv/
+
+# Built binaries
+cli/taskweft
+cli/taskweft_riscv64
+
+# Lean build artifacts
+lean/.lake/
+lean/lake-packages/
+
+# Erlang crash dumps
+erl_crash.dump
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Local env / secrets
+.env
+.env.*
+!.env.example
+
+# macOS metadata
+.DS_Store
+
+# DETS files produced by tests
+*.dets
+
+.elixir_ls/
+doc/
