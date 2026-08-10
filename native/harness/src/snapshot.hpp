@@ -35,16 +35,12 @@ inline constexpr const char* PAYLOAD_TYPE = "weft::Snapshot";
 // A C++ plane cannot call Elixir, so these are copies. `Weft.LimitsTest` asserts the
 // same values, so a change on one side fails on the other.
 
-// Entities in one bus message, at the knee. A message costs 419 ns once plus 1.25 ns for
-// each entity, and 336 is where those two are equal. Below it a message spends more time
-// on the bus than on its payload.
-inline constexpr int SNAPSHOT_BATCH = 336;
-
-// The floor, which is a different thing. 15 M snapshots each second divided by the 2.38 M
-// messages each second the bus does. Below this the bus cannot reach the target however
-// many cores it gets, and a message of 7 is 98% overhead. It says where the bus stops
-// failing, and not where to run.
-inline constexpr int SNAPSHOT_BATCH_FLOOR = 7;
+// Entities in one bus message. This is rivet's max keys per operation, which weft already
+// copies along with the rest of its limits. A message is the same shape of thing as a
+// batch put: many items, one operation. data_plane_logbook.md checks it against the batch
+// sweep: the bus fails below 7, a message stops being mostly overhead at 336, and 128
+// carries 214.68 M snapshots each second on one core.
+inline constexpr int SNAPSHOT_BATCH = 128;
 
 // The limit on one action, in milliseconds. A loop that waits longer than this has lost
 // the far end, whatever it is waiting for.

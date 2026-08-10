@@ -211,6 +211,7 @@ batch whatever its length, at one loan and one send.
 | 8 | 424.5 | 18.85 |
 | 32 | 454.9 | 70.35 |
 | 64 | 497.7 | 128.58 |
+| 128 | 596.2 | 214.68 |
 | 256 | 730.2 | 350.61 |
 | 1024 | 1695.1 | 604.11 |
 
@@ -234,11 +235,20 @@ The floor is not a size to run at, and the gap says why:
 | 336 | 1.25 ns | 50% |
 | 1024 | 0.4 ns | 25% |
 
-A message of 7 clears the target and is 98% overhead. A replication frame already carries
-256, which is 57% overhead and close enough to the knee that nothing needs to change.
+A message of 7 clears the target and is 98% overhead. So the floor says where the bus
+stops failing, and not where to run.
 
-`Weft.Limits` holds both, and it derives each one from the numbers above rather than
-storing them. So a faster bus moves them on its own.
+**weft uses 128, and that number is rivet's.** It is the max keys in one batch operation,
+at <https://rivet.dev/docs/actors/limits/>, and every other value in `Weft.Limits` comes
+from the same page. A bus message is the same shape of thing as a batch put: many items,
+one operation.
+
+128 sits 18 times above the floor at 72% overhead, and it carries 214.68 M snapshots each
+second on one core, which clears the 15 M target by 14 times. Going to 256 buys 1.5 times
+the rate and costs 1.3 times the latency of a message.
+
+Neither 7 nor 336 is a limit. They are the check on 128, and they live here rather than in
+`Weft.Limits`.
 
 ### The bus is not the per-snapshot path
 

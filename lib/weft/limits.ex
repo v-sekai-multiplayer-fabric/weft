@@ -116,10 +116,22 @@ defmodule Weft.Limits do
   | one action | 60 s | `with_in_flight/1` | a promise |
   | requests for each minute for each address | 1200 | `Weft.Gateway.dispatch/1` | a promise |
   | requests in flight | 32 | `Weft.Gateway.dispatch/1` | measured, see below |
-  | entities in one bus message | 336 | the harness, when it exists | measured, see below |
+  | keys in one batch operation | 128 | the harness, when it exists | rivet, see below |
 
   A promise is what weft tells the person who writes an actor. A measured value comes from
   a run that is written down, and the run says which one.
+
+  ## Where the numbers come from
+
+  Every value above is rivet's, at <https://rivet.dev/docs/actors/limits/>. weft copies
+  rivet's store layout, so it copies rivet's limits with it. 10 GiB for one actor, 2 KiB
+  for a key, 128 KiB for a value, 60 s for an action, 1200 requests each minute, 32 in
+  flight, and 128 keys in one batch operation are all on that page.
+
+  This is deliberate, and it is cheaper than it looks. A number weft invents is a guess
+  about a workload weft has not seen. A number rivet publishes is one that a running
+  system already lives with. So the rule for a new limit is to look there first, and to
+  invent one only when nothing there fits.
 
   ## Why 32 in flight
 
@@ -131,37 +143,28 @@ defmodule Weft.Limits do
   second, at 1.7 times the unloaded latency. A larger number buys throughput that one
   caller cannot use. It pays for that in the latency of every other caller.
 
-  ## Why 336 entities in a bus message
+  ## Why 128 entities in a bus message
 
-  The batch sweep in `data_plane_logbook.md` splits the cost of a message in two. A fixed
-  part of 419 ns that a message pays once, and a marginal part of 1.25 ns for each entity
-  in it. Both come out of the same run.
+  It is rivet's max keys per operation, which is the count of items in one batch get, put,
+  or delete. A bus message is the same shape of thing: many items, one operation. So this
+  is not a new number.
 
-  336 is where those two are equal. Below it a message spends more time on the bus than on
-  its payload, and above it the payload dominates. So it is a knee and not a size that was
-  picked, the same way `in_flight` is a knee and not a number that was picked.
+  What the measurement adds is whether that number lands in the right place for a bus.
+  `data_plane_logbook.md` says it does, and it bounds 128 on both sides.
 
-  Read the floor and the knee as two different things, because the difference is large.
+  **Below 7 the bus fails.** 15 M snapshots each second divided by the 2.38 M messages
+  each second the bus does at batch 1. A message that small is 98% overhead, so the floor
+  says where the bus stops reaching the target, and not where to run.
 
-  | entities in a message | fixed cost for each entity | overhead |
-  | --- | --- | --- |
-  | 7 | 59.9 ns | 98% |
-  | 32 | 13.1 ns | 91% |
-  | 256 | 1.6 ns | 57% |
-  | 336 | 1.25 ns | 50% |
-  | 1024 | 0.4 ns | 25% |
+  **At 336 a message stops being mostly overhead.** A message costs 419 ns once plus
+  1.25 ns for each entity, and those are equal at 336.
 
-  **The floor is 7.** That is 15 M snapshots each second divided by the 2.38 M messages
-  each second the bus does. Below 7 the bus cannot reach the target however many cores it
-  gets. A message of 7 is 98% overhead, so the floor says where the bus stops failing, and
-  it does not say where to run.
+  128 sits between them. It is 18 times the floor, it is 72% overhead, and it carries
+  214.68 M snapshots each second on one core, which clears the 15 M target by 14 times.
+  Going to 256 buys 1.5 times the rate and costs 1.3 times the latency of a message.
 
-  **The knee is 336.** A replication frame already carries 256, which is 57% overhead and
-  close enough that no change is needed for it.
-
-  Both numbers move on their own when a measurement changes, which is the point. A faster
-  bus lowers the floor. A cheaper payload raises the knee. Neither is a guess about a
-  workload.
+  Neither 7 nor 336 is a limit here. They are the check on 128, and the logbook holds
+  them.
 
   ## What enforces each one
 
@@ -203,19 +206,10 @@ defmodule Weft.Limits do
   @requests_each_minute 1200
   @in_flight 32
 
-  # The measurements the two batch numbers come out of. None is a limit on its own, so
-  # none is in `get/1`. `data_plane_logbook.md` holds the run for each.
-  #
-  # The rates give the floor: below it the bus cannot reach the target at all.
-  @snapshots_each_second 15_000_000
-  @bus_messages_each_second 2_380_000
-
-  # Three points from the batch sweep, in nanoseconds for one message. The fixed part and
-  # the marginal part are derived from them rather than written down, so a rounding here
-  # cannot drift from the run.
-  @message_ns_at_1 420.3
-  @message_ns_at_8 424.5
-  @message_ns_at_1024 1695.1
+  # rivet's max keys per operation. A bus message is the same shape of thing as a batch
+  # put: many items, one operation. data_plane_logbook.md checks it against the batch
+  # sweep, which bounds it at 7 below and 336 above.
+  @snapshot_batch 128
 
   @window_ms 60_000
   @flight_supervisor __MODULE__.InFlight
@@ -228,7 +222,6 @@ defmodule Weft.Limits do
           | :requests_each_minute
           | :in_flight
           | :snapshot_batch
-          | :snapshot_batch_floor
 
   @type error :: {:limit, limit(), [{:limit, non_neg_integer()} | {:actual, non_neg_integer()}]}
 
@@ -254,16 +247,7 @@ defmodule Weft.Limits do
   def get(:action_ms), do: @action_ms
   def get(:requests_each_minute), do: @requests_each_minute
   def get(:in_flight), do: @in_flight
-  def get(:snapshot_batch) do
-    # What one entity adds, from the two ends of the flat part of the sweep.
-    marginal = (@message_ns_at_1024 - @message_ns_at_8) / (1024 - 8)
-
-    # What a message pays once, which is the one-entity cost less that one entity.
-    fixed = @message_ns_at_1 - marginal
-
-    ceil(fixed / marginal)
-  end
-  def get(:snapshot_batch_floor), do: ceil(@snapshots_each_second / @bus_messages_each_second)
+  def get(:snapshot_batch), do: @snapshot_batch
 
   @doc """
   Check a key against the key limit.

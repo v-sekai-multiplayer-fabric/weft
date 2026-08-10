@@ -25,18 +25,11 @@ defmodule Weft.LimitsTest do
       assert Limits.get(:in_flight) == 32
     end
 
-    test "the batch numbers are ratios of measured quantities, not numbers" do
-      # The floor: 15 M snapshots each second against a bus that does 2.38 M messages each
-      # second. Below it the bus cannot reach the target however many cores it gets.
-      assert Limits.get(:snapshot_batch_floor) == 7
-
-      # The knee: a message costs 419 ns once plus 1.25 ns for each entity, and this is
-      # where those two are equal. `data_plane_logbook.md` holds the run.
-      assert Limits.get(:snapshot_batch) == 336
-
-      # The floor is not a size to run at. A message of 7 is 98% overhead, so the two are
-      # far apart on purpose and must not be confused.
-      assert Limits.get(:snapshot_batch_floor) * 10 < Limits.get(:snapshot_batch)
+    test "the batch is rivet's max keys per operation, and not a number of its own" do
+      # Every limit here is rivet's. A bus message is the same shape of thing as a batch
+      # put: many items, one operation. The measurement checks the number rather than
+      # sourcing it.
+      assert Limits.get(:snapshot_batch) == 128
     end
 
     test "the native copy of a limit matches this module" do
@@ -53,7 +46,6 @@ defmodule Weft.LimitsTest do
 
       pairs = [
         {"SNAPSHOT_BATCH", :snapshot_batch},
-        {"SNAPSHOT_BATCH_FLOOR", :snapshot_batch_floor},
         {"ACTION_MS", :action_ms}
       ]
 
