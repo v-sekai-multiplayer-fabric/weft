@@ -1,0 +1,70 @@
+# A BEAM cluster of weft machines on Docker, with one FoundationDB behind it. This is
+# the machine deploy, run on one host: each container is a machine.
+#
+#   docker compose -f deploy/compose.cluster.yaml up --build -d --scale weft=3
+#   deploy/show-beam-cluster.sh
+#   docker compose -f deploy/compose.cluster.yaml down -v
+#
+# It runs the `release` target, which is the OTP release that Fly and the .deb and the
+# .rpm all carry. So this proves the artifact that ships, not a development image.
+services:
+  fdb:
+    image: foundationdb/foundationdb:7.3.76
+    environment:
+      FDB_NETWORKING_MODE: container
+    volumes:
+      - fdb:/var/fdb
+
+  # Configure the database one time. The step is idempotent: it tests availability
+  # first, because `configure new` fails when the database exists.
+  fdb-init:
+    image: foundationdb/foundationdb:7.3.76
+    depends_on:
+      fdb:
+        condition: service_started
+    volumes:
+      - fdb:/var/fdb
+    restart: "no"
+    entrypoint: ["/bin/bash", "-lc"]
+    command:
+      - |
+        for i in $(seq 1 60); do
+          if fdbcli -C /var/fdb/fdb.cluster --exec 'status minimal' 2>/dev/null \
+             | grep -q 'The database is available'; then
+            echo "FoundationDB is available."
+            exit 0
+          fi
+          fdbcli -C /var/fdb/fdb.cluster --exec 'configure new single memory' >/dev/null 2>&1 || true
+          sleep 2
+        done
+        exit 1
+
+  weft:
+    build:
+      context: ..
+      dockerfile: deploy/Containerfile
+      target: release
+    depends_on:
+      fdb-init:
+        condition: service_completed_successfully
+    volumes:
+      - fdb:/var/fdb
+    environment:
+      WEFT_FDB_CLUSTER_FILE: /var/fdb/fdb.cluster
+      # Docker resolves a scaled service name to one address for each container, so this
+      # one name finds every node. On Fly the same variable holds `<app>.internal`.
+      WEFT_CLUSTER_QUERY: weft
+      WEFT_NODE_BASENAME: weft
+      RELEASE_DISTRIBUTION: name
+      RELEASE_COOKIE: weft-dev-cookie
+    # A BEAM node is named when the VM starts, so the name must be ready before the boot
+    # script runs. Compose cannot run a command inside an environment value, and the
+    # address is known only inside the container, so the name is built here.
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        export RELEASE_NODE="weft@$$(hostname -i | awk '{print $$1}')"
+        exec bin/weft start
+
+volumes:
+  fdb: {}

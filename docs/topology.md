@@ -23,17 +23,31 @@ So the budget is:
 At 9.8 microseconds for each kilometre of fibre, round trip, 80 ms gives a radius near
 4000 km.
 
-## Four regions
+## One region
 
-| Region | Covers |
-| --- | --- |
-| EU | Europe, Africa, west Asia |
-| NA east | east North America, South America |
-| NA west | west North America |
-| Japan | east Asia, Oceania |
+weft runs in one region. Start with `sjc`, on the west coast of North America.
 
-A world runs in one region. A person joins a world in a region, the same as VRChat. No
-world spans two regions, so no state crosses a region on the hot path.
+A radius of 4000 km holds the 80 ms budget, so one region does not cover the world. This
+is what one region gives:
+
+| From | Round trip | Result |
+| --- | --- | --- |
+| west North America | below 30 ms | good |
+| east North America | near 70 ms | good |
+| Japan | near 110 ms | avatars stutter |
+| Europe | near 150 ms | avatars stutter |
+
+A distant person can play, and the world stays correct. An entity is authoritative on
+exactly one machine, wherever the person sits. Only the smoothness of other avatars gets
+worse.
+
+One region also holds the fixed cost down. FoundationDB needs 3 machines for `triple`
+redundancy in each region. Those machines run whether a person is online or not. A second
+region doubles that floor before it serves one person.
+
+Add a region when the persons are there, not before. Each new region is one more
+FoundationDB cluster and one more front door. A world still does not span two regions.
+This is the usual design for a social 3D platform.
 
 ## A world does not cross a machine
 
@@ -45,10 +59,10 @@ This is not one world for each machine. A machine holds many worlds, because a w
 costs little. See "Machines hold many worlds" below. The rule is only that a world does
 not split.
 
-A world could split, but the cost is a proof, not a configuration change. Handing an
-entity across machines inside one frame needs a predictive method, such as the n-frame
-predictive BVH in the Lean repositories. Until that is in weft, treat a world as one
-machine.
+A world could split, but the cost is a proof, not a configuration change. To hand an
+entity across machines inside one frame, you need a predictive method. The n-frame
+predictive BVH in the Lean repositories is one. Until that is in weft, treat a world as
+one machine.
 
 ### Zones: one is enough
 
@@ -119,15 +133,16 @@ each second. Build it when the client count passes the crossover, and not before
 
 A world machine cannot be two. That is the single-writer rule, not a limit of the deploy.
 When a world machine is lost, the persons in it are disconnected and they join again. The
-world state rebuilds from FoundationDB, a measured 0.448 ms read. VRChat accepts the same
-loss.
+world state rebuilds from FoundationDB, a measured 0.448 ms read. A social 3D platform
+usually accepts the same loss, because a world instance is short-lived.
 
 FoundationDB is strongly consistent and wants a short distance between its processes. So
-each region gets its own FoundationDB cluster. One cluster does not span EU and Japan.
+each region gets its own FoundationDB cluster. One cluster does not span two regions.
 
 ## Open question: global data
 
-Identity, friends, and matchmaking are the same in every region, and a FoundationDB
-cluster for each region cannot hold them. Assets do not have this problem, because they
+Identity, friends, and matchmaking are the same in every region. A FoundationDB cluster
+for each region cannot hold them. One region does not have this problem today, and a
+second region gets it on the first day. Assets do not have this problem, because they
 are content-addressed and the S3 tier is global. See `store.md`. Identity has no answer
 yet. `tasks.md` records it.
