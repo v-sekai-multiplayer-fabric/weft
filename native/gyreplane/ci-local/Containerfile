@@ -34,30 +34,17 @@ FROM docker.io/library/ubuntu:24.04
 # could not pull it in either, since apt's package lists get removed
 # below for image size and were not available by the time that later
 # RUN step needed them.
-# bubblewrap runs engine-class guests (rfd/0095): a whole Godot build
-# is an ordinary process under Linux namespaces, not an in-process
-# libriscv guest. xz-utils unpacks the riscv64 cross toolchain below.
+# g++ is still here for h2o's own build below, not for this repo: the
+# guest sandbox went with libriscv, so this build is C only again.
+# libyajl-dev went with src/utility.c, bubblewrap and xz-utils went with
+# the guests, and the riscv64 Bootlin cross toolchain went with
+# test/guest. That toolchain was the largest single download in this
+# image.
 RUN apt-get update -qq && \
     apt-get install --no-install-recommends -qqy \
       cmake make gcc g++ clang libssl-dev pkg-config curl ca-certificates \
-      libbrotli-dev git libyajl-dev zlib1g-dev adduser bubblewrap xz-utils && \
+      libbrotli-dev git zlib1g-dev adduser && \
     rm -rf /var/lib/apt/lists/*
-
-# riscv64-glibc cross toolchain, a real Bootlin build. Needed to build
-# script-class guests (test/guest/*.c against src/sandbox/zone_abi.h)
-# for the sandbox's own tests, not assembled ad hoc.
-#
-# glibc, not musl. zone-guest-godot's FINDINGS.md documents a glibc
-# tcache crash under rvlinux and moved that spike to musl -- that
-# finding is about an entire Godot build running a full Linux
-# userland, which is exactly the workload that no longer runs in
-# libriscv at all (rfd/0095: engine guests moved to bubblewrap).
-# Script-class guests are small and stay on the toolchain the rest of
-# the fabric uses.
-ARG BOOTLIN_TOOLCHAIN=riscv64-lp64d--glibc--stable-2025.08-1
-RUN mkdir -p /opt/riscv64-toolchain && \
-    curl -LSs "https://toolchains.bootlin.com/downloads/releases/toolchains/riscv64-lp64d/tarballs/${BOOTLIN_TOOLCHAIN}.tar.xz" | \
-      tar -xJ -C /opt/riscv64-toolchain --strip-components=1
 
 ARG H2O_VERSION=ccea64b17ade832753db933658047ede9f31a380
 RUN mkdir -p /tmp/h2o-build && cd /tmp/h2o-build && \
@@ -76,11 +63,11 @@ RUN curl -LSs "https://github.com/apple/foundationdb/releases/download/${FDB_VER
     rm -f /tmp/fdb-*.deb
 
 WORKDIR /work
-# Build context is the checked-out repo working tree. thirdparty/
-# deps (QCBOR, libriscv) are real vendored content checked directly
-# into this repo, not submodules -- nothing to initialize or fetch
-# separately before this COPY. picoquic and picotls are gone: they
-# moved to native/gyreedge, because a plane has no networking.
+# Build context is the checked-out repo working tree. There is no
+# thirdparty/ any more, so there is nothing to initialize or fetch
+# before this COPY. picoquic and picotls moved to native/gyreedge,
+# because a plane has no networking. libriscv went with the sandbox.
+# QCBOR and taskweft-nif had no caller left at all.
 COPY . /work
 
 RUN cmake -B build -DCMAKE_PREFIX_PATH="/opt/h2o" -DCMAKE_BUILD_TYPE=RelWithDebInfo

@@ -3,10 +3,9 @@ message: "If you use this software, please cite it as below."
 title: "zone-server-h2o: A zone server for the V-Sekai multiplayer fabric"
 abstract: >
   Host for the minimum user-generated-content game loop. Keeps zone
-  entity state in FoundationDB as integer micrometers, and runs
-  sandboxed guest programs. It has no networking of its own. Script guests run in-process under libriscv against an
-  eight-call domain ABI. Engine guests run as separate processes under
-  Bubblewrap. ReBAC gates both planes.
+  entity state in FoundationDB as integer micrometers. It has no
+  networking of its own, and it runs no guest sandbox of its own.
+  ReBAC gates access.
 type: software
 authors:
   - family-names: Lee
@@ -21,8 +20,6 @@ url: "https://github.com/v-sekai-multiplayer-fabric/zone-server-h2o"
 keywords:
   - multiplayer
   - foundationdb
-  - riscv
-  - sandbox
   - rebac
   - godot
 
@@ -34,10 +31,14 @@ references:
         given-names: "Alf-André"
     url: "https://github.com/libriscv/libriscv"
     notes: >-
-      Vendored at thirdparty/libriscv. Runs script guests in-process
-      against src/sandbox/zone_abi.h. Chosen for the rollback path
-      because serialize_to and forking give bit-exact snapshot and
-      replay, which multiplayer-fabric-manuals rfd/0098 measures.
+      Ran script guests in-process against src/sandbox/zone_abi.h, and
+      was chosen for the rollback path because serialize_to and forking
+      give bit-exact snapshot and replay, which
+      multiplayer-fabric-manuals rfd/0098 measures. weft removed
+      thirdparty/libriscv and src/sandbox: a plane runs one runtime
+      model, the thread-per-core harness, and a second sandbox inside it
+      is not that model. This entry stays, for the same reason the
+      CrucibleBench entry below stays.
 
   - type: software
     title: "H2O: An Optimized HTTP/1, HTTP/2, HTTP/3 Server"
@@ -46,8 +47,9 @@ references:
         given-names: Kazuho
     url: "https://github.com/h2o/h2o"
     notes: >-
-      Used only as an event loop and cross-thread message queue. It
-      serves no HTTP path in this repository.
+      Used only as an event loop, so that fdb_future_set_callback has
+      somewhere to fire. It serves no HTTP path in this repository.
+      The thread-per-core harness over iceoryx replaces this last use.
 
   - type: software
     title: FoundationDB
@@ -55,8 +57,7 @@ references:
       - name: "Apple Inc."
     url: "https://github.com/apple/foundationdb"
     notes: >-
-      Linearizable datastore for zone entity state and for the guest
-      key-value store in src/sandbox/zf_guest_kv.c.
+      Linearizable datastore for zone entity state.
 
   - type: software
     title: "QCBOR: A Comprehensive, Powerful, Commercial-Quality CBOR Encoder/Decoder"
@@ -65,7 +66,9 @@ references:
         given-names: Laurence
     url: "https://github.com/laurencelundblade/QCBOR"
     notes: >-
-      Vendored at thirdparty/QCBOR for the guest ABI wire format.
+      Was vendored at thirdparty/QCBOR for the guest ABI wire format.
+      Commit f96d5b2da removed its only caller, src/mud/mud_cbor.c, and
+      weft removed the vendored copy. This entry stays.
 
   - type: software
     title: "Bubblewrap: Unprivileged Sandboxing Tool"
@@ -73,8 +76,10 @@ references:
       - name: "containers project"
     url: "https://github.com/containers/bubblewrap"
     notes: >-
-      Runs engine guests as separate processes. --unshare-net is what
-      enforces the rule that guests never reach the networking loop.
+      Ran engine guests as separate processes, where --unshare-net
+      enforced the rule that a guest never reaches the networking loop.
+      weft removed the guest sandbox, and the rule survives it: a plane
+      has no networking loop to reach. This entry stays.
 
   - type: software
     title: CrucibleBench_Phase1

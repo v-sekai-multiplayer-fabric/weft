@@ -4,8 +4,8 @@ Goal: host The Gyre in weft, and let a browser play it.
 
 State: two forks are here. Neither one holds the game.
 
-- **Here.** `native/gyreplane` is a fork of `zone-server-h2o`. It is the zone server: an
-  FDB zone tick and a libriscv guest sandbox. It has no networking.
+- **Here.** `native/gyreplane` is a fork of `zone-server-h2o`. It is an FDB zone tick and
+  nothing else. It has no networking and no vendored dependency.
 - **Here.** `native/gyreedge` is a fork of `zone-guest-gyre`. It is the browser client,
   three.js and SlugHorn, and the QUIC transport that will serve it.
 - **Specified.** `../spec/Gyre.lean` proves the properties of the room graph and the
@@ -69,9 +69,55 @@ rather than being written again.
 `native/gyreedge/TRANSPORT.md` holds the full list and the two deployment facts that moved
 with it.
 
-The plane fell from 22 MB to 5.0 MB. The edge rose to 18 MB. The total did not change.
+The plane fell from 22 MB to 5.0 MB, and then to 328 kB. The edge rose to 18 MB.
 
 iceoryx is still absent. It is the one blocker that did not move.
+
+## What is left of the plane
+
+The plane is 328 kB. It was 22 MB when it arrived.
+
+The transport left first. Then two more things left, because they had no caller once the
+transport was gone.
+
+**The h2o request half.** `src/worker_pool.c` dispatched `h2o_req_t` over an
+`h2o_multithread` queue, and nothing called it. `src/utility.c` generated JSON response
+bodies with yajl, and nothing called it either. `src/thread.c` held a second static
+`fdb_global_t` that `src/main.c` already warned against. `src/event_loop.h` and
+`src/database.h` had no reader at all, and `src/database.h` was empty.
+
+`src/main.c` also lost `h2o_config_init`, `h2o_context_init`, and the dummy `default` host
+that existed only to satisfy an h2o assertion.
+
+**The guest sandbox.** `src/sandbox` and `thirdparty/libriscv`. A plane runs one runtime
+model, which is the thread-per-core harness. A second sandbox inside it is not that model.
+Removing it made the build C only again.
+
+Two vendored copies then had no caller at all. `thirdparty/QCBOR` lost its last one when
+upstream removed `src/mud/mud_cbor.c`. `thirdparty/taskweft-nif` never had one. So
+`thirdparty` and `cmake` are both empty and gone.
+
+The credits stay. `CITATION.cff` keeps the libriscv, QCBOR, and Bubblewrap entries, and
+each one now says the code was removed. That follows the rule the CrucibleBench entry
+already set: credit for work that shaped a project does not expire when the derived file
+is deleted.
+
+## What h2o is still for
+
+One thing. `h2o_evloop_create` and `h2o_evloop_run`, so that `fdb_future_set_callback` has
+a loop to fire on and `h2o_timer_t` has one to time out against.
+
+That is the job the thread-per-core harness over iceoryx takes. When it lands, h2o leaves
+the build, and the plane links FoundationDB and iceoryx and nothing else.
+
+## What stayed, and why
+
+`src/spsc_ring.c` has no caller now, because the worker pool was its only one. It stays.
+
+It has a CBMC proof in `test/cbmc/spsc_harness.c` and a Lean proof in
+`test/verification/ZoneVerification/Spsc.lean`. The harness needs a ring between the
+thread that receives from iceoryx and the thread that ticks. Deleting a proven ring and
+writing an unproven one later is not a saving.
 
 ## What the split costs
 
@@ -124,6 +170,7 @@ leave git, or weft records the two directories as exceptions.
 3. Give the edge an entry point, and join it to the plane over iceoryx. The transport is
    already here. What is missing is the `main` that used to live in the plane.
 4. Find the domain. Subtree `zone-guest-middleham`, or write it against `../spec/Gyre.lean`.
+   It has no sandbox to run in now, so decide where a guest runs before you bring it back.
 5. Wire a TLS certificate, and prove the result with Firefox. A command line client proves
    the transport and not the product, because the client is a browser.
 
