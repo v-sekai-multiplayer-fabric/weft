@@ -13,10 +13,10 @@ defmodule Weft.Assets.StageTier do
   receives.
 
   The chunk store is not a plain directory or S3. The chunks are cut up into weft's
-  store, SQLite to FoundationDB (the store plane in `docs/reference/store.md`), and served over
+  store, SQLite to FoundationDB (the store plane in `Weft.Actor.Store`), and served over
   an on-demand H3/WebTransport chunk endpoint, spawned when a client needs a stage and
   torn down when the transfer is done (scale-to-zero, the actor lifecycle). It is not
-  an HTTP/1.1 store, because the transport is H3/WebTransport (`docs/reference/protocol.md`).
+  an HTTP/1.1 store, because the transport is H3/WebTransport (`Weft.Gateway`).
   desync gives the chunk format and dedup; the transport is ours. So the asset CDN and
   the actor store share one durable substrate. In this prototype a local directory
   stands in for that store.

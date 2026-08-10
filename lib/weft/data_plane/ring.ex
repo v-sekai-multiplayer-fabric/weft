@@ -1,7 +1,7 @@
 defmodule Weft.DataPlane.Ring do
   @moduledoc """
   Lock-free shared slot for a zone's latest digested world state, the BEAM stand-in
-  for the shared-memory ring in `docs/reference/data-plane.md` (contract 2).
+  for the shared-memory ring in `Weft.DataPlane` (contract 2).
 
   The data-plane worker *overwrites* the slot as fast as it produces snapshots; the
   BEAM *samples* the latest at tick rate. Nothing is passed as a message and nothing

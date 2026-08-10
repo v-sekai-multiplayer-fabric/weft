@@ -15,7 +15,7 @@ system in simple words, and needs no knowledge of Elixir or game engines.
 The docs split by what they do:
 
 - **[docs/reference/](docs/reference/)** holds the rules, the terms, and the contracts.
-  [architecture.md](docs/reference/architecture.md) is the architecture of the whole
+  [architecture.md](lib/) is the architecture of the whole
   system.
 - **[docs/essays/](docs/essays/)** explains why those rules exist.
 - **[docs/spec/](docs/spec/)** holds the Lean4 specs that the Elixir tests mirror.

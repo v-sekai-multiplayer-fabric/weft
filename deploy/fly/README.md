@@ -1,6 +1,6 @@
 # Run weft on Fly machines
 
-A machine is the unit. `docs/reference/architecture.md` says iceoryx does not cross machines. So every
+A machine is the unit. `Weft` says iceoryx does not cross machines. So every
 plane and every edge of one world runs on one machine. They share memory through
 `/dev/shm`. A world does not cross a machine, and one machine holds many worlds. See
 `docs/essays/topology.md`.

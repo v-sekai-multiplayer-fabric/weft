@@ -58,7 +58,7 @@ the measured store was never the store in use.
 
 The write path also has a long tail: 19.2 µs median against a 181 µs 99th percentile,
 and a 542 percent deviation. The tail is the replication cast and the compaction
-sharing the caller's scheduler. See `../reference/store.md`.
+sharing the caller's scheduler. See `Weft.Actor.Store`.
 
 **Takeaway.** Local SQLite writes cost ~70 µs; a synchronous FoundationDB write
 costs ~1 ms, about **14× more**. Latency is the priority (see `latency.md`), so the
@@ -98,7 +98,7 @@ Two mechanisms for getting digested snapshots (8 entities each) into the BEAM:
 
 **Takeaway.** Passing one Erlang message per snapshot copies a full term into the
 mailbox and caps out around 1.4M/s — the wrong tool at this rate. The
-contract-2 mechanism from `docs/reference/data-plane.md` is a lock-free shared slot
+contract-2 mechanism from `Weft.DataPlane` is a lock-free shared slot
 (`Weft.DataPlane.Ring`, backed by `:atomics`): the worker overwrites it, the BEAM
 samples it. That alone doubles single-core throughput (no copy, no mailbox), and
 because each zone has its own ring it scales across cores: **>15M snapshots/sec is
@@ -116,7 +116,7 @@ The numbers above use synthetic packets. To confirm them on real, coherent movem
 weft acts as the engine for a SUMO (Eclipse traffic microsimulation) run: a 25 by 25
 grid city, dense traffic, each vehicle an entity, each simulation step a state frame.
 The trace is 600 frames, 11,947 distinct vehicles, 8,637 peak concurrent, 2,950,620
-entity updates. See `test/bench/sumo/README.md` to reproduce and `docs/reference/protocol.md` for
+entity updates. See `test/bench/sumo/README.md` to reproduce and `Weft.Gateway` for
 the full analysis.
 
 Nasty hot-path decode plus apply (`test/bench/sumo/replay.c`), on the real trace:
@@ -132,7 +132,7 @@ Nasty hot-path decode plus apply (`test/bench/sumo/replay.c`), on the real trace
 confirms the synthetic ceiling: apply is never the bottleneck. The same trace drives
 the cheap-versus-nasty wire-format comparison (`test/bench/sumo/encode_compare.py`): nasty
 bitpacked is 12 B/entity, cheap CBOR JSON-LD is 28 B/entity (2.3× raw, 1.4× after
-last-frame zstd). Details in `docs/reference/protocol.md`.
+last-frame zstd). Details in `Weft.Gateway`.
 
 ## Packet decode+apply — is 15M pps compute- or I/O-bound? (`test/bench/pps_native.c`)
 

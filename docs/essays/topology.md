@@ -200,6 +200,6 @@ already in a world keeps playing, because world state does not need the home wor
 
 ### One name for one concept
 
-`../reference/architecture.md` says an entity is a simulated thing with position and velocity, so an account
+`Weft` says an entity is a simulated thing with position and velocity, so an account
 is not an entity. An account is an **actor**, which is the single-writer primitive. Use
 the actor name for this data.

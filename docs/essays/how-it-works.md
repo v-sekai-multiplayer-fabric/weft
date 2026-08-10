@@ -3,7 +3,7 @@
 If you have seen a screenshot of weft and had no idea what you were looking at, this
 page is for you. You need to know nothing about Elixir, and nothing about game engines.
 
-Read this first, then `../reference/architecture.md` for the full architecture.
+Read this first, then `Weft` for the full architecture.
 
 ## What weft does
 
@@ -192,8 +192,8 @@ system is early. The task pages in `../reference/` list what remains.
 
 ## Read more
 
-- `../reference/architecture.md` is the full architecture and the plane rules.
-- `../reference/data-plane.md` is the boundary between the manager and the heavy parts.
+- `Weft` is the full architecture and the plane rules.
+- `Weft.DataPlane` is the boundary between the manager and the heavy parts.
 - `latency.md` explains why each choice keeps latency low.
-- `../reference/store.md` explains how weft remembers the world.
+- `Weft.Actor.Store` explains how weft remembers the world.
 - `benchmarks.md` holds the measured numbers.
