@@ -180,9 +180,9 @@ rather than the price of the choice. The one that flipped sign is the daemon: ic
 brokerless, so a machine runs one less process, and every deployment page that named
 RouDi loses a line rather than gaining one.
 
-The reversal is proved and not assumed. `native/harness` publishes eight snapshots from
+The reversal is proved and not assumed. `fabric-harness` publishes eight snapshots from
 one process and checks all eight in another, in order and intact, with no daemon running.
-`native/harness/README.md` holds the commands and the output.
+`fabric-harness` holds the commands and the output.
 
 What this costs is the rule below it. Rust is blocklisted, and iceoryx2 is Rust with C and
 C++ bindings on top. So weft still writes no Rust, and it now builds some. That is a

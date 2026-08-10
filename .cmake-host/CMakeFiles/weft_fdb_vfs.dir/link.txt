@@ -1,0 +1,2 @@
+/usr/bin/ar qc libweft_fdb_vfs.a CMakeFiles/weft_fdb_vfs.dir/fdb_vfs.c.o
+/usr/bin/ranlib libweft_fdb_vfs.a

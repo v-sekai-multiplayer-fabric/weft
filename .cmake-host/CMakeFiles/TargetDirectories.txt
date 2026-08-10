@@ -1,0 +1,8 @@
+/home/ernest.lee/Desktop/weft/.cmake-host/CMakeFiles/weft_fdb_vfs.dir
+/home/ernest.lee/Desktop/weft/.cmake-host/CMakeFiles/prove_handoff.dir
+/home/ernest.lee/Desktop/weft/.cmake-host/CMakeFiles/prove_concurrency.dir
+/home/ernest.lee/Desktop/weft/.cmake-host/CMakeFiles/prove_crash.dir
+/home/ernest.lee/Desktop/weft/.cmake-host/CMakeFiles/integrity.dir
+/home/ernest.lee/Desktop/weft/.cmake-host/CMakeFiles/bench_vfs.dir
+/home/ernest.lee/Desktop/weft/.cmake-host/CMakeFiles/edit_cache.dir
+/home/ernest.lee/Desktop/weft/.cmake-host/CMakeFiles/rebuild_cache.dir

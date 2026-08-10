@@ -236,7 +236,7 @@ defmodule Weft.Limits do
 
   ### SQLite storage
 
-  The store plane. `../../native/storeplane/README.md` derives its transaction bounds from the FoundationDB value size, and these are the shape rivet arrived at.
+  The store plane. `../../fabric-store-plane` derives its transaction bounds from the FoundationDB value size, and these are the shape rivet arrived at.
 
   | limit | value | what rivet calls it |
   | --- | --- | --- |

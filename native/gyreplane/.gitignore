@@ -1,7 +1,0 @@
-build_tools/
-
-# certs/ moved to ../edge/.gitignore with the transport. A plane has no networking, so
-# it needs no TLS material.
-#
-# /fly.toml and test/guest/kv_smoke.elf are gone too. The Fly deploy and the riscv64
-# guest left with the transport and the sandbox.

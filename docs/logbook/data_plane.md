@@ -170,7 +170,7 @@ Loopback is not a proxy for a network card. The tool stays for a host that has o
 
 ## What the dlsym dispatch table costs
 
-`native/harness/src/bench_send.cpp`, built three ways from one source. The loop is loan,
+`fabric-harness/src/bench_send.cpp`, built three ways from one source. The loop is loan,
 write 40 bytes, send, receive, drop, with a subscriber in the same process so the send
 path is a real send path. 200000 messages for each pass, 7 passes, median of the passes,
 and the run repeated 4 times.

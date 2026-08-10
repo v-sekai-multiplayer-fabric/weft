@@ -1,74 +1,42 @@
 # native
 
-Every native source of weft. The BEAM runs the control plane only. Every heavy plane is a
-native process outside the BEAM.
+The data plane, and nothing else.
 
-This directory holds source. `../deploy/` holds every ship and run artifact.
-`native/dataplane` is the shape to copy: a `CMakeLists.txt` and a `src`, and nothing else.
+weft is the control plane. The BEAM runs it, and every heavy plane is a native process
+outside the BEAM.
 
-## What each directory is
+| directory | what it is |
+| --- | --- |
+| `dataplane` | The seqlock ring. A plane writes it, the BEAM samples it. C++, CMake. |
+| `nif` | The NIF the BEAM loads to read that ring. `../Makefile` builds it. |
 
-| directory | what it is | origin |
-| --- | --- | --- |
-| `harness` | The bus, the limits, and the payload. Every plane links it. | weft |
-| `dataplane` | The seqlock ring. C++, built with CMake. | weft |
-| `nif` | The NIF that the control plane loads. | weft |
-| `storeplane` | The SQLite VFS over FoundationDB. | weft |
-| `gyreplane` | The zone server. An FDB zone tick, and nothing else. | fork of `zone-server-h2o` |
-| `edge` | The ingest edge, the gateway edge, and the transport they share. | weft, over `zone-server-h2o`'s transport |
+`nif` is not a plane. It is the BEAM's window onto the ring, and it is the only native code
+the BEAM loads into itself.
 
-## One harness
+## Where the planes went
 
-`CMakeLists.txt` here builds `weft::harness` first, and every plane and edge links it. It
-holds one `iceoryx2.sigs`, one generated dispatch table, and one copy of the limits.
+Each one is its own repository, its own process, and its own container. weft supervises
+them as black boxes, and it reaches them only through the data plane. A plane is opaque to
+the BEAM in every other way.
 
-    cmake -S native -B native/build -DCMAKE_BUILD_TYPE=Release
-    cmake --build native/build -j
+| plane or edge | repository |
+| --- | --- |
+| the harness every plane links | [`fabric-harness`](https://github.com/v-sekai-multiplayer-fabric/fabric-harness) |
+| the store plane | [`fabric-store-plane`](https://github.com/v-sekai-multiplayer-fabric/fabric-store-plane) |
+| the ingest edge and the gateway edge | [`fabric-edge`](https://github.com/v-sekai-multiplayer-fabric/fabric-edge) |
+| the zone plane | [`gyreplane`](https://github.com/v-sekai-multiplayer-fabric/gyreplane) |
 
-Each subdirectory keeps its own `CMakeLists.txt`, so each still builds alone. The store
-plane and the zone plane are behind an option, because each needs a library that is not in
-every environment.
+Each moved with its history, not as a copy. `fabric-harness` comes into a plane
+repository as a `git subtree`, so there is still one `iceoryx2.sigs` and one copy of the
+limits.
 
-`Weft.PlaneNetworkingTest` holds the shape. A second `.sigs` file, a limit declared in a
-plane, or a directory with a build file that the root does not add, all fail.
+## Why they left
 
-## Plane or edge
+A plane that lives in this repository is a plane weft builds, and weft does not build
+planes. It starts them, watches them, and restarts them.
 
-A plane has no networking. An edge is a plane with networking. That is a definition and not
-a default, so there is no exception to check.
+Keeping them here cost more than it looked. `native/` was 124 MB, and 122 MB of that was
+one plane's vendored dependencies and build output. It is 40 kB now.
 
-`Weft.PlaneNetworkingTest` enforces it. It reads the source of each plane and fails if a
-plane calls a socket function, includes a transport header, vendors one, or links one. It
-does not read `edge`, which may do all of this.
-
-`Weft` names the two edges and says what each terminates. `edge/README.md` holds the same
-table beside the code.
-
-## The fork
-
-`gyreplane` started as a subtree of `zone-server-h2o`. It is a fork now.
-
-    git subtree add --prefix=native/gyreplane \
-      https://github.com/v-sekai-multiplayer-fabric/zone-server-h2o.git main --squash
-
-`zone-server-h2o` terminated QUIC in the process that holds authority, so the transport and
-its libraries moved to `edge`. The plane then lost the h2o request half, the libriscv guest
-sandbox, and every vendored dependency, because none of them had a caller. It is 280 kB,
-down from 22 MB.
-
-The cost is real. `git subtree pull` conflicts on every file that moved or went, and there
-are many. Read `edge/TRANSPORT.md` and `../native/gyreplane/WEFT.md` for the list.
-
-`README.md` inside `gyreplane` belongs to its upstream, except for a note at the top that
-records the change. `edge/README.md` is weft's own.
-
-## The subtree that contributed nothing
-
-`zone-guest-gyre` came in as a second subtree, at `native/gyreedge`. Not one file from it
-survives.
-
-It held a browser client, which is not an edge, and a Fly deployment that could not build,
-because every path its Containerfile compiled had already been deleted upstream. Everything
-in `edge` today is either weft's own or `zone-server-h2o`'s transport.
-
-The client is not lost. `zone-guest-gyre` maintains it, which is where a client belongs.
+The rule that follows: a new plane is a new repository. If it needs the bus, it takes
+`fabric-harness` as a subtree.
