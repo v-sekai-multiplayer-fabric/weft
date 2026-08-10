@@ -161,6 +161,9 @@ More processes raise the ceiling under load, and they lower the rate of one comm
 time. The store plane commits one at a time and waits, so it takes the second cost and not
 the first. A machine with cores to spare does not have this problem.
 
+`store_plane_logbook.md` holds every measurement with the conditions it ran under. It also
+holds the runs that turned out to be invalid, and why.
+
 | op | local file/s | FoundationDB/s | ratio |
 | --- | --- | --- | --- |
 | insert, one commit each | 269105 | 561 | 480x |
