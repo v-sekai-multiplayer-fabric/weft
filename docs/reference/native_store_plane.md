@@ -164,24 +164,24 @@ the first. A machine with cores to spare does not have this problem.
 `store_plane_logbook.md` holds every measurement with the conditions it ran under. It also
 holds the runs that turned out to be invalid, and why.
 
-| op | local file/s | FoundationDB/s | ratio |
-| --- | --- | --- | --- |
-| insert, one commit each | 269105 | 561 | 480x |
-| insert, one commit for all | 607002 | 80450 | 7.5x |
-| point read | 2141392 | 2026893 | **1.1x** |
-| scan | 13946612 | 13350778 | **1.0x** |
+| op                         | local file/s | FoundationDB/s | ratio    |
+| -------------------------- | ------------ | -------------- | -------- |
+| insert, one commit each    | 269105       | 561            | 480x     |
+| insert, one commit for all | 607002       | 80450          | 7.5x     |
+| point read                 | 2141392      | 2026893        | **1.1x** |
+| scan                       | 13946612     | 13350778       | **1.0x** |
 
 A read costs what a local read costs. A write pays for the network, which is the trade the
 design takes.
 
 The atomic commit is faster than the torn one it replaced.
 
-| the commit path | commits/s |
-| --- | --- |
-| one transaction for each `xWrite`, not atomic | 404 |
-| staged, two transactions | 280 |
-| one transaction | 420 |
-| one transaction, three reads removed | **561** |
+| the commit path                               | commits/s |
+| --------------------------------------------- | --------- |
+| one transaction for each `xWrite`, not atomic | 404       |
+| staged, two transactions                      | 280       |
+| one transaction                               | 420       |
+| one transaction, three reads removed          | **561**   |
 
 ### The write path is latency, not work
 
@@ -202,16 +202,16 @@ between two of its own commits conflicts with nothing, so nothing else would cat
 
 Not in a faster client, and not in more connections to FoundationDB.
 
-| | commits/s |
-| --- | --- |
-| one commit at a time | 928 |
-| 2 in flight | 1902 |
-| 8 in flight | 7733 |
-| 32 in flight | 19162 |
-| 128 in flight | **40993** |
-| 32 in flight over 2 handles | 19024 |
-| 32 in flight over 4 handles | 15648 |
-| 32 in flight over 8 handles | 18500 |
+|                             | commits/s |
+| --------------------------- | --------- |
+| one commit at a time        | 928       |
+| 2 in flight                 | 1902      |
+| 8 in flight                 | 7733      |
+| 32 in flight                | 19162     |
+| 128 in flight               | **40993** |
+| 32 in flight over 2 handles | 19024     |
+| 32 in flight over 4 handles | 15648     |
+| 32 in flight over 8 handles | 18500     |
 
 Commits in flight are worth 44 times. More database handles are worth nothing, because one
 client process has a single network thread and every handle shares it. The parallelism has

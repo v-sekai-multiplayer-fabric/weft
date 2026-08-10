@@ -22,8 +22,8 @@ theorem are the algorithm it holds for.
 
 ## The specs
 
-| Spec | Proves | Elixir port | Test |
-| --- | --- | --- | --- |
+| Spec          | Proves                                                                                                          | Elixir port             | Test                                   |
+| ------------- | --------------------------------------------------------------------------------------------------------------- | ----------------------- | -------------------------------------- |
 | `Dither.lean` | Floyd-Steinberg error diffusion conserves the quantization error, and the kernel weights sum to the denominator | `Weft.DataPlane.Dither` | `test/weft/data_plane/dither_test.exs` |
 
 The Floyd-Steinberg algorithm comes from
