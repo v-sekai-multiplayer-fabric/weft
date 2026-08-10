@@ -72,23 +72,23 @@ Shape A. `soak.sh` for 90 seconds, 300 rows, 200 crash rows.
 
 Shape A, 500 rows, `bench_vfs`.
 
-| the commit path | commits/s |
-| --- | --- |
-| one transaction for each `xWrite`, not atomic | 404 |
-| staged, two transactions | 280 |
-| one transaction | 420 |
-| one transaction, three reads removed | 561 |
+| the commit path                               | commits/s |
+| --------------------------------------------- | --------- |
+| one transaction for each `xWrite`, not atomic | 404       |
+| staged, two transactions                      | 280       |
+| one transaction                               | 420       |
+| one transaction, three reads removed          | 561       |
 
 ## 2026-08-09: the FoundationDB floor
 
 Shape A, direct `libfdb_c`, no SQLite.
 
-| what | commits/s | us each |
-| --- | --- | --- |
-| one commit, 1 key of 64 B | 928 | 1078 |
-| one commit, 1 page of 4 kB | 924 | 1082 |
-| one commit, 8 pages of 4 kB | 926 | 1080 |
-| one commit, 64 pages of 4 kB | 545 | 1835 |
+| what                         | commits/s | us each |
+| ---------------------------- | --------- | ------- |
+| one commit, 1 key of 64 B    | 928       | 1078    |
+| one commit, 1 page of 4 kB   | 924       | 1082    |
+| one commit, 8 pages of 4 kB  | 926       | 1080    |
+| one commit, 64 pages of 4 kB | 545       | 1835    |
 
 A commit is a round trip. The payload is nearly free until it is large.
 
@@ -97,12 +97,12 @@ A commit is a round trip. The payload is nearly free until it is large.
 Shape A, one process, one commit of one key.
 
 | in flight | commits/s |
-| --- | --- |
-| 1 | 928 |
-| 2 | 1902 |
-| 8 | 7733 |
-| 32 | 19162 |
-| 128 | 40993 |
+| --------- | --------- |
+| 1         | 928       |
+| 2         | 1902      |
+| 8         | 7733      |
+| 32        | 19162     |
+| 128       | 40993     |
 
 Over several database handles, at 32 in flight: 19024 over two, 15648 over four, and 18500
 over eight. A handle buys nothing. One client process has one network thread, and every
@@ -113,13 +113,13 @@ handle shares it.
 Shape A, but with the `ssd` engine, after the memory engine failed.
 
 | processes and depth | in flight | commits/s |
-| --- | --- | --- |
-| 1 x 32 | 32 | 18490 |
-| 1 x 128 | 128 | 42212 |
-| 2 x 64 | 128 | 45452 |
-| 4 x 32 | 128 | 47816 |
-| 8 x 16 | 128 | 49208 |
-| 4 x 64 | 256 | 62949 |
+| ------------------- | --------- | --------- |
+| 1 x 32              | 32        | 18490     |
+| 1 x 128             | 128       | 42212     |
+| 2 x 64              | 128       | 45452     |
+| 4 x 32              | 128       | 47816     |
+| 8 x 16              | 128       | 49208     |
+| 4 x 64              | 256       | 62949     |
 
 At the same number in flight, eight processes beat one by about 17 percent. The variable
 that matters is the number in flight, and not the number of processes.
@@ -129,11 +129,11 @@ that matters is the number in flight, and not the number of processes.
 Shape B, the same client tests, on the same machine.
 
 | processes and depth | in flight | commits/s |
-| --- | --- | --- |
-| 1 x 128 | 128 | 35402 |
-| 8 x 16 | 128 | 38850 |
-| 4 x 64 | 256 | 52829 |
-| 8 x 64 | 512 | 78437 |
+| ------------------- | --------- | --------- |
+| 1 x 128             | 128       | 35402     |
+| 8 x 16              | 128       | 38850     |
+| 4 x 64              | 256       | 52829     |
+| 8 x 64              | 512       | 78437     |
 
 One commit at a time costs 1585 to 2140 us, against 1078 us on shape A. `bench_vfs` reads
 233 commits each second, against 561 on shape A.
@@ -141,6 +141,55 @@ One commit at a time costs 1585 to 2140 us, against 1078 us on shape A. `bench_v
 More processes raise the ceiling under load. They lower the rate of one commit at a time,
 because a commit crosses more processes. Both clusters ran on one machine with 16 cores,
 beside the client processes, so both numbers include that contention.
+
+## 2026-08-09: where the concurrency stops paying
+
+Shape B. One client process, one commit of one key, five seconds for each depth. The
+depth is the number of commits in flight. Two runs, to check that the shape is stable.
+
+| depth | commits/s | mean us | max us | commits/s for each unit of depth |
+| --- | --- | --- | --- | --- |
+| 1 | 713 | 1396 | 6126 | 713 |
+| 2 | 1195 | 1593 | 4417 | 598 |
+| 4 | 1968 | 1912 | 4052 | 492 |
+| 8 | 3625 | 2118 | 6125 | 453 |
+| 16 | 7044 | 2211 | 5378 | 440 |
+| 32 | 12918 | 2410 | 21025 | 404 |
+| 64 | 22889 | 2697 | 5928 | 358 |
+| 128 | 32981 | 3669 | 7805 | 258 |
+| 256 | 42525 | 5429 | 11927 | 166 |
+| 512 | 49368 | 9191 | 19260 | 96 |
+
+The second run gave 727, 1952, 7059, and 12958 at the depths 1, 4, 16, and 32. It gave
+23824, 37102, 49192, and 56286 at the depths 64, 128, 256, and 512. The shape repeats.
+
+### The pattern
+
+The law of Little holds here. The number in flight is the rate times the latency. The
+measured rate matches that product to within 3 percent up to depth 64. The error grows to
+13 percent at depth 512. The cause is this program, which awaits in order, so a late
+commit hides an early one.
+
+So the curve has two parts, and the latency says which part it is in.
+
+- **Up to about 64 in flight, the latency is nearly flat.** It moves from 1396 to 2697 us.
+  That is 1.9 times. The rate over the same range rises 32 times. Each commit waits on
+  the network, and not on the other commits.
+- **Above that, the latency carries the load.** From 64 to 512 the rate rises 2.2 times.
+  The latency rises 3.4 times. Depth stops to buy throughput, and it starts to buy queue.
+
+The knee is near 64. The rate for each unit of depth falls slowly to that point, from 713
+to 358. After the knee it falls fast, and it reaches 96 at depth 512.
+
+### What it means for weft
+
+`actor_limits.md` already gives 32 in-flight requests. That value sits inside the flat
+part of this curve. There an actor gets 12918 commits each second, at 1.7 times the
+unloaded latency. The measurement supports the limit that was already written down.
+
+The store plane keeps one commit in flight for one actor, because SQLite waits inside
+`xSync`. So an actor alone sits at depth 1, which is the worst point on this curve. Depth
+comes from the number of actors that commit at once, and not from any one of them.
 
 ## 2026-08-09: the memory engine stops the cluster
 
