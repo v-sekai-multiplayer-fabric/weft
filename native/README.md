@@ -14,7 +14,7 @@ This directory holds source. `../deploy/` holds every ship and run artifact.
 | `nif` | The NIF that the control plane loads. | weft |
 | `storeplane` | The SQLite VFS over FoundationDB. | weft |
 | `gyreplane` | The zone server. An FDB zone tick, and nothing else. | fork of `zone-server-h2o` |
-| `edge` | The ingest edge, the gateway edge, and the transport they share. | weft, over a fork of `zone-guest-gyre` |
+| `edge` | The ingest edge, the gateway edge, and the transport they share. | weft, over `zone-server-h2o`'s transport |
 
 ## Plane or edge
 
@@ -28,9 +28,12 @@ does not read `edge`, which may do all of this.
 `Weft` names the two edges and says what each terminates. `edge/README.md` holds the same
 table beside the code.
 
-## The two forks
+## The fork
 
-`gyreplane` and `edge` both started as a subtree. Neither one is a subtree now.
+`gyreplane` started as a subtree of `zone-server-h2o`. It is a fork now.
+
+    git subtree add --prefix=native/gyreplane \
+      https://github.com/v-sekai-multiplayer-fabric/zone-server-h2o.git main --squash
 
 `zone-server-h2o` terminated QUIC in the process that holds authority, so the transport and
 its libraries moved to `edge`. The plane then lost the h2o request half, the libriscv guest
@@ -41,16 +44,15 @@ The cost is real. `git subtree pull` conflicts on every file that moved or went,
 are many. Read `edge/TRANSPORT.md` and `../docs/reference/gyre_plane.md` for the list.
 
 `README.md` inside `gyreplane` belongs to its upstream, except for a note at the top that
-records the change. `edge/README.md` is weft's own, because the edge is weft's design and
-not a copy of anything.
+records the change. `edge/README.md` is weft's own.
 
-The command that added each one, before the fork:
+## The subtree that contributed nothing
 
-    git subtree add --prefix=native/gyreplane \
-      https://github.com/v-sekai-multiplayer-fabric/zone-server-h2o.git main --squash
+`zone-guest-gyre` came in as a second subtree, at `native/gyreedge`. Not one file from it
+survives.
 
-    git subtree add --prefix=native/gyreedge \
-      https://github.com/v-sekai-multiplayer-fabric/zone-guest-gyre.git main --squash
+It held a browser client, which is not an edge, and a Fly deployment that could not build,
+because every path its Containerfile compiled had already been deleted upstream. Everything
+in `edge` today is either weft's own or `zone-server-h2o`'s transport.
 
-The second prefix is `native/edge` now, and the browser client that came with it is gone. A
-client is not an edge. It lives in `zone-guest-gyre`, where it is maintained.
+The client is not lost. `zone-guest-gyre` maintains it, which is where a client belongs.

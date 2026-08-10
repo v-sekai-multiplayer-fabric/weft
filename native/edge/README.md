@@ -42,16 +42,18 @@ the slow work in front of the fast work.
 ## The shared transport
 
 `transport` came from `zone-server-h2o`, where it ran in the process that holds authority.
-Read `TRANSPORT.md` for what moved and what it costs.
+Everything else here is weft's own. Read `TRANSPORT.md` for what moved and what it costs.
 
 Both edges terminate the same transport, so the code is here once. The client transport is
 HTTP/3 and WebTransport, and never HTTP/1.1. Firefox speaks both.
 
 ## What is not here
 
-The Gyre web client. It is a client, not an edge, and it lives in `zone-guest-gyre`. Its
-`slughorn.wasm` and its vendored bundle were the two binaries in this repository that broke
-the rule against committing a binary to git. Removing the client removed them.
+**A browser client.** `zone-guest-gyre` was a subtree here for a while, and not one file
+from it survives. A client is not an edge. Its `slughorn.wasm` and its vendored bundle were
+the two binaries in this repository that broke the rule against committing a binary to git,
+and they left with it. `zone-guest-gyre` maintains the client, which is where a client
+belongs.
 
-A deployment. `deploy/` holds every ship and run artifact, and `native/` holds source.
+**A deployment.** `deploy/` holds every ship and run artifact, and `native/` holds source.
 `native/dataplane` is the pattern: a `CMakeLists.txt` and a `src`, and nothing else.
