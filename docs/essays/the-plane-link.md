@@ -124,9 +124,12 @@ transport later. Measuring it between two machines would decide, and nobody has.
 
 ## The part that is still not solved
 
-None of this makes a cross-machine tick fast. rivet's shape is a control plane reaching a
-runner, at the rate a control plane works. A tick has 66 ns for each snapshot, and a
-network hop is four orders of magnitude away from that.
+None of this moves state between machines at tick rate. rivet's shape is a control plane
+reaching a runner, at the rate a control plane works. A tick has 66 ns for each snapshot,
+and a network hop is four orders of magnitude away from that.
+
+`yagni.md` says why that is not built, and `Weft.VocabularyTest` blocks the names it would
+arrive under. So this link is for commands, lifecycle, and state that can be late.
 
 So the honest position is that this link carries commands, lifecycle, and state that can
 be late. One world still runs in one machine. `topology.md` says that already, and nothing

@@ -42,6 +42,11 @@ Both kinds: use one name for one concept. Terms are in `Weft` and
   BEAM, in a repository of its own and a container of its own. weft does not start it and
   does not restart it. The platform does, and today that is a Fly app for each plane.
   `native/` holds the data plane and the NIF, and nothing else.
+- Do not build a path that carries per-tick state between machines. One core at the DRAM
+  bound covers about 1493 SUMO-scale worlds, so it answers a workload nothing here has
+  measured. `docs/essays/yagni.md` holds the arithmetic and names what would change the
+  answer, which is a measured workload that does not fit in one machine.
+  `Weft.VocabularyTest` blocks the names it would arrive under.
 - Two planes on one machine talk over iceoryx2, zero copy. Two planes on different
   machines do not talk directly at all. They go through the store plane to FoundationDB,
   which is a global transaction and is slow. The 10 GiB limit for one actor is sized for
