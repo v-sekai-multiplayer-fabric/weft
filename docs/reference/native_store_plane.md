@@ -30,7 +30,7 @@ A VFS gives SQLite its pages one page at a time. So SQLite reads the pages a que
 touches and no others. Three things follow, and none of them is true of the prototype.
 
 - **An actor is not limited by memory.** The working set is in memory, and the rest is in
-  FoundationDB. This is what makes the 10 GiB limit in `actor_limits.md` possible.
+  FoundationDB. This is what makes the 10 GiB limit in `Weft.Limits` possible.
 - **A handoff copies nothing.** A different machine opens the same database and reads
   pages. There is no restore step and no transfer, so a large actor moves as fast as a
   small one.

@@ -103,19 +103,22 @@ defmodule Weft.Limits do
   The limits an actor and a caller must obey.
 
   A limit here is a contract with the caller, and it is not a tuning constant. A tuning
-  constant is a guess about a workload. Each value below is either a promise weft makes to
-  the person who writes an actor, or a bound that comes from a measurement.
+  constant is a guess about a workload. A value below is one of two things. It is a promise
+  weft makes to the person who writes an actor, or it is a bound from a measurement.
 
-  ## The values
+  ## The values, and where each one is enforced
 
-  | limit | value | where it comes from |
-  | --- | --- | --- |
-  | storage for one actor | 10 GiB | the promise in `actor_limits.md` |
-  | one key | 2 KiB | the promise in `actor_limits.md` |
-  | one value | 128 KiB | the promise in `actor_limits.md` |
-  | one action | 60 s | the promise in `actor_limits.md` |
-  | requests for each minute for each address | 1200 | the promise in `actor_limits.md` |
-  | requests in flight | 32 | measured, see below |
+  | limit | value | enforced at | where the value comes from |
+  | --- | --- | --- | --- |
+  | storage for one actor | 10 GiB | `Weft.Actor`, before the write | a promise |
+  | one key | 2 KiB | `Weft.Actor`, before the write | a promise |
+  | one value | 128 KiB | `Weft.Actor`, before the write | a promise |
+  | one action | 60 s | `with_in_flight/1` | a promise |
+  | requests for each minute for each address | 1200 | `Weft.Gateway.dispatch/1` | a promise |
+  | requests in flight | 32 | `Weft.Gateway.dispatch/1` | measured, see below |
+
+  A promise is what weft tells the person who writes an actor. A measured value comes from
+  a run that is written down, and the run says which one.
 
   ## Why 32 in flight
 
@@ -125,7 +128,7 @@ defmodule Weft.Limits do
 
   So 32 sits inside the flat part of the curve. A caller at 32 gets 12918 commits each
   second, at 1.7 times the unloaded latency. A larger number buys throughput that one
-  caller cannot use, and it pays for that in the latency of every other caller.
+  caller cannot use. It pays for that in the latency of every other caller.
 
   ## What enforces each one
 
@@ -144,8 +147,20 @@ defmodule Weft.Limits do
   ## What refuses, and what does not
 
   A limit refuses the work. It does not accept the work and then drop it. Every function
-  here returns `{:ok, _}` or `{:error, _}`, and the error says which limit and by how
-  much, so a caller can report the cause without guessing.
+  here returns `{:ok, _}` or `{:error, _}`. The error says which limit and by how much, so
+  a caller can report the cause without guessing.
+
+  `Weft.Actor.put/3` returns `{:error, {:limit, which, limit: _, actual: _}}` and it
+  writes nothing. `Weft.Gateway.dispatch/1` returns the same shape.
+
+  A request with no address is a call from inside the node. It is not counted, because
+  these limits bound what one caller outside may take.
+
+  ## What is not enforced yet
+
+  The action limit bounds a request at the gateway. It does not bound an actor action that
+  runs long inside its own `handle_call`. That call holds the process of the actor, and no
+  gateway request waits on it.
   """
 
   @storage_bytes 10 * 1024 * 1024 * 1024

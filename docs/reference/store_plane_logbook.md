@@ -183,7 +183,7 @@ to 358. After the knee it falls fast, and it reaches 96 at depth 512.
 
 ### What it means for weft
 
-`actor_limits.md` already gives 32 in-flight requests. That value sits inside the flat
+`Weft.Limits` gives 32 in-flight requests. That value sits inside the flat
 part of this curve. There an actor gets 12918 commits each second, at 1.7 times the
 unloaded latency. The measurement supports the limit that was already written down.
 
