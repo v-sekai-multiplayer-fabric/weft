@@ -6,7 +6,7 @@
 //
 // The two runs share nothing but FoundationDB. The reader has no file to copy and no
 // restore step, which is what makes a handoff cost nothing. See
-// docs/reference/native_store_plane.md.
+// native/storeplane/README.md.
 
 #include <sqlite3.h>
 #include <stdio.h>

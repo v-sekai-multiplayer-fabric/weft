@@ -23,7 +23,7 @@ namespace weft::limits {
 // Items in one batch operation. rivet's max keys per operation. A bus message is the same
 // shape of thing as a batch put: many items, one operation.
 //
-// `data_plane_logbook.md` checks it against the batch sweep. The bus fails below 7, a
+// `../logbook/data_plane.md` checks it against the batch sweep. The bus fails below 7, a
 // message stops being mostly overhead at 336, and 128 carries 214.68 M snapshots each
 // second on one core.
 inline constexpr int SNAPSHOT_BATCH = 128;
@@ -41,7 +41,7 @@ inline constexpr std::size_t VALUE_BYTES = 128 * 1024;
 // that buffers work obeys the same bound the control plane does.
 inline constexpr int QUEUE_MESSAGES = 1000;
 
-// Requests in flight for each caller. `store_plane_logbook.md` sweeps 1 to 512, and the
+// Requests in flight for each caller. `../logbook/store_plane.md` sweeps 1 to 512, and the
 // latency stays flat to about 64. 32 sits inside the flat part.
 inline constexpr int IN_FLIGHT = 32;
 

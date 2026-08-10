@@ -19,8 +19,8 @@ up and must not misread it. Write it in ASD-STE100 Simplified Technical English:
 
 - Use short sentences. The maximum is 20 words.
 - Do not use contractions. Do not use semicolons. Use a simple tense.
-- This covers everything in `docs/reference/`, plus `CLAUDE.md` and every moduledoc and
-  comment.
+- This covers `CLAUDE.md`, `docs/logbook/`, every moduledoc, every README beside code, and
+  every comment.
 
 **Explanatory text** makes a reader understand why. Write it as an essay, not as a
 manual. STE forbids the things that make an explanation readable, so do not use it here:
@@ -84,7 +84,7 @@ Both kinds: use one name for one concept. Terms are in `Weft` and
 - Do not commit binaries or recordings to git. Upload them as CI artifacts.
 - CI is GitHub Actions. `ci.yml` runs the tests on each pull request.
 - `stress-bench.yml` records the 3D scope and gathers the numbers. A measured number goes
-  in a logbook under `docs/reference/`, with the machine and the settings that produced it.
+  in a logbook under `docs/logbook/`, with the machine and the settings that produced it.
   An essay says what a measurement changed, and it does not hold the table.
 
 ## Release
@@ -112,17 +112,22 @@ Keep the top level small. Put a new file in one of these directories.
   network test.
 - `deploy/` holds every ship and run artifact. `deploy/packaging` builds the OS packages.
   `deploy/quadlet` runs the Podman units.
-- `docs/` holds the prose. `docs/spec` holds the Lean4 specs.
+- `docs/` holds the prose. `docs/spec` holds the Lean4 specs, and `docs/logbook` holds the
+  measurements.
 
 ## Docs
 
 The directory says which kind of page it holds. Put a new page in the right one.
 
-- `docs/reference/` holds the rules, the terms, and the contracts. Start at
-  `Weft`, which is the architecture of the whole system.
-  `docs/reference/` holds one page for each open task, with its goal, its state today,
-  and its next step.
+- **A rule, a term, or a contract lives with the code it governs.** Start at `Weft`, which
+  is the architecture of the whole system. An Elixir rule is a moduledoc. A native rule is
+  a `README.md` beside the source, or `WEFT.md` where the `README.md` belongs to an
+  upstream fork.
+- **An open task lives on the same page**, with its goal, its state today, and its next
+  step. There is no separate task directory, because a task page away from its code goes
+  stale while still reading as authoritative.
 - `docs/essays/` explains why those rules exist. Send a newcomer to
   `docs/essays/how-it-works.md`.
+- `docs/logbook/` holds every measurement, oldest entry first.
 - `docs/spec/` holds the Lean4 specs. `docs/spec/README.md` explains how a test mirrors
   a proof.

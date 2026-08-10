@@ -57,7 +57,7 @@ sandbox, and every vendored dependency, because none of them had a caller. It is
 down from 22 MB.
 
 The cost is real. `git subtree pull` conflicts on every file that moved or went, and there
-are many. Read `edge/TRANSPORT.md` and `../docs/reference/gyre_plane.md` for the list.
+are many. Read `edge/TRANSPORT.md` and `../native/gyreplane/WEFT.md` for the list.
 
 `README.md` inside `gyreplane` belongs to its upstream, except for a note at the top that
 records the change. `edge/README.md` is weft's own.

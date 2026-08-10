@@ -24,7 +24,7 @@ gone.
 
 ## The numbers it has to meet
 
-`../../../docs/reference/data_plane_logbook.md` holds the measurements and the conditions
+`../../../docs/logbook/data_plane.md` holds the measurements and the conditions
 each one ran under. Two of them bound this edge.
 
 The compute ceiling for decode and apply is 1.21 ns for each packet on one core, with the

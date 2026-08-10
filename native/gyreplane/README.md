@@ -14,7 +14,7 @@ H3/WebTransport session negotiation moved out of this directory to
 `../edge/transport`, together with `picoquic` and `picotls`. This
 process now opens no socket. `h2o` stays for its event loop only.
 Nothing drives the `ZoneTick` until iceoryx carries the decoded input
-from the edge. See `../../docs/reference/gyre_plane.md`.
+from the edge. See `WEFT.md`.
 
 This repo drives a real FDB-backed `ZoneTick` (`src/zf_zonetick.c`).
 Each process runs

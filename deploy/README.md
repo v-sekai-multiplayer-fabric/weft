@@ -7,6 +7,24 @@ FoundationDB 7.3.76.
 The store plane needs FoundationDB. Each flow starts a single-node FoundationDB, shares
 the cluster file through a volume, and points `WEFT_FDB_CLUSTER_FILE` at it.
 
+## The release stages
+
+RFD 0067 sets three stages: dev, beta, and rc. `../.github/workflows/release-native.yml`
+builds them.
+
+**Built.** The workflow builds the OTP release and the C++ data plane on Linux, and it
+packages the cluster as a `.deb` and a `.rpm`. The packages install the services enabled,
+and they vendor the FoundationDB installers, so a node is self-contained. Burrito and zig
+were dropped.
+
+**Not built.** Validation of the packaging in CI, and the FoundationDB install in
+particular.
+
+Linux is the only release target. FoundationDB publishes no Windows build after 7.2.5, and
+the pinned 7.3.76 release has no Windows asset, so a Windows node cannot run the store
+plane. `erlfdb` has no Windows arm in its build script either. Windows runs weft in a
+container, which the rest of this page describes.
+
 ## Files
 
 - `Containerfile` builds and runs weft. It also builds iceoryx2, the zero-copy bus

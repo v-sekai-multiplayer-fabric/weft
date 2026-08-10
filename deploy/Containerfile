@@ -24,7 +24,7 @@ ARG RUST_IMAGE=docker.io/library/rust:1.90-bookworm
 # dependency, and the harness links its C++ bindings. See docs/essays/runtime-choice.md.
 #
 # iceoryx v1 is not an option. Its Linux platform layer needs libacl, which is not
-# allowed. See docs/reference/harness.md.
+# allowed. See native/harness/README.md.
 FROM ${RUST_IMAGE} AS iceoryx
 ARG ICEORYX2_VERSION
 RUN apt-get update && apt-get install -y --no-install-recommends cmake ca-certificates curl \

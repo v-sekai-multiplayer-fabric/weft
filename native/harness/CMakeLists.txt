@@ -14,7 +14,7 @@
 # symbol and does not link this target fails.
 #
 # proof/ holds the two programs that show the bus works, and the bench that measured it.
-# They are not the harness. See ../../docs/reference/harness.md.
+# They are not the harness. See README.md.
 #
 # SPDX-License-Identifier: Apache-2.0
 cmake_minimum_required(VERSION 3.22)

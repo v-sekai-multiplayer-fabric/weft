@@ -22,7 +22,7 @@ kind of answer.
 15M snapshots/sec is a **66 ns/snapshot** budget. We measured the same ring write across
 the tiers, and only the native tier fits inside it — the BEAM ring misses by about five
 times, and one Erlang message per snapshot misses by about eleven. The numbers are in
-`../reference/data_plane_logbook.md`.
+`../logbook/data_plane.md`.
 
 Native clears 15M by ~9× on a single core. `test/bench/ring_native.c` reproduces it.
 
@@ -182,7 +182,7 @@ RouDi loses a line rather than gaining one.
 
 The reversal is proved and not assumed. `native/harness` publishes eight snapshots from
 one process and checks all eight in another, in order and intact, with no daemon running.
-`docs/reference/harness.md` holds the commands and the output.
+`native/harness/README.md` holds the commands and the output.
 
 What this costs is the rule below it. Rust is blocklisted, and iceoryx2 is Rust with C and
 C++ bindings on top. So weft still writes no Rust, and it now builds some. That is a
@@ -207,4 +207,4 @@ The C++ data plane meets the throughput goal with a wide margin. The ring is
 
 It scales near-linearly to 8 physical cores, because each core owns its ring and the
 planes share nothing. One core alone clears the 15M snapshots/sec goal by more than 12
-times. The measurements are in `../reference/data_plane_logbook.md`.
+times. The measurements are in `../logbook/data_plane.md`.

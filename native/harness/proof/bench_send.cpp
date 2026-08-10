@@ -6,7 +6,7 @@
 //
 // The loop is loan, write, send, in one process with one subscriber attached. It reports
 // nanoseconds for each message. Run both builds on the same machine, back to back, and
-// put the pair in ../../../docs/reference/data_plane_logbook.md with its conditions.
+// put the pair in ../../../docs/logbook/data_plane.md with its conditions.
 //
 // SPDX-License-Identifier: Apache-2.0
 #ifdef WEFT_ICEORYX2_DIRECT

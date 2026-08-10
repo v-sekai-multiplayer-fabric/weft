@@ -13,10 +13,10 @@ defmodule Weft do
   >
   > The bus is the one part that changed. `native/harness` passes a message between two
   > processes over iceoryx2, checked at the far end, with no daemon. Nothing calls it yet,
-  > so it proves the bus and not a plane. See `../docs/reference/harness.md`.
+  > so it proves the bus and not a plane. See `../native/harness/README.md`.
   >
   > So this page describes the design that the code is written toward, not a running
-  > system. See the task pages in `docs/reference/` for the state of each item, and
+  > system. Each part carries its own state beside its code, and
   > `docs/essays/yagni.md` for why the order is what it is.
 
   The BEAM does coordination: placement, lifecycle, supervision, routing,
@@ -272,7 +272,7 @@ defmodule Weft do
 
   **Not held today.** `native/gyreplane` links its own `libfdb_c` in `src/fdb_database.c`,
   with its own key layout in `src/zf_kv.c`. It cannot stop until the store plane has an
-  iceoryx harness. See `../docs/reference/gyre_plane.md`.
+  iceoryx harness. See `../native/gyreplane/WEFT.md`.
 
   ## Results
 

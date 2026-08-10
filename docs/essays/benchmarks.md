@@ -1,8 +1,8 @@
 # What the benchmarks changed our minds about
 
 The numbers live in the logbooks, with the machine and the settings that produced them:
-`../reference/control_plane_logbook.md`, `../reference/data_plane_logbook.md`, and
-`../reference/store_plane_logbook.md`. This page is what we learned, which is a different
+`../logbook/control_plane.md`, `../logbook/data_plane.md`, and
+`../logbook/store_plane.md`. This page is what we learned, which is a different
 thing and does not go stale when a machine changes.
 
 Three results moved a decision. Two of them moved it away from where we expected.
