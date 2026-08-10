@@ -6,12 +6,47 @@
 # also runs versitygw as the S3-compatible cold tier and backs FoundationDB up to it.
 # The FoundationDB services share one volume that holds the cluster file.
 services:
+  # The coordinator, and the process that holds the cluster file the others join.
+  #
+  # One process is not a cluster. FoundationDB gives one role to one process, so a single
+  # process runs the commit proxy, the resolver, the log, and the storage together, and
+  # they contend. The services below add processes and give each one a class, which is the
+  # shape FoundationDB documents. A machine runs one process for each core.
   fdb:
     image: foundationdb/foundationdb:7.3.76
     environment:
       FDB_NETWORKING_MODE: container
+      FDB_PROCESS_CLASS: stateless
     volumes:
       - fdb:/var/fdb
+
+  # The transaction log. It takes every commit, so it is the write path.
+  fdb-log:
+    image: foundationdb/foundationdb:7.3.76
+    depends_on:
+      fdb:
+        condition: service_started
+    environment:
+      FDB_NETWORKING_MODE: container
+      FDB_PROCESS_CLASS: log
+      FDB_COORDINATOR: fdb
+    volumes:
+      - fdb:/var/fdb
+
+  # The storage servers. They hold the data and serve every read.
+  fdb-storage:
+    image: foundationdb/foundationdb:7.3.76
+    depends_on:
+      fdb:
+        condition: service_started
+    environment:
+      FDB_NETWORKING_MODE: container
+      FDB_PROCESS_CLASS: storage
+      FDB_COORDINATOR: fdb
+    volumes:
+      - fdb:/var/fdb
+    deploy:
+      replicas: 3
 
   # Configure the database one time. The step is safe to run again.
   #
@@ -21,10 +56,20 @@ services:
   #
   # The step is idempotent. `configure new` fails when the database exists, so the loop
   # tests availability first and exits 0 when the database is already configured.
+  #
+  # The storage engine is ssd and not memory. The memory engine holds the whole database
+  # in RAM and stops at 100 MB. The store plane writes 4 kB pages, so a short test run
+  # passes that limit, and the cluster then refuses every write and reports that it is
+  # unavailable. An existing cluster moves with
+  # `configure storage_migration_type=aggressive ssd`.
   fdb-init:
     image: foundationdb/foundationdb:7.3.76
     depends_on:
       fdb:
+        condition: service_started
+      fdb-log:
+        condition: service_started
+      fdb-storage:
         condition: service_started
     volumes:
       - fdb:/var/fdb
@@ -36,9 +81,12 @@ services:
           if fdbcli -C /var/fdb/fdb.cluster --exec 'status minimal' 2>/dev/null \
              | grep -q 'The database is available'; then
             echo "FoundationDB is available."
+            fdbcli -C /var/fdb/fdb.cluster \
+              --exec 'configure commit_proxies=2 grv_proxies=1 logs=1 resolvers=1' \
+              >/dev/null 2>&1 || true
             exit 0
           fi
-          fdbcli -C /var/fdb/fdb.cluster --exec 'configure new single memory' >/dev/null 2>&1 || true
+          fdbcli -C /var/fdb/fdb.cluster --exec 'configure new single ssd' >/dev/null 2>&1 || true
           sleep 2
         done
         echo "FoundationDB did not become available."
