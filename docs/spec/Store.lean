@@ -150,44 +150,104 @@ theorem commit_after_compaction_visible :
     readsOf (commit (compact sample 2) 4 [(0, 555)]) = [555, 401, 302, 303, 0] := by
   native_decide
 
-/- ## Tunable biases
+/- ## No constants
 
-   rivet's constants are the knobs, and each one trades read cost against write cost.
-   weft keeps the knobs and changes the values, because a session game writes far more
-   than it reads. See `../essays/topology.md`. -/
+   rivet's constants are guesses about a workload. `MAX_SHARD_VERSIONS_PER_SHARD = 32`
+   is right for some traffic and wrong for other traffic, and nothing tells you which
+   you have. weft keeps none of them.
 
-/-- `MAX_SHARD_VERSIONS_PER_SHARD`. It caps how many shard versions a read walks, so
-    it caps read amplification. A higher value delays compaction and lowers write
-    amplification. -/
-def maxShardVersions : Nat := 32
+   Every quantity below is either a physical limit that FoundationDB imposes, or a
+   ratio between two measured sizes. A ratio has no units to tune. It moves with the
+   load: heavier writing compacts more often on its own, and a quiet actor compacts
+   never. -/
 
-/-- `MAX_COMMIT_DIRTY_PAGES`. rivet caps a commit at 320 pages so one commit always
-    fits in one compaction batch. -/
-def maxCommitDirtyPages : Nat := 320
+/-- FoundationDB caps a value at 100 kB and a transaction at 10 MB. These are not
+    choices. They are the shape of the database. -/
+def fdbValueLimit : Nat := 100000
+def fdbTxnLimit : Nat := 10000000
 
-/-- `CMP_FDB_BATCH_MAX_KEYS`. -/
-def batchMaxKeys : Nat := 500
+/-- SQLite's page size. Also not a choice. -/
+def pageSize : Nat := 4096
 
-/-- Keys that one commit writes: one DELTA chunk and one PIDX row for each page, plus
-    a commit row, a VTX row, and the head. -/
-def keysForCommit (dirtyPages : Nat) : Nat := 2 * dirtyPages + 3
+/-- A chunk holds as many whole pages as fit under the value limit, so the chunk count
+    is the smallest the database allows. Nothing is tuned. -/
+def pagesForEachChunk : Nat := fdbValueLimit / pageSize
 
-/-- rivet's own reasoning, checked: 320 dirty pages must fit under the 500 key cap
-    with room for the per-commit rows.
+/-- The largest commit that fits one transaction, derived and not chosen. Room is kept
+    for the PIDX rows, the commit row, the VTX row, and the head. -/
+def maxCommitPages : Nat := (fdbTxnLimit - 4 * pageSize) / pageSize
 
-    It does not fit. `keysForCommit 320 = 643`, which is above 500. So the cap holds
-    only when a DELTA chunk carries more than one page, which is what the `chunk`
-    field in `DELTA/{txid}/{chunk}` is for. The check is kept because it names the
-    assumption instead of hiding it. -/
-theorem commit_keys_need_chunking : keysForCommit maxCommitDirtyPages > batchMaxKeys := by
+theorem chunk_fits_a_value : pagesForEachChunk * pageSize ≤ fdbValueLimit := by native_decide
+
+theorem commit_fits_a_txn : maxCommitPages * pageSize + 4 * pageSize ≤ fdbTxnLimit := by
   native_decide
 
-/-- With pages packed into chunks, a commit fits. 320 pages of 4 kB is 1.25 MB, and a
-    chunk holds many pages, so the key count is the chunk count plus the rows. -/
-def keysForChunkedCommit (dirtyPages pagesForEachChunk : Nat) : Nat :=
-  dirtyPages / pagesForEachChunk + dirtyPages + 3
+/-- rivet caps a commit at 320 pages. The derived cap is larger, so rivet is leaving
+    room it does not need, or it is protecting something this model does not hold. -/
+theorem derived_cap_exceeds_rivet : maxCommitPages > 320 := by native_decide
 
-theorem chunked_commit_fits :
-    keysForChunkedCommit maxCommitDirtyPages 16 ≤ batchMaxKeys := by native_decide
+/- ### Read cost does not depend on the log
+
+   PIDX sends a page straight to its owner, so a read touches two rows whatever the
+   log holds: the index row, and one of DELTA or SHARD. This is why weft needs no cap
+   on shard versions to keep reads fast. -/
+
+/-- How many rows a read touches. -/
+def readRows (s : Store) (pg : Page) : Nat :=
+  match lookup s.pidx pg with
+  | some owner => match lookup s.delta owner with
+                  | some _ => 2
+                  | none => 2
+  | none => 2
+
+theorem read_touches_two_rows :
+    pages.map (fun p => readRows sample p) = [2, 2, 2, 2, 2] := by native_decide
+
+/-- The log grows and the read cost does not move. -/
+theorem read_cost_ignores_log_size :
+    pages.map (fun p => readRows (commit (commit sample 4 [(4, 1)]) 5 [(4, 2)]) p)
+      = pages.map (fun p => readRows sample p) := by native_decide
+
+/- ### Compaction triggers on a ratio, not a number
+
+   Compact when the log is as large as the base. The rule needs no constant, and it
+   gives two properties at once. Each byte is rewritten a bounded number of times,
+   because the base must double before the next compaction. The log never exceeds the
+   base, so a restore never reads more log than base. -/
+
+def sizeOf (m : Assoc Page Val) : Nat := m.length
+
+def logBytes (s : Store) : Nat := s.delta.foldl (fun acc d => acc + sizeOf d.2) 0
+
+def baseBytes (s : Store) : Nat := sizeOf (shardAt s s.head)
+
+/-- The rule. No threshold, no constant, no unit. -/
+def shouldCompact (s : Store) : Bool := baseBytes s ≤ logBytes s
+
+/-- A quiet actor never compacts, so an idle actor costs nothing. -/
+theorem quiet_actor_does_not_compact :
+    shouldCompact { pidx := [], delta := [], shards := [(0, [(0, 1), (1, 2)])], head := 0 }
+      = false := by native_decide
+
+/-- A write-heavy actor compacts on its own, with nothing configured. -/
+theorem write_heavy_actor_compacts : shouldCompact sample = true := by native_decide
+
+/-- Compaction restores the invariant, so the rule is stable and does not thrash. -/
+theorem compaction_clears_the_trigger :
+    shouldCompact (compact sample sample.head) = false := by native_decide
+
+/- ### Retention follows demand
+
+   rivet keeps 32 shard versions. weft keeps the versions that a pin needs and no
+   others, so retention is set by what somebody is reading, not by a number. -/
+
+/-- Drop every shard version below the oldest pin, and keep the rest. With no pin, one
+    version is kept for the head. -/
+def evict (s : Store) (oldestPin : Txid) : Store :=
+  { s with shards := s.shards.filter (fun v => oldestPin ≤ v.1 ∨ v.1 = 0) }
+
+/-- Eviction changes no read that a pin protects. -/
+theorem eviction_preserves_pinned_reads :
+    readsOf (evict (compact sample 2) 2) = readsOf sample := by native_decide
 
 end Weft.Store

@@ -67,6 +67,10 @@ Both kinds: use one name for one concept. Terms are in `docs/reference/architect
 - The store copies rivet's Depot layout: PIDX, DELTA by txid, and SHARD by `as_of_txid`.
   `docs/spec/Store.lean` is the spec. Compaction adds a shard version. It never
   overwrites one, and it clears a PIDX row only when that row points at a folded txid.
+- Do not add a tuning constant. A constant is a guess about a workload we have not seen.
+  Derive a limit from a physical limit, such as the FoundationDB value size. Trigger work
+  on a ratio between two measured sizes, such as log bytes against base bytes. A ratio
+  has no units to tune, and it moves with the load on its own.
 - Planes use Eclipse iceoryx v1, never iceoryx2. v1 needs the RouDi daemon beside each
   plane, so the version changes what a machine runs.
 
