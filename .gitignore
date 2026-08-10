@@ -54,3 +54,7 @@ native/**/build/
 *.rpm
 /pkgroot/
 /stage/
+
+# Store plane: headers fetched for an editor, and the generated compile database.
+native/storeplane/.deps/
+compile_commands.json

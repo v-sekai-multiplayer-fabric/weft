@@ -1,0 +1,10 @@
+# A shell script runs in a Linux container. With CRLF endings the shell reads `set -eu`
+# as `set -eu\r` and fails with "Illegal option -". Force LF for anything executed.
+*.sh text eol=lf
+*.bash text eol=lf
+Containerfile text eol=lf
+Makefile text eol=lf
+*.c text eol=lf
+*.h text eol=lf
+*.cpp text eol=lf
+*.hpp text eol=lf
