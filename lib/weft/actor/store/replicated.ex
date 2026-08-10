@@ -1,6 +1,6 @@
 defmodule Weft.Actor.Store.Replicated do
   @moduledoc """
-  Elixir prototype of the store plane's logic (see `docs/reference/store.md`). In production
+  Elixir prototype of the store plane's logic (see `Weft.Actor.Store`). In production
   the store runs natively in its own process for crash isolation, reached over
   iceoryx v1; this module proves the same logic in the BEAM and is tested against a
   live FoundationDB before the native port.
@@ -18,7 +18,7 @@ defmodule Weft.Actor.Store.Replicated do
 
   Latency first: durability is eventual. A crash can lose the last few writes that
   were not yet replicated. This store holds control-plane actor KV only, not game or
-  world state (see `docs/reference/store.md`).
+  world state (see `Weft.Actor.Store`).
   """
 
   @behaviour Weft.Actor.Store

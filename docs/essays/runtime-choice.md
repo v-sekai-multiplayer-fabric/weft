@@ -40,14 +40,14 @@ When a comparison comes back that lopsided, the comparison was wrong. We had bee
 choosing a runtime for the hot loop from a shortlist that contained nothing capable of
 running the hot loop. The producer has to be native code — Jolt physics and kernel-bypass
 ingest writing the ring directly — and the BEAM samples it at about 3 µs per read. See
-`docs/reference/data-plane.md`.
+`Weft.DataPlane`.
 
 They are not competing for the hot path — they are **stage-tier** choices (world
 representation and authoring, at Hz). For the _server-side_ stage runtime,
 **fabric-stage-runtime (OpenUSD) fits better than embedding Godot**: it is a headless
 library (no renderer/input/VM baggage), composition- and interchange-oriented. It
 runs as a plane over iceoryx v1 (a separate native process), not as an in-BEAM NIF,
-because `../reference/architecture.md` forbids heavy C++ in the BEAM. Godot stays on the client.
+because `Weft` forbids heavy C++ in the BEAM. Godot stays on the client.
 
 So the layering the benchmark points to:
 
@@ -81,7 +81,7 @@ stage tier together form weft's **asset CDN**:
   because the transport is H3/WebTransport. So the asset CDN and the actor store share
   one durable substrate.
 
-Both run as planes over iceoryx v1, not in-BEAM NIFs, since `../reference/architecture.md` forbids heavy
+Both run as planes over iceoryx v1, not in-BEAM NIFs, since `Weft` forbids heavy
 C++ in the BEAM. Baking is off the game hot path; the >15M path stays native.
 
 ## Seastar or iceoryx2 with a thin harness (Windows support)
@@ -153,20 +153,20 @@ not use.
 
 ### Tradeoff and recommendation
 
-Seastar gave one runtime model for all planes (`../reference/architecture.md` rule 5). The iceoryx2 approach
+Seastar gave one runtime model for all planes (`Weft` rule 5). The iceoryx2 approach
 is uniform at the transport. The execution differs by plane. It is busy-poll for CPU
 planes and blocking workers for I/O planes.
 
 Recommendation: if native Windows is a product requirement, adopt iceoryx2 plus a thin
 thread-per-core harness, in Rust, and drop Seastar. The native planes are not built yet,
-so the switch is cheap now and expensive later. This change rewrites `../reference/architecture.md` rule 5.
+so the switch is cheap now and expensive later. This change rewrites `Weft` rule 5.
 Treat that rewrite as an open question until we decide.
 
 ## Decision: iceoryx v1 in C++, because Rust is blocklisted
 
 The target environment blocklists Rust. So the plane cannot use Rust or iceoryx2, since
 iceoryx2 is Rust-first. The decision is iceoryx v1 (the C++ implementation) with a thin
-C++ thread-per-core harness. This is the current design in `../reference/architecture.md` rule 5.
+C++ thread-per-core harness. This is the current design in `Weft` rule 5.
 
 The cost of this decision, versus iceoryx2:
 

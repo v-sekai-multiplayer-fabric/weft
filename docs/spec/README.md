@@ -28,4 +28,4 @@ theorem are the algorithm it holds for.
 
 The Floyd-Steinberg algorithm comes from
 [paperlesspaper/epdoptimize](https://github.com/paperlesspaper/epdoptimize). The scope in
-`Weft.DataPlane` uses it to color and dither the braille panels. See `docs/reference/tasks.md`.
+`Weft.DataPlane` uses it to color and dither the braille panels.

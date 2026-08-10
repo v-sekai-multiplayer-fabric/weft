@@ -3,7 +3,7 @@
 If you have seen a screenshot of weft and had no idea what you were looking at, this
 page is for you. You need to know nothing about Elixir, and nothing about game engines.
 
-Read this first, then `../reference/architecture.md` for the full architecture.
+Read this first, then `Weft` for the full architecture.
 
 ## What weft does
 
@@ -157,7 +157,8 @@ describe a finished system. Do not quote a player count from it.
 
 **We have never run this with real players.** Not 1000 people. Not 100 people. Not one
 person in a headset. The client is not built yet. The number of people one world can
-hold is an open question, and `../reference/tasks.md` records it as unstarted work.
+hold is an open question, and `../reference/vr_acceptance_proof.md` records it as
+unstarted work.
 
 **The measured numbers test parts, not the whole.** They come from one developer
 machine. They show that the physics work and the ring are fast enough. They do not show
@@ -172,7 +173,7 @@ the same as an avatar. That load is real movement, and the mesh handles it. Vehi
 are not players, so this does not answer the player question.
 
 So: the parts are fast, and the shape of the design holds up on a real workload. The
-system is early. `../reference/tasks.md` lists what remains.
+system is early. The task pages in `../reference/` list what remains.
 
 ## Words you will see
 
@@ -191,8 +192,8 @@ system is early. `../reference/tasks.md` lists what remains.
 
 ## Read more
 
-- `../reference/architecture.md` is the full architecture and the plane rules.
-- `../reference/data-plane.md` is the boundary between the manager and the heavy parts.
+- `Weft` is the full architecture and the plane rules.
+- `Weft.DataPlane` is the boundary between the manager and the heavy parts.
 - `latency.md` explains why each choice keeps latency low.
-- `../reference/store.md` explains how weft remembers the world.
+- `Weft.Actor.Store` explains how weft remembers the world.
 - `benchmarks.md` holds the measured numbers.
