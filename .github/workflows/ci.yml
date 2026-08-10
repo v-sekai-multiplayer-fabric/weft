@@ -59,4 +59,16 @@ jobs:
           fdbcli --exec 'status minimal'
 
       - run: mix deps.get
-      - run: mix test
+
+      # Run it, then run it again. A flake is a test that passes, so running once proves
+      # nothing about the ones that matter.
+      #
+      # --repeat-until-failure reruns the whole suite at the same seed. That is the useful
+      # axis here, because the two flakes found on 2026-08-10 were scheduler-dependent and
+      # not seed-dependent: Weft.GatewayTest failed about two runs in three at seed 1 and
+      # never once alone. Five repeats turn that into a certainty rather than a coin toss.
+      #
+      # This replaces a lint that checked for a comment above every Process.sleep. A lint
+      # like that catches a careless edit and nothing else, because a comment is free to
+      # write. Running the suite again tests the property that actually matters.
+      - run: mix test --repeat-until-failure 5
