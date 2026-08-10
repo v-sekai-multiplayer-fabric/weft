@@ -1,7 +1,8 @@
 # Topology
 
 How many machines, where they are, and what runs on each one. Every number below comes
-from `benchmarks.md` or from arithmetic on it. Where a number is a guess, it says so.
+from the logbooks under `../reference/`, or from arithmetic on them. Where a number is a
+guess, it says so.
 
 ## The mistake that shaped this page
 

@@ -133,19 +133,16 @@ crash. weft keeps each part in its own program for two reasons.
 
 ## Does the mesh actually go faster
 
-Yes. These numbers come from `benchmarks.md`, measured on one developer machine.
+Yes, and by a margin wide enough that the interesting question changes.
 
-| Question                                              | Answer                   | Note            |
-| ----------------------------------------------------- | ------------------------ | --------------- |
-| How long does one movement message take to apply?     | 1.2 nanoseconds          | Data in cache   |
-| The same, with the data spread over 2 GB of memory?   | 24 nanoseconds           | The honest case |
-| How many can one core apply each second?              | 41 million               | The honest case |
-| How many does the target need?                        | 15 million               |                 |
-| How many world updates reach the manager each second? | 27.7 million on 16 cores |                 |
-| How much does the ring cost to read?                  | About 3 microseconds     |                 |
+Applying one movement message takes nanoseconds. Even the pessimistic measurement, where
+the entities are scattered over two gigabytes and every write misses the cache, leaves one
+core clearing the target several times over. The figures, and the machine they came from,
+are in `../reference/data_plane_logbook.md`.
 
-The last row matters most. Reading the ring 60 times each second costs almost nothing.
-The manager stays free for decisions.
+The number that matters most is the cheapest one: reading the ring costs microseconds, so
+sampling it sixty times a second costs almost nothing. The manager stays free for
+decisions.
 
 The work is not the limit. Moving the bytes in and out of the machine is the limit. So
 the heavy parts sit close to the network card. The manager stays away from the packets.
@@ -196,4 +193,5 @@ system is early. The task pages in `../reference/` list what remains.
 - `Weft.DataPlane` is the boundary between the manager and the heavy parts.
 - `latency.md` explains why each choice keeps latency low.
 - `Weft.Actor.Store` explains how weft remembers the world.
-- `benchmarks.md` holds the measured numbers.
+- `benchmarks.md` says what the measurements changed our minds about. The numbers are in
+  the logbooks under `../reference/`, one for each plane.
