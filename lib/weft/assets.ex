@@ -31,7 +31,7 @@ defmodule Weft.Assets do
 
   **Not built.** The baker plane. It needs a native OpenUSD toolchain, which is not here
   yet, and the thread-per-core harness that every plane uses. See
-  `../../native/harness/README.md`.
+  `../../fabric-harness`.
 
   **Next.** Build the baker on fabric-stage-runtime with the Adobe glTF plugin.
   """

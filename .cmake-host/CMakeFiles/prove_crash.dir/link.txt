@@ -1,0 +1,1 @@
+/usr/bin/cc -O3 -DNDEBUG -Wl,--dependency-file=CMakeFiles/prove_crash.dir/link.d CMakeFiles/prove_crash.dir/prove_crash.c.o -o prove_crash  -Wl,-rpath,/home/linuxbrew/.linuxbrew/lib libweft_fdb_vfs.a /usr/lib/libfdb_c.so /home/linuxbrew/.linuxbrew/lib/libsqlite3.so

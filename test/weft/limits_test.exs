@@ -54,41 +54,24 @@ defmodule Weft.LimitsTest do
       assert Limits.get(:snapshot_batch) == 128
     end
 
-    test "the native copy of a limit matches this module" do
-      # A C++ plane cannot call Elixir, so native/harness/src/snapshot.hpp transcribes the
-      # limits it needs. A transcription that nothing checks is a copy that goes stale,
-      # and the stale one still reads as authoritative. This reads the header.
-      header = "native/harness/include/weft/limits.hpp"
-
-      body =
-        case File.read(header) do
-          {:ok, body} -> body
-          {:error, reason} -> flunk("cannot read #{header}: #{inspect(reason)}")
-        end
-
-      pairs = [
-        {"SNAPSHOT_BATCH", :snapshot_batch},
-        {"QUEUE_MESSAGES", :queue_messages},
-        {"ACTION_MS", :action_ms},
-        {"KEY_BYTES", :key_bytes},
-        {"VALUE_BYTES", :value_bytes},
-        {"IN_FLIGHT", :in_flight}
-      ]
-
-      for {constant, limit} <- pairs do
-        found =
-          case Regex.run(~r/\b#{constant}\s*=\s*([0-9 *]+?)\s*;/, body) do
-            [_, expr] ->
-              expr
-              |> String.split("*")
-              |> Enum.map(&(&1 |> String.trim() |> String.to_integer()))
-              |> Enum.product()
-            nil -> flunk("#{header} does not define #{constant}")
+    test "no native copy of a limit is left in this repository" do
+      # A C++ plane cannot call Elixir, so it transcribes the limits it needs. That copy
+      # is in fabric-harness now, in include/weft/limits.hpp, and the check that held the
+      # two together went with it. weft can no longer read that file, so this asserts the
+      # weaker thing it still can: that no stale copy is left behind here.
+      stale =
+        "native/**/*.{h,hpp}"
+        |> Path.wildcard()
+        |> Enum.filter(fn path ->
+          case File.read(path) do
+            {:ok, body} -> body =~ ~r/\b(SNAPSHOT_BATCH|ACTION_MS|IN_FLIGHT|QUEUE_MESSAGES)\b/
+            _ -> false
           end
+        end)
 
-        assert found == Limits.get(limit),
-               "#{header} says #{constant} is #{found}. Weft.Limits says #{Limits.get(limit)}."
-      end
+      assert stale == [],
+             "a limit is transcribed here and in fabric-harness. One of them will go " <>
+               "stale, and nothing checks either:\n" <> Enum.join(stale, "\n")
     end
   end
 

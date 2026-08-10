@@ -13,29 +13,14 @@
 ARG ELIXIR_IMAGE=hexpm/elixir:1.20.3-erlang-29.0.5-debian-bookworm-20260803
 ARG DEBIAN_IMAGE=debian:bookworm-slim
 ARG FDB_VERSION=7.3.76
-ARG ICEORYX2_VERSION=0.9.3
-ARG RUST_IMAGE=docker.io/library/rust:1.90-bookworm
 
-# ── iceoryx2 ────────────────────────────────────────────────────────────────────
-# The zero-copy bus between planes. It is brokerless, so nothing from this stage runs as
-# a daemon. Only the library and its headers move forward.
+# weft does not build iceoryx2, and it does not link it.
 #
-# This stage exists so the Rust toolchain stays here. weft writes no Rust. iceoryx2 is a
-# dependency, and the harness links its C++ bindings. See docs/essays/runtime-choice.md.
+# A plane reaches the data plane over iceoryx2. The BEAM reaches the data plane through
+# the NIF, which reads the seqlock ring. So the BEAM never speaks iceoryx2, and this image
+# needs no Rust toolchain and no iceoryx2 build.
 #
-# iceoryx v1 is not an option. Its Linux platform layer needs libacl, which is not
-# allowed. See native/harness/README.md.
-FROM ${RUST_IMAGE} AS iceoryx
-ARG ICEORYX2_VERSION
-RUN apt-get update && apt-get install -y --no-install-recommends cmake ca-certificates curl \
-  && rm -rf /var/lib/apt/lists/*
-RUN curl -fsSL "https://github.com/eclipse-iceoryx/iceoryx2/archive/refs/tags/v${ICEORYX2_VERSION}.tar.gz" \
-      | tar -xz -C /tmp \
-  && cmake -S "/tmp/iceoryx2-${ICEORYX2_VERSION}" -B /tmp/ice-build \
-      -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/opt/iceoryx -DBUILD_EXAMPLES=OFF \
-  && cmake --build /tmp/ice-build -j \
-  && cmake --install /tmp/ice-build \
-  && rm -rf /tmp/ice-build "/tmp/iceoryx2-${ICEORYX2_VERSION}"
+# Each plane is its own image, and it builds its own. See native/README.md.
 
 # ── base ────────────────────────────────────────────────────────────────────────
 FROM ${ELIXIR_IMAGE} AS base
@@ -50,11 +35,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   && dpkg -i /tmp/fdb-clients.deb \
   && rm /tmp/fdb-clients.deb \
   && rm -rf /var/lib/apt/lists/*
-
-# The bus, built in the stage above. The Rust toolchain does not come with it.
-COPY --from=iceoryx /opt/iceoryx /opt/iceoryx
-ENV CMAKE_PREFIX_PATH=/opt/iceoryx
-ENV LD_LIBRARY_PATH=/opt/iceoryx/lib64
 
 WORKDIR /app
 RUN mix local.hex --force && mix local.rebar --force
@@ -99,10 +79,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   && rm /tmp/fdb-clients.deb \
   && apt-get purge -y curl \
   && rm -rf /var/lib/apt/lists/*
-
-# The bus. A plane in this image links it, and no daemon runs beside a plane.
-COPY --from=iceoryx /opt/iceoryx /opt/iceoryx
-ENV LD_LIBRARY_PATH=/opt/iceoryx/lib64
 
 WORKDIR /app
 COPY --from=builder /app/_build/prod/rel/weft ./

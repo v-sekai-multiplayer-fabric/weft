@@ -44,17 +44,13 @@ test/bench/udp_recv
 test/bench/zstd_frames
 test/bench/fly/netbench
 
-# Native planes and edges (C++): build output is not committed. gen/ holds the dlsym
-# dispatch table and the prototypes, both generated from native/harness/iceoryx2.sigs.
+# The data plane build output is not committed.
 native/**/build/
-native/**/gen/
 
 # iceoryx v1 and RouDi, built from source for a local run. The container image builds
 # them too, so the source tree never holds the result. See deploy/Containerfile.
 /.iceoryx/
 
-# TLS material is ignored in native/edge/.gitignore instead of here. A rule at this level
-# would also match native/edge/thirdparty/picoquic/certs/, which is vendored and tracked.
 
 
 # Cluster packages and their staging trees.
@@ -64,14 +60,8 @@ native/**/gen/
 /pkgroot/
 /stage/
 
-# Store plane: headers fetched for an editor, and the generated compile database.
-native/storeplane/.deps/
+# The generated compile database, wherever a build writes one.
 compile_commands.json
-
-# Store plane: the host CMake build that writes the compile database.
-/.cmake-host/
-
-/native/storeplane/witness/.lake/
 
 # Lean: Lake build output. lake-manifest.json is committed, because it pins the
 # dependency revisions the search was built against.

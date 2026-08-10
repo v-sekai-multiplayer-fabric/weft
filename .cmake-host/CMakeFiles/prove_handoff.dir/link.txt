@@ -1,0 +1,1 @@
+/usr/bin/cc -O3 -DNDEBUG -Wl,--dependency-file=CMakeFiles/prove_handoff.dir/link.d CMakeFiles/prove_handoff.dir/prove_handoff.c.o -o prove_handoff  -Wl,-rpath,/home/linuxbrew/.linuxbrew/lib libweft_fdb_vfs.a /usr/lib/libfdb_c.so /home/linuxbrew/.linuxbrew/lib/libsqlite3.so

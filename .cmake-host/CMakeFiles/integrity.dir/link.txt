@@ -1,0 +1,1 @@
+/usr/bin/cc -O3 -DNDEBUG -Wl,--dependency-file=CMakeFiles/integrity.dir/link.d CMakeFiles/integrity.dir/integrity.c.o -o integrity  -Wl,-rpath,/home/linuxbrew/.linuxbrew/lib libweft_fdb_vfs.a /usr/lib/libfdb_c.so /home/linuxbrew/.linuxbrew/lib/libsqlite3.so

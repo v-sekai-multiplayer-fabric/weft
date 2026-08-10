@@ -27,9 +27,10 @@ container, which the rest of this page describes.
 
 ## Files
 
-- `Containerfile` builds and runs weft. It also builds iceoryx2, the zero-copy bus
-  between planes, in a stage of its own so the Rust toolchain does not reach the runtime
-  image. iceoryx2 is brokerless, so a node runs no daemon for it.
+- `Containerfile` builds and runs weft, and nothing else. It carries no iceoryx2 and no
+  Rust toolchain: a plane reaches the data plane over iceoryx2, and the BEAM reaches the
+  data plane through the NIF, so the BEAM never speaks iceoryx2. Each plane is its own
+  image. See `../native/README.md`.
 - `compose.yaml` runs weft and FoundationDB with Docker Compose.
 - `quadlet/` holds the Podman Quadlet units for systemd.
 - `packaging/` holds the OS package inputs. `release-native.yml` builds the .deb and the

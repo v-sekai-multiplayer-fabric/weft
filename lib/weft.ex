@@ -11,9 +11,9 @@ defmodule Weft do
   > producer, and the SUMO producer run in the BEAM. **No plane and no edge exists yet.**
   > `native/dataplane` links only threads.
   >
-  > The bus is the one part that changed. `native/harness` passes a message between two
+  > The bus is the one part that changed. `fabric-harness` passes a message between two
   > processes over iceoryx2, checked at the far end, with no daemon. Nothing calls it yet,
-  > so it proves the bus and not a plane. See `../native/harness/README.md`.
+  > so it proves the bus and not a plane. See `../fabric-harness`.
   >
   > So this page describes the design that the code is written toward, not a running
   > system. Each part carries its own state beside its code, and
@@ -98,7 +98,12 @@ defmodule Weft do
      - **Publish-subscribe** for streaming state. The plane publishes samples; the
        BEAM subscribes and takes the latest.
      - **Request-response** for jobs. The BEAM sends a request; the plane responds.
-  4. **The BEAM side is a small iceoryx NIF.** It takes a sample or sends a request,
+  4. **The BEAM side is a small NIF over the data plane, and not over iceoryx.** A plane
+     reaches the data plane over iceoryx2. The BEAM reaches the data plane through the
+     NIF, which reads the seqlock ring in shared memory. So the BEAM never links iceoryx2,
+     and a plane is opaque to it in every way except what that plane writes to the ring.
+     That is what makes a plane a black box: weft starts it, watches it, and restarts it,
+     and it reads the result. The NIF takes a sample or sends a request,
      copies the bytes into a BEAM binary, and returns at once. No long work, no
      busy-poll, no blocked scheduler. The hard rules in `Weft.DataPlane` apply to
      every plane.
@@ -270,9 +275,9 @@ defmodule Weft do
   means it terminates no transport and accepts no connection. FoundationDB sits below the
   planes, and reaching down to it is not the same as facing a client.
 
-  **Not held today.** `native/gyreplane` links its own `libfdb_c` in `src/fdb_database.c`,
+  **Not held today.** `gyreplane` links its own `libfdb_c` in `src/fdb_database.c`,
   with its own key layout in `src/zf_kv.c`. It cannot stop until the store plane has an
-  iceoryx harness. See `../native/gyreplane/WEFT.md`.
+  iceoryx harness. See `../gyreplane`.
 
   ## Results
 

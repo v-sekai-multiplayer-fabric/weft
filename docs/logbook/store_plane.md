@@ -14,7 +14,7 @@ Unless an entry says otherwise:
 - Host: one machine, 16 cores, Linux.
 - FoundationDB 7.3.76 in a container, reached over the container network.
 - SQLite 3.53.4. `PRAGMA journal_mode=MEMORY` on every connection.
-- The store plane programs are in `native/storeplane/`, built by CMake at `-O2`.
+- The store plane programs are in `fabric-store-plane/`, built by CMake at `-O2`.
 
 Two cluster shapes appear below. Name the shape in every new entry.
 

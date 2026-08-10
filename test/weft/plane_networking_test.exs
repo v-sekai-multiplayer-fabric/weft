@@ -7,18 +7,18 @@ defmodule Weft.PlaneNetworkingTest do
   The rule is a definition and not a default, so there is no exception to check. An edge is
   a plane with networking. Every other plane opens no socket.
 
-  The rule was broken once, and it was broken by a copy. `native/gyreplane` came in from
-  `zone-server-h2o`, which terminates QUIC in the same process that holds authority. That
+  The rule was broken once, and it was broken by a copy. `gyreplane` came in from
+  `gyreplane`, which terminates QUIC in the same process that holds authority. That
   is not a plane, and it is not an edge either, because an edge holds no authority.
 
   A comment in a build file does not stop the next copy. This test does. It reads the
   source of each plane and it fails if the plane gains a socket or a transport library
   again.
 
-  `native/edge` is an edge, so it is not in the list below. It may do all of this.
+  `fabric-edge` is an edge, so it is not in the list below. It may do all of this.
   """
 
-  @planes ["native/dataplane", "native/storeplane", "native/nif", "native/gyreplane"]
+  @planes ["native/dataplane", "fabric-store-plane", "native/nif", "gyreplane"]
 
   # Vendored code is not weft's to change. A plane may hold a library that contains a
   # socket, and the rule is about what the plane itself calls and what its build links.
@@ -110,43 +110,35 @@ defmodule Weft.PlaneNetworkingTest do
     end
   end
 
-  describe "one bus, one harness" do
-    # weft has several planes and two edges, and the number grows. Each one needs the bus
-    # and each one needs the limits. Left alone, each would grow its own copy of both, and
-    # the copies would drift the way a decision written twice always drifts.
-    #
-    # So there is one harness. `native/harness` holds the signature file, the generated
-    # dispatch table, and the limits, and every plane links it.
+  describe "weft builds no plane" do
+    # Every plane and every edge is its own repository now. weft starts them, watches
+    # them, and restarts them, and it reaches them only through the data plane. A plane
+    # that grows back into this repository is a plane weft would have to build.
 
-    test "only the harness holds the iceoryx2 signature file" do
-      found = Path.wildcard("native/**/*.sigs")
-
-      assert found == ["native/harness/iceoryx2.sigs"],
-             "the C ABI is declared in one place. A second .sigs file is a second copy " <>
-               "of the bus:\n" <> Enum.join(found, "\n")
-    end
-
-    test "only the harness declares an iceoryx2 limit" do
-      # A limit belongs to Weft.Limits, and the harness transcribes it once for the native
-      # side. A plane that writes its own number is guessing about a workload.
-      others =
-        "native/**/*.{h,hpp,c,cc,cpp}"
+    test "native holds only the data plane and the NIF" do
+      found =
+        "native/*"
         |> Path.wildcard()
-        |> Enum.reject(&String.starts_with?(&1, "native/harness/"))
-        |> Enum.reject(&(&1 =~ ~r{/thirdparty/}))
-        |> Enum.filter(fn path ->
-          case File.read(path) do
-            {:ok, body} -> body =~ ~r/\b(SNAPSHOT_BATCH|ACTION_MS|IN_FLIGHT)\b/
-            _ -> false
-          end
-        end)
+        |> Enum.filter(&File.dir?/1)
+        |> Enum.map(&Path.basename/1)
+        |> Enum.reject(&(&1 == "build"))
+        |> Enum.sort()
 
-      assert others == [],
-             "a plane declared a limit of its own. Include weft/limits.hpp:\n" <>
-               Enum.join(others, "\n")
+      assert found == ["dataplane", "nif"],
+             "native/ holds a plane again. A plane is its own repository: see " <>
+               "native/README.md.\n  found: #{Enum.join(found, ", ")}"
     end
 
-    test "the root build reaches every plane that has a build file" do
+    test "weft declares no bus and vendors no library" do
+      sigs = Path.wildcard("native/**/*.sigs")
+      assert sigs == [], "the iceoryx2 C ABI belongs to fabric-harness:\n#{Enum.join(sigs, "\n")}"
+
+      vendored = Path.wildcard("native/**/thirdparty")
+      assert vendored == [],
+             "weft vendors a native library again:\n#{Enum.join(vendored, "\n")}"
+    end
+
+    test "the root build reaches every directory that has a build file" do
       root = File.read!("native/CMakeLists.txt")
 
       buildable =
@@ -156,21 +148,7 @@ defmodule Weft.PlaneNetworkingTest do
 
       missing = Enum.reject(buildable, &(root =~ "add_subdirectory(#{&1})"))
 
-      assert missing == [],
-             "native/CMakeLists.txt does not add: #{Enum.join(missing, ", ")}. A plane " <>
-               "outside the root build does not share the harness."
-    end
-  end
-
-  describe "an edge is a plane with networking" do
-    test "the edge holds the transport the plane gave up" do
-      # This is the other half of the rule. If the transport is in neither directory, then
-      # the split above deleted working code rather than moving it.
-      assert File.dir?("native/edge/transport"),
-             "the QUIC transport is gone from the plane and it is not in the edge either"
-
-      assert File.dir?("native/edge/thirdparty/picoquic"),
-             "picoquic is gone from the plane and it is not in the edge either"
+      assert missing == [], "native/CMakeLists.txt does not add: #{Enum.join(missing, ", ")}"
     end
   end
 end

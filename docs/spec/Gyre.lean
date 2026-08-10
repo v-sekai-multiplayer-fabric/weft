@@ -1,7 +1,7 @@
 /- The Gyre: the room graph and the objective, modelled.
 
    Source: `zone-guest-gyre`, `docs/0003-the-gyre-mud-domain-and-mode-selector.md`, and
-   the guest it describes, `mud/guest/mud_guest.cpp` in `zone-server-h2o`.
+   the guest it describes, `mud/guest/mud_guest.cpp`, in the repository now called `gyreplane`.
 
    The Gyre is a second MUD domain, not a second engine. Its smallest loop is two rooms,
    `decanting_floor` and `splicers_den`, with one exit each way, no items, and no NPCs.

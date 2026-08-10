@@ -38,7 +38,12 @@ Both kinds: use one name for one concept. Terms are in `Weft` and
 
 ## Architecture
 
-- The BEAM runs only the control plane. Every heavy plane is a native process outside the BEAM.
+- The BEAM runs only the control plane. Every heavy plane is a native process outside the
+  BEAM, in a repository of its own and a container of its own. weft starts it, watches it,
+  and restarts it. `native/` holds the data plane and the NIF, and nothing else.
+- A plane reaches the data plane over iceoryx2. The BEAM reaches the data plane through the
+  NIF. So the BEAM never links iceoryx2, and a plane is a black box to it except for what
+  that plane writes to the ring.
 - Planes talk over Eclipse iceoryx, zero-copy. Never a Port.
 - A plane has no networking. An edge is a plane with networking. This is a definition,
   not a default, so there is no exception to check.
@@ -106,8 +111,10 @@ Both kinds: use one name for one concept. Terms are in `Weft` and
 Keep the top level small. Put a new file in one of these directories.
 
 - `lib/` and `test/` hold the Elixir control plane.
-- `native/` holds every native source. `native/dataplane` is the C++ plane. `native/nif` is
-  the NIF.
+- `native/` holds the data plane and the NIF, and nothing else. `native/dataplane` is the
+  seqlock ring, and `native/nif` is the NIF the BEAM loads. A new plane is a new
+  repository, and it takes `fabric-harness` as a subtree if it needs the bus. See
+  `native/README.md`.
 - `test/bench/` holds every benchmark. `test/bench/sumo` is the SUMO trace. `test/bench/fly` is the Fly
   network test.
 - `deploy/` holds every ship and run artifact. `deploy/packaging` builds the OS packages.
