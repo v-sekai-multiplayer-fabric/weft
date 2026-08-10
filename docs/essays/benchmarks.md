@@ -7,12 +7,12 @@ thing and does not go stale when a machine changes.
 
 Three results moved a decision. Two of them moved it away from where we expected.
 
-## The store we measured was not the store we ship
+## The bench opened a different store than the design turned on
 
 The first store bench reported 70 µs for a write, and that number sat on this page for
-months. It was measuring `Store.Sqlite`, which fsyncs on every commit. weft ships
-`Store.Replicated`, which uses WAL without an fsync per commit, and nobody had ever
-pointed a bench at it.
+months. It was measuring `Store.Sqlite`, which fsyncs on every commit. The design at the time
+turned on `Store.Replicated`, which used WAL without an fsync per commit, and nobody had
+ever pointed a bench at it.
 
 The real write costs 19 µs. The reported figure was wrong by 288 times against the
 slowest row in the same table.
