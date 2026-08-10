@@ -259,3 +259,79 @@ expose. Or hold the data on disk, which the container already has.
   shape from the cost of the contention.
 - **Read-ahead.** The read numbers come from a warm page cache. A cold scan pays a round
   trip for each page miss, and `../spec/Prefetch.lean` models what to do about it.
+
+## 2026-08-10: the store plane against the 15 M target
+
+No measurement here. Arithmetic on the runs above, written down because the question keeps
+coming back and the answer is not close.
+
+The data plane target is 15 M snapshots each second on one core.
+
+| the store plane, from above | commits/s | short of 15 M by |
+| --- | --- | --- |
+| one commit at a time, through the VFS | 561 | 26738x |
+| 32 in flight | 12918 | 1161x |
+| 512 in flight | 49368 | 304x |
+
+A batch closes some of it and not all of it. A commit carrying entities is one commit
+whatever it carries, so multiply.
+
+| entities in a commit | 32 in flight | 512 in flight |
+| --- | --- | --- |
+| 1 | 0.01 M | 0.05 M |
+| 128 | 1.65 M | 6.32 M |
+| 336 | 4.34 M | 16.59 M |
+
+Only the last cell clears, and it is not a real operating point. 512 in flight costs 9191
+us of mean latency and 19260 us at the worst, against 2410 us at 32. `Weft.Limits` holds 32
+for exactly that reason.
+
+### The wire format moves it, and it was not counted above
+
+`../logbook/data_plane.md` measures two formats. The nasty bitpacked one is 12 bytes for
+each entity. The cheap CBOR JSON-LD one is 28. That is 2.3 times, and it is 2.3 times the
+entities in a commit of a given size.
+
+The floor run above says the payload is nearly free until it is large: 924 commits each
+second at 4 kB, 926 at 32 kB, and 545 at 256 kB. So a commit of 32 kB costs what a commit
+of one key costs.
+
+Put those together and the picture changes.
+
+| format | commit size | entities in it | M snapshots/s at depth 1 | at depth 32 |
+| --- | --- | --- | --- | --- |
+| nasty, 12 B | 4 kB | 341 | 0.32 | 4.39 |
+| nasty, 12 B | 32 kB | 2730 | 2.53 | 35.19 |
+| cheap, 28 B | 4 kB | 146 | 0.13 | 1.88 |
+| cheap, 28 B | 32 kB | 1170 | 1.08 | 15.08 |
+
+**The depth 32 column is extrapolated and not measured.** The in-flight sweep used commits
+of one key, and the payload sweep used one commit at a time. Nothing ran both. The column
+multiplies the two, which assumes they compose, and a real run may not.
+
+So the honest statement is that the format decides whether this is close or not close, and
+that one bench would settle it: commits each second at 32 in flight with a 32 kB payload.
+That bench does not exist.
+
+**Either way the store plane is not the tick, and it is not supposed to be.** The floor is
+1080 us for one commit, which is a network round trip. No amount of pipelining removes a
+round trip, so this is a physical limit and not a tuning problem. The rows above are
+aggregate throughput at 2410 us of latency, and a tick has a 66 ns budget for each
+snapshot.
+
+`CLAUDE.md` already states the rule this implies: keep durability and replication off the
+write path.
+
+### What that decides about deployment
+
+If the only path between two machines is the store plane, then no path between two machines
+carries per-tick state. 1161 times short is not a gap to engineer across.
+
+So one world runs in one machine, and the planes of that world talk over iceoryx2.
+`../essays/topology.md` already says this, and now there is a number behind it. The store
+plane carries what survives a crash and what moves an actor to another machine. It does not
+carry the tick.
+
+The format still matters for the store, even so. 2.3 times the bytes is 2.3 times the
+commits for the same state, and a commit is a round trip. So the choice between the two
+formats is not only a bandwidth choice.
