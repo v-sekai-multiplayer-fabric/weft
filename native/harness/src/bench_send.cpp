@@ -40,6 +40,11 @@ int main(int argc, char** argv) {
     const int messages = (argc > 1) ? std::atoi(argv[1]) : 200000;
     const int passes = (argc > 2) ? std::atoi(argv[2]) : 7;
 
+    // Entities in one message. iceoryx2 loans a slice, so a batch is one loan and one
+    // send whatever its length. This is the knob that decides whether the bus can carry
+    // the 15 M snapshots each second target at all.
+    const int batch = (argc > 3) ? std::atoi(argv[3]) : 1;
+
 #ifndef WEFT_ICEORYX2_DIRECT
     if (!weft::load_iceoryx2()) {
         return 1;
@@ -55,7 +60,11 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    const char* service_name = "weft/harness/bench";
+    // A distinct service for each batch size. iceoryx2 records the payload layout with
+    // the service and keeps it, so reusing one name across batch sizes reopens the layout
+    // the first run wrote and every loan then fails.
+    char service_name[64];
+    std::snprintf(service_name, sizeof(service_name), "weft/harness/bench/%d", batch);
     iox2_service_name_h name = nullptr;
     if (iox2_service_name_new(nullptr, service_name, std::strlen(service_name), &name)
         != IOX2_OK) {
@@ -66,7 +75,9 @@ int main(int argc, char** argv) {
     auto builder = iox2_service_builder_pub_sub(
         iox2_node_service_builder(&node, nullptr, iox2_cast_service_name_ptr(name)));
     if (iox2_service_builder_pub_sub_set_payload_type_details(
-            &builder, iox2_type_variant_e_FIXED_SIZE, weft::PAYLOAD_TYPE,
+            &builder,
+            batch > 1 ? iox2_type_variant_e_DYNAMIC : iox2_type_variant_e_FIXED_SIZE,
+            weft::PAYLOAD_TYPE,
             std::strlen(weft::PAYLOAD_TYPE), sizeof(weft::Snapshot), alignof(weft::Snapshot))
         != IOX2_OK) {
         std::fprintf(stderr, "bench: type details rejected\n");
@@ -79,9 +90,12 @@ int main(int argc, char** argv) {
         return 1;
     }
 
+    auto publisher_builder = iox2_port_factory_pub_sub_publisher_builder(&service, nullptr);
+    iox2_port_factory_publisher_builder_set_initial_max_slice_len(
+        &publisher_builder, static_cast<size_t>(batch));
+
     iox2_publisher_h publisher = nullptr;
-    if (iox2_port_factory_publisher_builder_create(
-            iox2_port_factory_pub_sub_publisher_builder(&service, nullptr), nullptr, &publisher)
+    if (iox2_port_factory_publisher_builder_create(publisher_builder, nullptr, &publisher)
         != IOX2_OK) {
         std::fprintf(stderr, "bench: no publisher\n");
         return 1;
@@ -106,7 +120,9 @@ int main(int argc, char** argv) {
 
         for (int i = 0; i < messages; ++i) {
             iox2_sample_mut_h sample = nullptr;
-            if (iox2_publisher_loan_slice_uninit(&publisher, nullptr, &sample, 1) != IOX2_OK) {
+            if (iox2_publisher_loan_slice_uninit(&publisher, nullptr, &sample,
+                                                 static_cast<size_t>(batch))
+                != IOX2_OK) {
                 std::fprintf(stderr, "bench: loan failed at %d\n", i);
                 return 1;
             }
@@ -115,9 +131,12 @@ int main(int argc, char** argv) {
             size_t elements = 0;
             iox2_sample_mut_payload_mut(&sample, &payload, &elements);
 
-            const weft::Snapshot snapshot { static_cast<std::uint64_t>(i), 42, i * 1000, 0,
-                                            -i * 250 };
-            std::memcpy(payload, &snapshot, sizeof(snapshot));
+            auto* out = static_cast<weft::Snapshot*>(payload);
+            for (int e = 0; e < batch; ++e) {
+                out[e] = weft::Snapshot { static_cast<std::uint64_t>(i),
+                                          static_cast<std::uint64_t>(e), i * 1000, 0,
+                                          -i * 250 };
+            }
 
             if (iox2_sample_mut_send(sample, nullptr) != IOX2_OK) {
                 std::fprintf(stderr, "bench: send failed at %d\n", i);
@@ -147,8 +166,11 @@ int main(int argc, char** argv) {
 #else
     const char* build = "stubs";
 #endif
-    std::printf("%s: %d messages x %d passes, median %.1f ns, best %.1f ns\n", build,
-                messages, passes, mid, best);
+    // A snapshot rate, because that is the target. 15 M snapshots each second on one
+    // core is what a plane has to carry, and a message carries `batch` of them.
+    const double snapshots_per_s = (1e9 / mid) * batch;
+    std::printf("%s: batch %4d, %.1f ns for each message, %.2f M snapshots/s\n", build,
+                batch, mid, snapshots_per_s / 1e6);
 
     iox2_subscriber_drop(subscriber);
     iox2_publisher_drop(publisher);

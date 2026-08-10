@@ -200,6 +200,30 @@ The payload never crosses the table. `loan` returns a pointer into shared memory
 write is a `memcpy` the caller does. So the cost is for each call and not for each byte,
 and a larger message does not pay more.
 
+### The batch size the 15 M target needs
+
+Same apparatus. `iox2_publisher_loan_slice_uninit` loans a slice, so one message carries a
+batch whatever its length, at one loan and one send.
+
+| entities in a message | ns for each message | M snapshots/s |
+| --- | --- | --- |
+| 1 | 420.3 | 2.38 |
+| 8 | 424.5 | 18.85 |
+| 32 | 454.9 | 70.35 |
+| 64 | 497.7 | 128.58 |
+| 256 | 730.2 | 350.61 |
+| 1024 | 1695.1 | 604.11 |
+
+**A batch of 8 clears the 15 M target on one core.** A batch of 7 is the break-even point,
+and nothing above it is close.
+
+The first two rows are the reason. 1 to 8 entities costs 4 ns more for each message, so
+almost the whole 420 ns is fixed cost that a batch pays once. Above 32 the payload write
+starts to show, and from 8 to 1024 the marginal cost settles near 1.25 ns for each entity.
+
+So the bus is not the constraint at this target. The batch size is, and the batch size a
+frame already has is 256.
+
 ### The bus is not the per-snapshot path
 
 428 ns for each message is 2.3 M messages each second on one core. The C++ ring above does
@@ -208,7 +232,7 @@ slower than the ring, and the two numbers are not comparable work.
 
 So one iceoryx2 message for each snapshot is not a design. At the 15 M snapshots each
 second target it would need about 6.4 cores for the bus alone, and the ring needs a
-fraction of one.
+fraction of one. The table above shows what fixes it, and it is one number: 8.
 
 A message carries a frame, and a frame carries many entities. The replication entry above
 uses 256 entities for each frame. At that size, 15 M snapshots each second is 58.6 K
