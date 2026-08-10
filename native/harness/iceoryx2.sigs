@@ -1,0 +1,49 @@
+# The iceoryx2 C ABI that the harness calls.
+#
+# Fed to ../thirdparty/generate_stubs/generate_stubs.py, which emits a dlsym-backed
+# dispatch table. So there is no -liceoryx2_ffi_c at link time, and no iceoryx2 headers at
+# build time. The harness builds on a machine that has never seen iceoryx2, and it fails
+# at start rather than at link if the library is absent.
+#
+# That matters more here than it did for GStreamer. iceoryx2 is Rust, and weft writes no
+# Rust. A dlopen keeps the Rust artifact out of weft's build graph entirely. See
+# ../../docs/essays/runtime-choice.md.
+#
+# Format: one C declaration per line. A comment starts with '#'.
+#
+# The opaque handle types come from ../harness/src/iox2_types.h, which is hand-written
+# from iceoryx2.h. Only the types these 25 functions name are in it.
+
+# Log level, and the node that owns every port
+void iox2_set_log_level_from_env_or(enum iox2_log_level_e v);
+iox2_node_builder_h iox2_node_builder_new(struct iox2_node_builder_t *node_builder_struct_ptr);
+int iox2_node_builder_create(iox2_node_builder_h node_builder_handle, struct iox2_node_t *node_struct_ptr, enum iox2_service_type_e service_type, iox2_node_h *node_handle_ptr);
+int iox2_node_wait(iox2_node_h_ref node_handle, uint64_t cycle_time_sec, uint32_t cycle_time_nsec);
+void iox2_node_drop(iox2_node_h node_handle);
+
+# The service name, and the service both ends open
+int iox2_service_name_new(struct iox2_service_name_t *service_name_struct_ptr, const char *service_name_str, size_t service_name_len, iox2_service_name_h *service_name_handle_ptr);
+iox2_service_name_ptr iox2_cast_service_name_ptr(iox2_service_name_h service_name_handle);
+void iox2_service_name_drop(iox2_service_name_h service_name_handle);
+iox2_service_builder_h iox2_node_service_builder(iox2_node_h_ref node_handle, struct iox2_service_builder_t *service_builder_struct_ptr, iox2_service_name_ptr service_name_ptr);
+iox2_service_builder_pub_sub_h iox2_service_builder_pub_sub(iox2_service_builder_h service_builder_handle);
+int iox2_service_builder_pub_sub_set_payload_type_details(iox2_service_builder_pub_sub_h_ref service_builder_handle, enum iox2_type_variant_e type_variant, const char *type_name_str, size_t type_name_len, size_t size, size_t alignment);
+int iox2_service_builder_pub_sub_open_or_create(iox2_service_builder_pub_sub_h service_builder_handle, struct iox2_port_factory_pub_sub_t *port_factory_struct_ptr, iox2_port_factory_pub_sub_h *port_factory_handle_ptr);
+void iox2_port_factory_pub_sub_drop(iox2_port_factory_pub_sub_h port_factory_handle);
+
+# The publisher side. loan_slice_uninit returns memory the subscriber already maps, so a
+# send is a pointer handoff and not a copy.
+iox2_port_factory_publisher_builder_h iox2_port_factory_pub_sub_publisher_builder(iox2_port_factory_pub_sub_h_ref port_factory_handle, struct iox2_port_factory_publisher_builder_t *publisher_builder_struct_ptr);
+int iox2_port_factory_publisher_builder_create(iox2_port_factory_publisher_builder_h port_factory_handle, struct iox2_publisher_t *publisher_struct_ptr, iox2_publisher_h *publisher_handle_ptr);
+int iox2_publisher_loan_slice_uninit(iox2_publisher_h_ref publisher_handle, struct iox2_sample_mut_t *sample_struct_ptr, iox2_sample_mut_h *sample_handle_ptr, size_t number_of_elements);
+void iox2_sample_mut_payload_mut(iox2_sample_mut_h_ref handle, void **payload_ptr, size_t *number_of_elements);
+int iox2_sample_mut_send(iox2_sample_mut_h sample_handle, size_t *number_of_recipients);
+void iox2_publisher_drop(iox2_publisher_h publisher_handle);
+
+# The subscriber side
+iox2_port_factory_subscriber_builder_h iox2_port_factory_pub_sub_subscriber_builder(iox2_port_factory_pub_sub_h_ref port_factory_handle, struct iox2_port_factory_subscriber_builder_t *subscriber_builder_struct_ptr);
+int iox2_port_factory_subscriber_builder_create(iox2_port_factory_subscriber_builder_h port_factory_handle, struct iox2_subscriber_t *subscriber_struct_ptr, iox2_subscriber_h *subscriber_handle_ptr);
+int iox2_subscriber_receive(iox2_subscriber_h_ref subscriber_handle, struct iox2_sample_t *sample_struct_ptr, iox2_sample_h *sample_handle_ptr);
+void iox2_sample_payload(iox2_sample_h_ref handle, const void **payload_ptr, size_t *number_of_elements);
+void iox2_sample_drop(iox2_sample_h sample_handle);
+void iox2_subscriber_drop(iox2_subscriber_h subscriber_handle);

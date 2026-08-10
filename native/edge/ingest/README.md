@@ -36,6 +36,6 @@ loopback cannot close it.
 
 ## What it needs first
 
-1. **iceoryx v1 and RouDi**, to reach the game data plane. Not in the container image.
+1. **iceoryx2**, to reach the game data plane. Not in the container image.
 2. **The thread-per-core harness.** Every plane uses it, so it is built once.
 3. **picoquic**, in `../transport`. That part is here already.

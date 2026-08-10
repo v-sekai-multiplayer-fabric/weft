@@ -33,7 +33,7 @@ this edge decides nothing. It decodes a request and hands it to the control plan
 
 ## What it needs first
 
-1. **iceoryx v1 and RouDi**, to reach the control plane. Not in the container image.
+1. **iceoryx2**, to reach the control plane. Not in the container image.
 2. **The thread-per-core harness.** Every plane uses it, so it is built once.
 3. **A TLS certificate.** `../scripts/generate-tls-cert.sh` makes one for local use.
    `zone-server-h2o` never had one wired, so a browser has never connected.

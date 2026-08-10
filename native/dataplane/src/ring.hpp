@@ -4,7 +4,7 @@
 // Single-writer seqlock ring, the same layout and method as bench/ring_native.c and
 // Weft.DataPlane.Ring. The sequence is atomic and gives the ordering. The data is plain,
 // so the store loop vectorizes. One thread per core writes or reads. This is C++ over
-// Eclipse iceoryx v1. The project does not use Rust. See docs/runtime-choice.md.
+// Eclipse iceoryx2. The project does not use Rust. See docs/runtime-choice.md.
 
 #include <atomic>
 #include <cstddef>

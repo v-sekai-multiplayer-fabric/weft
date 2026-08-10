@@ -11,7 +11,7 @@ The two edges. An edge is a plane with networking.
 | `transport` | shared | QUIC and WebTransport | both of the above |
 
 State: `transport` holds working picoquic code. `ingest` and `gateway` hold a contract and
-no code. Neither can build until iceoryx v1 and RouDi are in the container image.
+no code. Neither can build until iceoryx2 are in the container image.
 
 ## What an edge may do, and what it may not
 

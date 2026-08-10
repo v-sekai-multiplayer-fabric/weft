@@ -6,7 +6,7 @@ defmodule Weft.Interest do
   formalized in `lean-interest-mgmt`).
 
   This is the Elixir prototype of the interest feed plane. The production plane runs
-  native over iceoryx v1 and reads the game data plane's output on its own cores, so
+  native over iceoryx2 and reads the game data plane's output on its own cores, so
   headset fanout never steals cycles from the authority simulation. Selection here is
   a sphere around the observer. The lean model uses a k-tick kinematic expansion, a
   later refinement.

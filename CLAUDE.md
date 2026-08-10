@@ -45,7 +45,8 @@ Both kinds: use one name for one concept. Terms are in `Weft` and
 - An edge obeys every plane rule and adds one capability, the network. It terminates a
   transport and gives the decoded result to a plane over iceoryx. An edge holds no
   authority, runs no simulation, and keeps no durable state.
-- A plane runs a thin C++ thread-per-core harness over iceoryx v1, not Seastar and not Rust. One runtime model for all planes. iceoryx v1 needs the RouDi daemon.
+- A plane runs a thin C++ thread-per-core harness over iceoryx2, not Seastar. One runtime
+  model for all planes. iceoryx2 is brokerless, so a machine runs no daemon beside a plane.
 - Durable state is FoundationDB, over the network with `erlfdb`. iceoryx does not cross machines.
 - The store is a native plane. It tiers a local SQLite WAL primary to a FoundationDB replica to S3-compatible object storage.
 - The S3-compatible endpoint is `versitygw`. FoundationDB backs up to it with `fdbbackup`.
@@ -60,7 +61,9 @@ Both kinds: use one name for one concept. Terms are in `Weft` and
 - Return `{:ok, _}` and `{:error, _}` tuples.
 - Low latency is the priority. Keep durability and replication off the write path.
 - Match every enum variant. Do not use a catch-all arm.
-- Do not use Rust. The target environment blocklists it. Native planes are C++.
+- Do not write Rust. The target environment blocklists it. Native planes are C++.
+  iceoryx2 is the one exception, and it is a dependency and not weft code. weft builds it
+  and links its C++ bindings. See `docs/essays/runtime-choice.md`.
 - Formalize an algorithm in Lean4 first, then port it to Elixir. The spec lives in
   `docs/spec/`. Read `docs/spec/README.md` first.
 - Lean4 proofs use `native_decide`. Do not use Mathlib. Elixir tests mirror the proofs.
@@ -71,8 +74,8 @@ Both kinds: use one name for one concept. Terms are in `Weft` and
   Derive a limit from a physical limit, such as the FoundationDB value size. Trigger work
   on a ratio between two measured sizes, such as log bytes against base bytes. A ratio
   has no units to tune, and it moves with the load on its own.
-- Planes use Eclipse iceoryx v1, never iceoryx2. v1 needs the RouDi daemon beside each
-  plane, so the version changes what a machine runs.
+- Planes use Eclipse iceoryx2, never iceoryx v1. v1 does not build here, because it needs
+  libacl. iceoryx2 needs no daemon, so a machine runs one less process.
 
 ## Git and CI
 

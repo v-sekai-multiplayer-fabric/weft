@@ -2,11 +2,11 @@
 
 Goal: the store plane is a native process. SQLite runs inside it with a custom VFS, and
 that VFS reads and writes pages in FoundationDB. The BEAM reaches the plane over Eclipse
-iceoryx v1. The plane reaches FoundationDB with the native client, `libfdb_c`.
+iceoryx2. The plane reaches FoundationDB with the native client, `libfdb_c`.
 
 ```
 BEAM control plane
-  |  iceoryx v1, zero copy, same machine
+  |  iceoryx2, zero copy, same machine
 store plane (native)
   |  SQLite + custom VFS
   |  page reads and commits
@@ -271,7 +271,7 @@ the caller as `SQLITE_READONLY`.
 
 1. Add read-ahead, which `../spec/Prefetch.lean` already models. This is the largest
    remaining piece, and it is what makes a scan affordable.
-2. Build the plane on the thread-per-core harness over iceoryx v1, per `Weft`. Nothing
+2. Build the plane on the thread-per-core harness over iceoryx2, per `Weft`. Nothing
    calls the VFS yet except the programs in `native/storeplane/`.
 3. Write a pin when a read needs a version below the head, so a restore point survives
    compaction.

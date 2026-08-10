@@ -9,7 +9,8 @@ State: the zone server is here. The game is not.
 - **Specified.** `../spec/Gyre.lean` proves the properties of the room graph and the
   objective that any port must keep.
 - **Missing.** The domain itself. Read the section below.
-- **Not built.** The iceoryx link. `Weft` says it plainly: there is no iceoryx code at all.
+- **Proved, not wired.** The bus. `native/harness` passes a message between two processes
+  over iceoryx2, with no daemon. No plane uses it. See `harness.md`.
 - **Elsewhere.** The edges. `native/edge` is generic now, and it serves every client and
   not only this one. Read `../../native/edge/README.md`.
 
@@ -68,7 +69,8 @@ with it.
 
 The plane fell from 22 MB to 5.0 MB, and then to 280 kB. The edge rose to 18 MB.
 
-iceoryx is still absent. It is the one blocker that did not move.
+The bus is no longer absent. `native/harness` proves it, and the thread-per-core loop that
+sits on it is the part still missing. See `harness.md`.
 
 ## What is left of the plane
 
@@ -165,7 +167,7 @@ The client transport is HTTP/3 and WebTransport, and never HTTP/1.1. Firefox spe
 
 - **picoquic**, for QUIC and HTTP/3. It is here. It has no `main` yet, because the plane
   used to call it.
-- **iceoryx v1**, to reach the plane. It needs the RouDi daemon beside it.
+- **iceoryx2**, to reach the plane. It is brokerless, so no daemon runs beside it.
 - **A TLS certificate.** The server never had one wired, and its README said the
   certificate and the key were `NULL`. A browser will not connect without one, so this
   blocks the Firefox proof.
@@ -188,8 +190,8 @@ weft does not have it.
 
 ## The order to build it
 
-1. Put iceoryx v1 and RouDi in the container image, and prove a publisher and a subscriber
-   pass a message. Nothing else can start before this.
+1. Done. `native/harness` proves a publisher and a subscriber pass a message over
+   iceoryx2. Put iceoryx2 in the container image next, so CI runs that proof.
 2. Build the thread-per-core harness once, because every plane uses it.
 3. Give the edge an entry point, and join it to the plane over iceoryx. The transport is
    already here. What is missing is the `main` that used to live in the plane.
@@ -201,8 +203,8 @@ weft does not have it.
 
 ## What blocks what
 
-Step 1 blocks every other step. A plane that cannot talk to the control plane is a
-program, and not a plane.
+Step 2 blocks every other step now. Step 1 is done. A plane that cannot talk to the
+control plane is a program, and not a plane.
 
 Step 4 does not block step 3. The split is about where the transport runs, and it does not
 need the rules of the game.

@@ -1,7 +1,7 @@
 // Throughput smoke for the weft data-plane ring. It pins one thread per core, each with
 // its own ring (share-nothing), writes many snapshots, and reports the aggregate rate.
 // This mirrors bench/ring_native.c and builds on both Windows and Linux. C++ over
-// iceoryx v1, no Rust.
+// iceoryx2, no Rust.
 //
 //   weft-dataplane [iterations_per_thread] [threads]
 
