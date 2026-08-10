@@ -27,14 +27,14 @@ each commit. It had never been measured.
 
 Measured in a Linux container against a live FoundationDB, on a Ryzen 7 3800X:
 
-| Op | median | vs replicated put |
-| --- | --- | --- |
-| **replicated put (WAL, no fsync)** | **19.2 µs** | — |
-| replicated load_all (100 keys) | 144.6 µs | 7.5x |
-| sqlite load_all (100 keys) | 203.9 µs | 10.6x |
-| fdb load_all (100 keys) | 824.3 µs | 43x |
-| fdb put (one txn) | 1896.0 µs | 99x |
-| sqlite put (rollback journal, fsync) | 5546.0 µs | **288x** |
+| Op                                   | median      | vs replicated put |
+| ------------------------------------ | ----------- | ----------------- |
+| **replicated put (WAL, no fsync)**   | **19.2 µs** | —                 |
+| replicated load_all (100 keys)       | 144.6 µs    | 7.5x              |
+| sqlite load_all (100 keys)           | 203.9 µs    | 10.6x             |
+| fdb load_all (100 keys)              | 824.3 µs    | 43x               |
+| fdb put (one txn)                    | 1896.0 µs   | 99x               |
+| sqlite put (rollback journal, fsync) | 5546.0 µs   | **288x**          |
 
 Three things fall out.
 
@@ -47,8 +47,8 @@ rollback-journal store's 204 µs. WAL wins on both paths here, so the write bias
 nothing on reads.
 
 **fsync is the whole difference.** The rollback journal fsyncs on each commit and costs
-5.5 ms in this container. A synchronous FoundationDB write costs 1.9 ms, so *the
-fsyncing local store is slower than the network database*. That inverts the usual
+5.5 ms in this container. A synchronous FoundationDB write costs 1.9 ms, so _the
+fsyncing local store is slower than the network database_. That inverts the usual
 assumption, and it is why the pragmas matter more than the backend.
 
 One caveat on portability: this container runs on a Windows host, where fsync is
