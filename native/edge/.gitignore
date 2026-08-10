@@ -1,0 +1,7 @@
+# TLS material for local use. scripts/generate-tls-cert.sh writes zone-server.crt and
+# zone-server.key here. A certificate and a key never go in git.
+#
+# The leading slash matters. It anchors this to native/edge, so it can never hide a file
+# inside thirdparty/. picoquic vendors its own certs/ with test material in it, and an
+# unanchored rule would make a later update of that vendored copy silently incomplete.
+/certs/

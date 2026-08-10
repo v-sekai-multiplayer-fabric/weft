@@ -1,0 +1,31 @@
+# Line-ending policy for the edge.
+#
+# thirdparty/ (picoquic, picotls) is vendored at exact upstream commits. Any
+# normalization there would diff it away from those commits, including picotls's own
+# native Windows project files. -text disables every line-ending handling for these
+# paths, so a checkout and a checkin never touch a byte.
+#
+# This file exists because the rule used to live in native/gyreplane/.gitattributes.
+# The vendored copies moved here with the transport, and the rule did not follow them.
+# A git mv preserves the blob, so nothing was damaged. A later checkout on a host that
+# writes CRLF would have been.
+thirdparty/** -text
+
+# Everything the edge owns: normalize to LF on checkin whatever a checkout produced, and
+# check out as LF. This is a Linux and POSIX codebase.
+*.c text eol=lf
+*.h text eol=lf
+*.cpp text eol=lf
+*.hpp text eol=lf
+*.cc text eol=lf
+CMakeLists.txt text eol=lf
+*.cmake text eol=lf
+*.sh text eol=lf
+*.md text eol=lf
+
+# Binary, never subject to any text handling.
+*.png binary
+*.jpg binary
+*.bin binary
+*.a binary
+*.so binary
