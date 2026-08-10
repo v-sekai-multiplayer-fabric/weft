@@ -47,9 +47,11 @@ forward here.
 The worker pool went in the weft fork. It dispatched `h2o_req_t` over an
 `h2o_multithread` queue, and a plane answers no request. `src/utility.c`,
 `src/thread.c`, `src/event_loop.h`, and the HTTP half of `src/error.h`
-went with it, for the same reason. The SPSC ring stays: it has a CBMC
-proof and a Lean proof, and the thread-per-core harness is what will
-need it.
+went with it, for the same reason. `src/spsc_ring.c` went too, once its
+last caller was gone. It queues `void *`, and a process-local pointer
+cannot cross a shared-memory segment that maps at a different address in
+each process. iceoryx solves that problem, and it carries its own
+lock-free queue.
 
 ### Concurrency and scaling
 
@@ -91,8 +93,8 @@ not inline here:
 - `rfd/0088`: transport is `picoquic` + `picotls`, not `h2o`'s own
   (absent) QUIC stack. That transport lives in `../gyreedge` now.
 - `rfd/0072`, `rfd/0073`: the actor-lite architecture and async FDB
-  callback chain the event loop and SPSC ring port as-is from
-  `h2o-bench-tpcc`'s `src/`. The worker pool went in the weft fork.
+  callback chain the event loop ports as-is from `h2o-bench-tpcc`'s
+  `src/`. The worker pool and the SPSC ring went in the weft fork.
 
 Entity and ReBAC types generate from `lean-entity-packet` and
 `lean-rebac-core`, not hand-duplicated per language
@@ -126,9 +128,11 @@ green.
 
 ## Verification
 
-- `test/cbmc/spsc_harness.c`: a CBMC proof of the SPSC ring buffer, ported
-  from `h2o-bench-tpcc` (RFD 0008).
-- `test/verification/`: a Lean 4 + Plausible specification harness
-  (`ZoneVerification.Spsc`), from the same source. Zonefabric-specific
-  invariants (entity migration, ghost consistency, journal replay) will land
-  here as those features are built.
+`test/cbmc/` and `test/verification/` held a CBMC proof and a Lean 4 plus
+Plausible specification of the SPSC ring, both ported from
+`h2o-bench-tpcc` (RFD 0008). Both went with the ring they proved. A proof
+of code that is not here proves nothing about what runs.
+
+weft keeps its specifications in `docs/spec/`, and `docs/spec/README.md`
+explains how a test mirrors a proof. A queue invariant belongs there if
+weft ever writes its own queue. It does not, because iceoryx has one.

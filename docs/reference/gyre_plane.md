@@ -69,13 +69,13 @@ rather than being written again.
 `native/gyreedge/TRANSPORT.md` holds the full list and the two deployment facts that moved
 with it.
 
-The plane fell from 22 MB to 5.0 MB, and then to 328 kB. The edge rose to 18 MB.
+The plane fell from 22 MB to 5.0 MB, and then to 280 kB. The edge rose to 18 MB.
 
 iceoryx is still absent. It is the one blocker that did not move.
 
 ## What is left of the plane
 
-The plane is 328 kB. It was 22 MB when it arrived.
+The plane is 280 kB. It was 22 MB when it arrived.
 
 The transport left first. Then two more things left, because they had no caller once the
 transport was gone.
@@ -110,14 +110,22 @@ a loop to fire on and `h2o_timer_t` has one to time out against.
 That is the job the thread-per-core harness over iceoryx takes. When it lands, h2o leaves
 the build, and the plane links FoundationDB and iceoryx and nothing else.
 
-## What stayed, and why
+## The ring that iceoryx already is
 
-`src/spsc_ring.c` has no caller now, because the worker pool was its only one. It stays.
+`src/spsc_ring.c` is gone too. An earlier version of this page kept it, and the reason it
+gave was wrong.
 
-It has a CBMC proof in `test/cbmc/spsc_harness.c` and a Lean proof in
-`test/verification/ZoneVerification/Spsc.lean`. The harness needs a ring between the
-thread that receives from iceoryx and the thread that ticks. Deleting a proven ring and
-writing an unproven one later is not a saving.
+It queues `void *`. A process-local pointer cannot cross a shared memory segment, because
+that segment maps at a different address in each process. iceoryx solves exactly that
+problem, with a relative pointer, and it carries its own lock-free queue underneath the
+subscriber.
+
+The other half of the old reason was worse. It said the harness needs a ring between the
+thread that receives from iceoryx and the thread that ticks. Thread per core means those
+are the same thread. A handoff between them is the thing the model exists to remove.
+
+`test/cbmc/spsc_harness.c` and `test/verification/` went with it. They proved that ring. A
+proof of code that is not here proves nothing about what runs.
 
 ## What the split costs
 

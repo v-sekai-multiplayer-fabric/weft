@@ -22,7 +22,7 @@ authority, so the transport and its libraries moved to `gyreedge`. That edit is 
 subtree, which makes it a fork.
 
 The plane lost more than the transport. It lost the h2o request half, the libriscv guest
-sandbox, and every vendored dependency, because none of them had a caller. It is 328 kB,
+sandbox, and every vendored dependency, because none of them had a caller. It is 280 kB,
 down from 22 MB.
 
 The cost is real. `git subtree pull` conflicts on every file that moved or went, and there
