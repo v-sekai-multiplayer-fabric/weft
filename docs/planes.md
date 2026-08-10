@@ -207,8 +207,8 @@ chunks from the asset CDN, on a different connection to different machines. A wo
 machine never sends a byte of an asset.
 
 Chunks are addressed by content, so the S3 tier is one tier for every region, and the
-FoundationDB of each region is a cache in front of it. A bake in one region serves a
-person in a different region. See `topology.md`.
+FoundationDB of each region is a cache in front of it. weft runs in one region today, so
+a second region gets the same bakes with no new work. See `topology.md`.
 
 New planes (physics, ML inference, video/audio transcode) use the same contract: a
 native process plus iceoryx publish-subscribe or request-response. There is nothing
