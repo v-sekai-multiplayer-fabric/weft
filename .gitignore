@@ -58,3 +58,12 @@ native/**/build/
 # Store plane: headers fetched for an editor, and the generated compile database.
 native/storeplane/.deps/
 compile_commands.json
+
+# Store plane: the host CMake build that writes the compile database.
+/.cmake-host/
+
+/native/storeplane/witness/.lake/
+
+# Lean: Lake build output. lake-manifest.json is committed, because it pins the
+# dependency revisions the search was built against.
+.lake/
