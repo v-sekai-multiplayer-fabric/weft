@@ -37,6 +37,10 @@ inline constexpr int ACTION_MS = 60000;
 inline constexpr std::size_t KEY_BYTES = 2 * 1024;
 inline constexpr std::size_t VALUE_BYTES = 128 * 1024;
 
+// Messages a queue holds before it refuses a new one. rivet's max queue size. A plane
+// that buffers work obeys the same bound the control plane does.
+inline constexpr int QUEUE_MESSAGES = 1000;
+
 // Requests in flight for each caller. `store_plane_logbook.md` sweeps 1 to 512, and the
 // latency stays flat to about 64. 32 sits inside the flat part.
 inline constexpr int IN_FLIGHT = 32;

@@ -123,15 +123,22 @@ defmodule Weft.Limits do
 
   ## Where the numbers come from
 
-  Every value above is rivet's, at <https://rivet.dev/docs/actors/limits/>. weft copies
-  rivet's store layout, so it copies rivet's limits with it. 10 GiB for one actor, 2 KiB
-  for a key, 128 KiB for a value, 60 s for an action, 1200 requests each minute, 32 in
-  flight, and 128 keys in one batch operation are all on that page.
+  Every value in this module is rivet's, at <https://rivet.dev/docs/actors/limits/>. weft
+  copies rivet's store layout, so it copies rivet's limits with it. The whole table is
+  transcribed below, and not only the rows weft enforces today.
 
   This is deliberate, and it is cheaper than it looks. A number weft invents is a guess
   about a workload weft has not seen. A number rivet publishes is one that a running
   system already lives with. So the rule for a new limit is to look there first, and to
   invent one only when nothing there fits.
+
+  Transcribing a row weft does not enforce is not waste. The cost of a missing row is that
+  the next person invents a number, and then two numbers exist for one concept. The cost
+  of an unused row is a line.
+
+  rivet splits a limit into soft and hard. weft records one value for each row: the soft
+  limit where rivet has one, because that is what an application meets first, and the hard
+  limit otherwise. `get/1` returns that value.
 
   ## Why 32 in flight
 
@@ -165,6 +172,137 @@ defmodule Weft.Limits do
 
   Neither 7 nor 336 is a limit here. They are the check on 128, and the logbook holds
   them.
+
+  ## Every limit, by what it bounds
+
+  ### WebSocket
+
+  These bound a connection that uses `.connect()`.
+
+  | limit | value | what rivet calls it |
+  | --- | --- | --- |
+  | `:ws_incoming_bytes` | 64 KiB | max incoming message |
+  | `:ws_outgoing_bytes` | 1 MiB | max outgoing message |
+  | `:ws_frame_bytes` | 32 MiB | max frame |
+  | `:ws_open_ms` | 15 s | open timeout |
+  | `:ws_ack_ms` | 30 s | message ack timeout |
+
+  ### Hibernating WebSocket
+
+  These apply while an actor sleeps and its clients stay connected.
+
+  | limit | value | what rivet calls it |
+  | --- | --- | --- |
+  | `:hibernate_buffer_bytes` | 128 MiB | max pending buffer |
+  | `:hibernate_messages` | 65535 | max pending messages |
+  | `:hibernate_ms` | 90 s | hibernation timeout |
+
+  ### HTTP
+
+  These bound an action that does not use `.connect()`.
+
+  | limit | value | what rivet calls it |
+  | --- | --- | --- |
+  | `:http_request_bytes` | 20 MiB | max request body |
+  | `:http_response_bytes` | 20 MiB | max response body |
+
+  ### Networking
+
+  One limit, and it only shows up when the network is already broken.
+
+  | limit | value | what rivet calls it |
+  | --- | --- | --- |
+  | `:ping_ms` | 30 s | connection ping timeout |
+
+  ### Queue
+
+  | limit | value | what rivet calls it |
+  | --- | --- | --- |
+  | `:queue_messages` | 1000 | max queue size |
+  | `:queue_message_bytes` | 128 KiB | max queue message, effective |
+
+  ### Key and value storage
+
+  The layer under an actor. `Weft.Actor` enforces the first three.
+
+  | limit | value | what rivet calls it |
+  | --- | --- | --- |
+  | `:storage_bytes` | 10 GiB | max storage for one actor |
+  | `:key_bytes` | 2 KiB | max key |
+  | `:value_bytes` | 128 KiB | max value |
+  | `:keys_each_operation` | 128 | max keys in one operation |
+  | `:batch_put_bytes` | 976 KiB | max batch put payload |
+  | `:list_keys` | 16384 | default list limit |
+
+  ### SQLite storage
+
+  The store plane. `native_store_plane.md` derives its transaction bounds from the FoundationDB value size, and these are the shape rivet arrived at.
+
+  | limit | value | what rivet calls it |
+  | --- | --- | --- |
+  | `:commit_dirty_bytes` | 1310720 B, which is 320 pages of 4 KiB | max dirty data for one commit |
+  | `:transaction_queue` | 128 operations | transaction coordinator queue |
+
+  ### Actor runtime socket
+
+  | limit | value | what rivet calls it |
+  | --- | --- | --- |
+  | `:socket_frame_bytes` | 32 MiB | frame payload |
+
+  ### Preloading
+
+  What an actor may be handed at start, so it does not go to storage first.
+
+  | limit | value | what rivet calls it |
+  | --- | --- | --- |
+  | `:preload_bytes` | 1 MiB | max total preload |
+  | `:preload_workflow_bytes` | 128 KiB | max workflow preload |
+  | `:preload_connections_bytes` | 64 KiB | max connections preload |
+
+  ### Actor input and naming
+
+  | limit | value | what rivet calls it |
+  | --- | --- | --- |
+  | `:input_bytes` | 4 MiB | max actor input |
+  | `:connection_params_bytes` | 4 KiB | max connection params |
+  | `:key_component_bytes` | 128 B | max key component |
+  | `:key_total_bytes` | 1024 B | max key total |
+  | `:name_length` | 64 characters | max name length |
+
+  ### Timeouts
+
+  `action_ms` is the one weft enforces. The rest bound a lifecycle hook rivet has and weft does not have yet.
+
+  | limit | value | what rivet calls it |
+  | --- | --- | --- |
+  | `:action_ms` | 60 s | action, and raw request |
+  | `:before_connect_ms` | 5 s | before connect hook |
+  | `:create_vars_ms` | 5 s | create vars hook |
+  | `:create_conn_state_ms` | 5 s | create connection state hook |
+  | `:on_connect_ms` | 5 s | connect hook |
+  | `:on_migrate_ms` | 30 s | migrate hook |
+  | `:sleep_grace_ms` | 15 s | graceful shutdown budget |
+  | `:sleep_ms` | 30 s | inactivity before hibernation |
+  | `:state_save_ms` | 1 s | interval between state saves |
+  | `:liveness_ms` | 2.5 s | connection liveness timeout |
+  | `:liveness_interval_ms` | 5 s | connection liveness interval |
+
+  ### Shutdown and lifecycle
+
+  | limit | value | what rivet calls it |
+  | --- | --- | --- |
+  | `:request_lifespan_ms` | 3600 s | request lifespan before drain |
+  | `:drain_grace_ms` | 30 min | runner drain grace |
+  | `:drain_fallback_ms` | 10 s | engine drain fallback |
+  | `:actor_start_ms` | 30 s | start threshold |
+  | `:actor_stop_ms` | 30 min | stop threshold |
+
+  ### Rate
+
+  | limit | value | what rivet calls it |
+  | --- | --- | --- |
+  | `:requests_each_minute` | 1200 | requests for each minute for each address |
+  | `:in_flight` | 32 | requests in flight |
 
   ## What enforces each one
 
@@ -211,6 +349,51 @@ defmodule Weft.Limits do
   # sweep, which bounds it at 7 below and 336 above.
   @snapshot_batch 128
 
+  # rivet's remaining limits, transcribed. weft records every one, and it enforces the
+  # few marked in the tables above. A number that is written down cannot be invented
+  # again later by someone who did not find it.
+  @ws_incoming_bytes 64 * 1024
+  @ws_outgoing_bytes 1024 * 1024
+  @ws_frame_bytes 32 * 1024 * 1024
+  @ws_open_ms 15_000
+  @ws_ack_ms 30_000
+  @hibernate_buffer_bytes 128 * 1024 * 1024
+  @hibernate_messages 65_535
+  @hibernate_ms 90_000
+  @http_request_bytes 20 * 1024 * 1024
+  @http_response_bytes 20 * 1024 * 1024
+  @ping_ms 30_000
+  @queue_messages 1_000
+  @queue_message_bytes 128 * 1024
+  @batch_put_bytes 976 * 1024
+  @list_keys 16_384
+  @commit_dirty_bytes 320 * 4 * 1024
+  @transaction_queue 128
+  @socket_frame_bytes 32 * 1024 * 1024
+  @preload_bytes 1024 * 1024
+  @preload_workflow_bytes 128 * 1024
+  @preload_connections_bytes 64 * 1024
+  @input_bytes 4 * 1024 * 1024
+  @connection_params_bytes 4 * 1024
+  @key_component_bytes 128
+  @key_total_bytes 1_024
+  @name_length 64
+  @before_connect_ms 5_000
+  @create_vars_ms 5_000
+  @create_conn_state_ms 5_000
+  @on_connect_ms 5_000
+  @on_migrate_ms 30_000
+  @sleep_grace_ms 15_000
+  @sleep_ms 30_000
+  @state_save_ms 1_000
+  @liveness_ms 2_500
+  @liveness_interval_ms 5_000
+  @request_lifespan_ms 3_600_000
+  @drain_grace_ms 30 * 60_000
+  @drain_fallback_ms 10_000
+  @actor_start_ms 30_000
+  @actor_stop_ms 30 * 60_000
+
   @window_ms 60_000
   @flight_supervisor __MODULE__.InFlight
 
@@ -222,6 +405,48 @@ defmodule Weft.Limits do
           | :requests_each_minute
           | :in_flight
           | :snapshot_batch
+          | :ws_incoming_bytes
+          | :ws_outgoing_bytes
+          | :ws_frame_bytes
+          | :ws_open_ms
+          | :ws_ack_ms
+          | :hibernate_buffer_bytes
+          | :hibernate_messages
+          | :hibernate_ms
+          | :http_request_bytes
+          | :http_response_bytes
+          | :ping_ms
+          | :queue_messages
+          | :queue_message_bytes
+          | :keys_each_operation
+          | :batch_put_bytes
+          | :list_keys
+          | :commit_dirty_bytes
+          | :transaction_queue
+          | :socket_frame_bytes
+          | :preload_bytes
+          | :preload_workflow_bytes
+          | :preload_connections_bytes
+          | :input_bytes
+          | :connection_params_bytes
+          | :key_component_bytes
+          | :key_total_bytes
+          | :name_length
+          | :before_connect_ms
+          | :create_vars_ms
+          | :create_conn_state_ms
+          | :on_connect_ms
+          | :on_migrate_ms
+          | :sleep_grace_ms
+          | :sleep_ms
+          | :state_save_ms
+          | :liveness_ms
+          | :liveness_interval_ms
+          | :request_lifespan_ms
+          | :drain_grace_ms
+          | :drain_fallback_ms
+          | :actor_start_ms
+          | :actor_stop_ms
 
   @type error :: {:limit, limit(), [{:limit, non_neg_integer()} | {:actual, non_neg_integer()}]}
 
@@ -248,6 +473,48 @@ defmodule Weft.Limits do
   def get(:requests_each_minute), do: @requests_each_minute
   def get(:in_flight), do: @in_flight
   def get(:snapshot_batch), do: @snapshot_batch
+  def get(:ws_incoming_bytes), do: @ws_incoming_bytes
+  def get(:ws_outgoing_bytes), do: @ws_outgoing_bytes
+  def get(:ws_frame_bytes), do: @ws_frame_bytes
+  def get(:ws_open_ms), do: @ws_open_ms
+  def get(:ws_ack_ms), do: @ws_ack_ms
+  def get(:hibernate_buffer_bytes), do: @hibernate_buffer_bytes
+  def get(:hibernate_messages), do: @hibernate_messages
+  def get(:hibernate_ms), do: @hibernate_ms
+  def get(:http_request_bytes), do: @http_request_bytes
+  def get(:http_response_bytes), do: @http_response_bytes
+  def get(:ping_ms), do: @ping_ms
+  def get(:queue_messages), do: @queue_messages
+  def get(:queue_message_bytes), do: @queue_message_bytes
+  def get(:keys_each_operation), do: @snapshot_batch
+  def get(:batch_put_bytes), do: @batch_put_bytes
+  def get(:list_keys), do: @list_keys
+  def get(:commit_dirty_bytes), do: @commit_dirty_bytes
+  def get(:transaction_queue), do: @transaction_queue
+  def get(:socket_frame_bytes), do: @socket_frame_bytes
+  def get(:preload_bytes), do: @preload_bytes
+  def get(:preload_workflow_bytes), do: @preload_workflow_bytes
+  def get(:preload_connections_bytes), do: @preload_connections_bytes
+  def get(:input_bytes), do: @input_bytes
+  def get(:connection_params_bytes), do: @connection_params_bytes
+  def get(:key_component_bytes), do: @key_component_bytes
+  def get(:key_total_bytes), do: @key_total_bytes
+  def get(:name_length), do: @name_length
+  def get(:before_connect_ms), do: @before_connect_ms
+  def get(:create_vars_ms), do: @create_vars_ms
+  def get(:create_conn_state_ms), do: @create_conn_state_ms
+  def get(:on_connect_ms), do: @on_connect_ms
+  def get(:on_migrate_ms), do: @on_migrate_ms
+  def get(:sleep_grace_ms), do: @sleep_grace_ms
+  def get(:sleep_ms), do: @sleep_ms
+  def get(:state_save_ms), do: @state_save_ms
+  def get(:liveness_ms), do: @liveness_ms
+  def get(:liveness_interval_ms), do: @liveness_interval_ms
+  def get(:request_lifespan_ms), do: @request_lifespan_ms
+  def get(:drain_grace_ms), do: @drain_grace_ms
+  def get(:drain_fallback_ms), do: @drain_fallback_ms
+  def get(:actor_start_ms), do: @actor_start_ms
+  def get(:actor_stop_ms), do: @actor_stop_ms
 
   @doc """
   Check a key against the key limit.

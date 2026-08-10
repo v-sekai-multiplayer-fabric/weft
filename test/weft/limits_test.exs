@@ -25,6 +25,28 @@ defmodule Weft.LimitsTest do
       assert Limits.get(:in_flight) == 32
     end
 
+    test "every limit the type names is reachable" do
+      # The union in @type limit and the clauses of get/1 are two lists of the same thing.
+      # A row transcribed into one and not the other reads as present and is not.
+      {:ok, specs} = Code.Typespec.fetch_types(Limits)
+
+      named =
+        Enum.find_value(specs, fn
+          {:type, {:limit, {:type, _, :union, parts}, _}} ->
+            Enum.map(parts, fn {:atom, _, atom} -> atom end)
+
+          _ ->
+            nil
+        end)
+
+      refute named == nil, "Weft.Limits has no @type limit union"
+      assert length(named) >= 49
+
+      for limit <- named do
+        assert is_integer(Limits.get(limit)), "get(#{inspect(limit)}) is not a number"
+      end
+    end
+
     test "the batch is rivet's max keys per operation, and not a number of its own" do
       # Every limit here is rivet's. A bus message is the same shape of thing as a batch
       # put: many items, one operation. The measurement checks the number rather than
@@ -46,6 +68,7 @@ defmodule Weft.LimitsTest do
 
       pairs = [
         {"SNAPSHOT_BATCH", :snapshot_batch},
+        {"QUEUE_MESSAGES", :queue_messages},
         {"ACTION_MS", :action_ms},
         {"KEY_BYTES", :key_bytes},
         {"VALUE_BYTES", :value_bytes},
