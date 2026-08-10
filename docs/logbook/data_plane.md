@@ -268,11 +268,52 @@ dlsym table takes about 1.1% of that.
 This is the reason the ring exists beside the bus, and it is worth stating plainly: the
 ring carries state at packet rate, and the bus carries frames and commands.
 
+## 2026-08-10: the gap between machines
+
+No measurement. A reckoning of what is measured and what is not, because the hole is in
+the middle rather than at the edge of the picture.
+
+| path | snapshots/s on one core | measured |
+| --- | --- | --- |
+| the seqlock ring, same machine | 189.4 M | yes |
+| the iceoryx2 bus, same machine, 128 in a message | 214.7 M | yes |
+| the store plane, across machines, 32 in flight | 0.013 M | yes |
+| the store plane, 32 kB of the nasty format | 35.2 M | extrapolated |
+| **across machines, at tick rate** | **nothing** | **no** |
+
+Inside a machine the target has four orders of margin. Across a machine, the only path is
+the store plane, and `store_plane.md` works out that it is 1161 times short on commits of
+one key. That is right, because a commit is a network round trip and the store is durable.
+
+The row that matters is the last one. There is no design for per-tick state across
+machines, and there is no number. It does not bite while one world runs in one machine,
+which is what `../essays/topology.md` says. It bites the day a world outgrows one.
+
+### What netbench does and does not do
+
+`../../test/bench/fly/netbench.c` is ready and has never run. It would not close this gap
+even if it did.
+
+It is a functional check and not a ceiling. The client is hard capped at 100000 packets
+each second and bounded to seconds, on purpose: Fly's private network is a WireGuard
+overlay, and its acceptable use policy forbids hurting shared infrastructure. So it can
+prove a path works. It cannot say how fast the path is.
+
+### One thing the format decides here
+
+The payload is 24 bytes. The nasty bitpacked format is 12 bytes for each entity, so two
+fit. The cheap CBOR JSON-LD one is 28 bytes, so **none fits**: one entity does not go in
+one packet.
+
+That is a harder consequence than the 2.3 times bandwidth ratio the encoding table shows,
+and it only appears at this size.
+
 ## Not measured
 
 - **A real network card.** `test/bench/fly/netbench.c` is ready to run between two
   machines on Fly, and it is held until a run that is bounded in cost. Loopback cannot
   give this number, as the entry above shows.
+- **Per-tick state across machines.** No design and no number. See the entry above.
 - **The bus under load.** The table above is one publisher and one subscriber in one
   process. A real plane has one for each core, and the numbers will differ.
 - **Scattered entities under real traffic.** The two apply numbers bracket it. The truth
