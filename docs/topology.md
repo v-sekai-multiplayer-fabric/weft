@@ -3,17 +3,20 @@
 How many machines, where they are, and what runs on each one. Every number below comes
 from `benchmarks.md` or from arithmetic on it. Where a number is a guess, it says so.
 
-## Latency does not set the geography
+## The mistake that shaped this page
 
-A first version of this page put the network inside the motion-to-photon budget and got
-a radius of 400 km. That was wrong.
+The first version of this page reasoned like this: VR needs motion-to-photon under
+20 ms, the network sits inside that budget, so players must be within 400 km of a
+datacenter. That produced a plan for many small regional sites.
 
-Motion sickness comes from the delay between your head movement and your own view. The
-headset renders your own view on the client with prediction, so that path is local. It
-does not cross the network. The network delay changes how smoothly you see **other** people move. Interpolation
-hides that delay up to about 80 ms.
+It was wrong, and the error is worth keeping visible because it is easy to make.
 
-So the budget is:
+Motion sickness comes from the delay between moving your head and seeing your own view
+change. Your headset renders your own view locally, with prediction. The network is not
+in that loop at all. What the network affects is how smoothly you see *other* people
+move, and interpolation covers that up to roughly 80 ms.
+
+Two different budgets had been collapsed into one:
 
 | Path | Budget | Set by |
 | --- | --- | --- |
@@ -64,7 +67,10 @@ entity across machines inside one frame, you need a predictive method. The n-fra
 predictive BVH in the Lean repositories is one. Until that is in weft, treat a world as
 one machine.
 
-### Zones: one is enough
+### How many zones does a world need?
+
+Spatial partitioning is what everyone builds. It is worth checking whether this world
+needs any.
 
 Take N entities at speed v in a square zone of side L. The boundary crossing rate is
 `R = 4Nv/(pi L)`. Divide a world of side W into Z zones. Each zone then gets:
@@ -81,11 +87,15 @@ each machine gets 15 handoffs each second. Solve for Z:
 sqrt(Z) >= 4 N v / (15 pi W)
 ```
 
-For 1000 avatars at 5 m/s in a world 2 km wide, `sqrt(Z) >= 0.21`, so **Z = 1**. One zone
-is sufficient, with a margin near 20 times. Do not build spatial partitioning yet. See
-`yagni.md`.
+For 1000 avatars at 5 m/s in a world 2 km wide, `sqrt(Z) >= 0.21`, so **Z = 1**.
 
-### What binds: bytes to the client
+One zone. Not one zone as a simplification to revisit later, but one zone with a margin
+of about 20 times. The obvious feature turns out to be unnecessary by a wide margin, and
+building it now would be structure with nothing behind it. See `yagni.md`.
+
+### So what does bind?
+
+Not compute, as it turns out, and not handoffs either. Bytes.
 
 Each client receives `K` entities of `b` bytes at `f` Hz. Area-of-interest culling gives
 K = 256. Compression gives b = 3 bytes, from 20 bytes at the measured 6.5 times. The rate
@@ -98,10 +108,11 @@ clients_max = B / (K b f 8)
  10 Gbit/s -> 27000 clients
 ```
 
-### Machines hold many worlds
+### The direction that scales
 
-Compute does not bind. 1000 entities at 60 Hz is 60000 applies each second, against a
-measured 41 million for each core. That is 0.15 percent of one core. State is 20 kB.
+1000 entities at 60 Hz is 60,000 applies each second, against a measured 41 million per
+core. That is **0.15 percent of one core**, and 20 kB of state. A world barely registers
+on the machine that runs it.
 
 ```
 worlds_for_each_machine = B / (players K b f 8)
@@ -109,19 +120,26 @@ worlds_for_each_machine = B / (players K b f 8)
  10 Gbit/s, worlds of 1000 -> 27 worlds, near 27000 persons for each machine
 ```
 
-So a bigger machine does not help a world. More machines hold more worlds. This is the
-horizontal direction: a world is the unit, and worlds are independent.
+Which settles the scaling question in an unusual way. A faster CPU buys nothing, because
+nothing is CPU-bound. Vertical scaling is not merely inefficient here, it is inert. The
+only direction that moves is sideways: more machines, more worlds, and worlds never talk
+to each other.
 
-## Above the crossover
+## The one place the design breaks
 
-Past `B/(K b f 8)` clients, one machine cannot send to all of them. That is near 2712 on
-1 Gbit/s. The interest plane reads the ring in the authority machine. A second machine has no
-access to that memory. So the authority machine must send the state to interest replicas over
-the network.
+Everything above holds because a world fits on a machine. Past `B/(K b f 8)` clients,
+near 2712 on 1 Gbit/s, it stops fitting: one machine cannot send to that many people.
 
-This is the one path where a plane on one machine sends to a plane on a different
-machine. It is one way, and it is small: 1000 entities of 20 bytes at 60 Hz is 1.2 MB
-each second. Build it when the client count passes the crossover, and not before.
+The awkward part is that you cannot solve it by adding a machine, at least not for free.
+The interest plane reads the ring in shared memory, and a second machine has no access to
+that memory. So the authority machine has to ship state over the network to interest
+replicas.
+
+That is a genuine exception to "planes never cross machines," and it is worth admitting
+rather than hiding, because it is the seam where the architecture would have to change.
+It is one way and it is small — 1000 entities of 20 bytes at 60 Hz is 1.2 MB each second
+— so it is not hard. It is just not built, and it should not be built until the client
+count actually crosses the line.
 
 ## High availability
 
@@ -131,10 +149,17 @@ each second. Build it when the client count passes the crossover, and not before
 | front door (login, matchmaking, directory) | 2 or 3 machines | It holds no world state, so it replicates freely. Use 3 for a rolling update with no loss of capacity. |
 | world machine | 1 | An entity is authoritative on exactly one zone. Two live copies of a world are two writers. |
 
-A world machine cannot be two. That is the single-writer rule, not a limit of the deploy.
-When a world machine is lost, the persons in it are disconnected and they join again. The
-world state rebuilds from FoundationDB, a measured 0.448 ms read. A social 3D platform
-usually accepts the same loss, because a world instance is short-lived.
+The last row is the one people argue with. Surely a world should have a hot standby?
+
+It cannot. An entity is authoritative on exactly one zone, so two live copies of a world
+are two writers, and two writers is not a degraded mode — it is a corrupted world. This
+is not a limitation of the deployment that a better deployment would fix. It is the
+single-writer rule, which is also the thing that makes the rest of the system simple.
+
+So when a world machine is lost, the people in it are disconnected and rejoin. The state
+rebuilds from FoundationDB in a measured 0.448 ms. A social 3D platform usually accepts
+exactly this, because a world instance is short-lived anyway, and paying for warm
+standbys to protect something that ends in an hour is a poor trade.
 
 FoundationDB is strongly consistent and wants a short distance between its processes. So
 each region gets its own FoundationDB cluster. One cluster does not span two regions.
@@ -144,9 +169,13 @@ each region gets its own FoundationDB cluster. One cluster does not span two reg
 Identity, friends, and matchmaking are the same in every region. A FoundationDB cluster
 for each region cannot hold them.
 
-The answer needs no new mechanism. One world is authoritative for this data, and the data
-lives there as actors. weft already has the rule: an actor has a single writer, and it
-lives in one place. Identity is that rule at a different level.
+The tempting move is to reach for a new mechanism: a global database, a replication
+layer, an eventually-consistent merge with conflict resolution. Each is real work, and
+each adds a concept the rest of the system has to know about.
+
+None of it is needed, because the rule already exists. An actor has a single writer and
+lives in one place. Identity is that same rule one level up: one world is authoritative
+for the data, and the data lives there as actors.
 
 So there is one home world. An account is an actor in it. A friend list is an actor in
 it. The store tiers it the same way as any other actor: a local SQLite primary, an async

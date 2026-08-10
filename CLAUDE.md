@@ -10,10 +10,30 @@ Rules and conventions for the weft repo. Follow them.
 
 ## Writing
 
-- Write all prose in ASD-STE100 Simplified Technical English.
+Two kinds of prose, two rules. Pick by what the text does, not by where it lives.
+
+**Normative and reference text** states a rule, a term, or a contract. A reader looks it
+up and must not misread it. Write it in ASD-STE100 Simplified Technical English:
+
 - Use short sentences. The maximum is 20 words.
 - Do not use contractions. Do not use semicolons. Use a simple tense.
-- Use one name for one concept. Terms are in `docs/planes.md` and `CITATION.cff` (Khronos CATSG).
+- This covers `CLAUDE.md`, the terms and the plane contract in `docs/planes.md`,
+  `docs/protocol.md`, `docs/tasks.md`, and every moduledoc and comment.
+
+**Explanatory text** makes a reader understand why. Write it as an essay, not as a
+manual. STE forbids the things that make an explanation readable, so do not use it here:
+
+- Start with a question, not with the answer. If the page opens by stating its
+  conclusion and then defends it, it is a memo, not an essay.
+- Follow the surprise. If nothing in a section contradicts what a reader would assume,
+  cut the section.
+- Vary sentence length. Flat rhythm hides which sentence carries the weight.
+- Name the cost of a decision, not only the benefit.
+- This covers `docs/how-it-works.md`, `docs/latency.md`, `docs/yagni.md`,
+  `docs/topology.md`, `docs/runtime-choice.md`, and `docs/benchmarks.md`.
+
+Both kinds: use one name for one concept. Terms are in `docs/planes.md` and
+`CITATION.cff` (Khronos CATSG). Do not name another company or product.
 
 ## Architecture
 
