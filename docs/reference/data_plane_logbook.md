@@ -214,15 +214,31 @@ batch whatever its length, at one loan and one send.
 | 256 | 730.2 | 350.61 |
 | 1024 | 1695.1 | 604.11 |
 
-**A batch of 8 clears the 15 M target on one core.** A batch of 7 is the break-even point,
-and nothing above it is close.
+Two numbers come out of this, and they are far apart.
 
-The first two rows are the reason. 1 to 8 entities costs 4 ns more for each message, so
-almost the whole 420 ns is fixed cost that a batch pays once. Above 32 the payload write
-starts to show, and from 8 to 1024 the marginal cost settles near 1.25 ns for each entity.
+**The floor is 7.** 15 M snapshots each second divided by the 2.38 M messages each second
+at batch 1. Below 7 the bus cannot reach the target however many cores it gets.
 
-So the bus is not the constraint at this target. The batch size is, and the batch size a
-frame already has is 256.
+**The knee is 336.** Split a message in two: a fixed part it pays once, and a marginal
+part for each entity. From batch 8 to batch 1024 the marginal part is
+`(1695.1 - 424.5) / 1016`, which is 1.25 ns. The fixed part is the batch-1 cost less one
+entity, which is 419 ns. They are equal at 336.
+
+The floor is not a size to run at, and the gap says why:
+
+| entities in a message | fixed cost for each entity | overhead |
+| --- | --- | --- |
+| 7 | 59.9 ns | 98% |
+| 32 | 13.1 ns | 91% |
+| 256 | 1.6 ns | 57% |
+| 336 | 1.25 ns | 50% |
+| 1024 | 0.4 ns | 25% |
+
+A message of 7 clears the target and is 98% overhead. A replication frame already carries
+256, which is 57% overhead and close enough to the knee that nothing needs to change.
+
+`Weft.Limits` holds both, and it derives each one from the numbers above rather than
+storing them. So a faster bus moves them on its own.
 
 ### The bus is not the per-snapshot path
 

@@ -116,7 +116,7 @@ defmodule Weft.Limits do
   | one action | 60 s | `with_in_flight/1` | a promise |
   | requests for each minute for each address | 1200 | `Weft.Gateway.dispatch/1` | a promise |
   | requests in flight | 32 | `Weft.Gateway.dispatch/1` | measured, see below |
-  | entities in one bus message | 7 | the harness, when it exists | measured, see below |
+  | entities in one bus message | 336 | the harness, when it exists | measured, see below |
 
   A promise is what weft tells the person who writes an actor. A measured value comes from
   a run that is written down, and the run says which one.
@@ -131,21 +131,37 @@ defmodule Weft.Limits do
   second, at 1.7 times the unloaded latency. A larger number buys throughput that one
   caller cannot use. It pays for that in the latency of every other caller.
 
-  ## Why 7 entities in a bus message
+  ## Why 336 entities in a bus message
 
-  This one is not written down as 7. It is `snapshots_each_second` divided by
-  `bus_messages_each_second`, and both come from a measurement.
+  The batch sweep in `data_plane_logbook.md` splits the cost of a message in two. A fixed
+  part of 419 ns that a message pays once, and a marginal part of 1.25 ns for each entity
+  in it. Both come out of the same run.
 
-  `data_plane_logbook.md` measures the bus at 2.38 M messages each second on one core. The
-  target for a plane is 15 M snapshots each second on one core. So a message must carry at
-  least 6.3 entities for the bus to reach the target at all, which is 7 whole ones.
+  336 is where those two are equal. Below it a message spends more time on the bus than on
+  its payload, and above it the payload dominates. So it is a knee and not a size that was
+  picked, the same way `in_flight` is a knee and not a number that was picked.
 
-  This is a floor and not a size to pick. One message for each snapshot misses the target
-  by 6.4 times. A replication frame already carries 256 entities, which is 36 times the
-  floor and gives 351 M snapshots each second.
+  Read the floor and the knee as two different things, because the difference is large.
 
-  The floor moves on its own when either measurement changes, which is the point. A
-  faster bus lowers it. A higher target raises it. Neither is a guess about a workload.
+  | entities in a message | fixed cost for each entity | overhead |
+  | --- | --- | --- |
+  | 7 | 59.9 ns | 98% |
+  | 32 | 13.1 ns | 91% |
+  | 256 | 1.6 ns | 57% |
+  | 336 | 1.25 ns | 50% |
+  | 1024 | 0.4 ns | 25% |
+
+  **The floor is 7.** That is 15 M snapshots each second divided by the 2.38 M messages
+  each second the bus does. Below 7 the bus cannot reach the target however many cores it
+  gets. A message of 7 is 98% overhead, so the floor says where the bus stops failing, and
+  it does not say where to run.
+
+  **The knee is 336.** A replication frame already carries 256, which is 57% overhead and
+  close enough that no change is needed for it.
+
+  Both numbers move on their own when a measurement changes, which is the point. A faster
+  bus lowers the floor. A cheaper payload raises the knee. Neither is a guess about a
+  workload.
 
   ## What enforces each one
 
@@ -187,10 +203,19 @@ defmodule Weft.Limits do
   @requests_each_minute 1200
   @in_flight 32
 
-  # The two measured rates the batch floor divides. Neither is a limit on its own, so
-  # neither is in `get/1`. `data_plane_logbook.md` holds the run for each.
+  # The measurements the two batch numbers come out of. None is a limit on its own, so
+  # none is in `get/1`. `data_plane_logbook.md` holds the run for each.
+  #
+  # The rates give the floor: below it the bus cannot reach the target at all.
   @snapshots_each_second 15_000_000
   @bus_messages_each_second 2_380_000
+
+  # Three points from the batch sweep, in nanoseconds for one message. The fixed part and
+  # the marginal part are derived from them rather than written down, so a rounding here
+  # cannot drift from the run.
+  @message_ns_at_1 420.3
+  @message_ns_at_8 424.5
+  @message_ns_at_1024 1695.1
 
   @window_ms 60_000
   @flight_supervisor __MODULE__.InFlight
@@ -203,6 +228,7 @@ defmodule Weft.Limits do
           | :requests_each_minute
           | :in_flight
           | :snapshot_batch
+          | :snapshot_batch_floor
 
   @type error :: {:limit, limit(), [{:limit, non_neg_integer()} | {:actual, non_neg_integer()}]}
 
@@ -228,7 +254,16 @@ defmodule Weft.Limits do
   def get(:action_ms), do: @action_ms
   def get(:requests_each_minute), do: @requests_each_minute
   def get(:in_flight), do: @in_flight
-  def get(:snapshot_batch), do: ceil(@snapshots_each_second / @bus_messages_each_second)
+  def get(:snapshot_batch) do
+    # What one entity adds, from the two ends of the flat part of the sweep.
+    marginal = (@message_ns_at_1024 - @message_ns_at_8) / (1024 - 8)
+
+    # What a message pays once, which is the one-entity cost less that one entity.
+    fixed = @message_ns_at_1 - marginal
+
+    ceil(fixed / marginal)
+  end
+  def get(:snapshot_batch_floor), do: ceil(@snapshots_each_second / @bus_messages_each_second)
 
   @doc """
   Check a key against the key limit.

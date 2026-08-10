@@ -25,15 +25,18 @@ defmodule Weft.LimitsTest do
       assert Limits.get(:in_flight) == 32
     end
 
-    test "the batch floor is a ratio of two measured rates, not a number" do
-      # 15 M snapshots each second against a bus that does 2.38 M messages each second.
-      # `data_plane_logbook.md` holds both runs. A message under this size cannot reach
-      # the target however many cores it gets.
-      assert Limits.get(:snapshot_batch) == 7
+    test "the batch numbers are ratios of measured quantities, not numbers" do
+      # The floor: 15 M snapshots each second against a bus that does 2.38 M messages each
+      # second. Below it the bus cannot reach the target however many cores it gets.
+      assert Limits.get(:snapshot_batch_floor) == 7
 
-      # The break-even is a floor and not a size to pick. A replication frame carries 256,
-      # which is well clear of it.
-      assert Limits.get(:snapshot_batch) < 256
+      # The knee: a message costs 419 ns once plus 1.25 ns for each entity, and this is
+      # where those two are equal. `data_plane_logbook.md` holds the run.
+      assert Limits.get(:snapshot_batch) == 336
+
+      # The floor is not a size to run at. A message of 7 is 98% overhead, so the two are
+      # far apart on purpose and must not be confused.
+      assert Limits.get(:snapshot_batch_floor) * 10 < Limits.get(:snapshot_batch)
     end
 
     test "the native copy of a limit matches this module" do
@@ -48,7 +51,13 @@ defmodule Weft.LimitsTest do
           {:error, reason} -> flunk("cannot read #{header}: #{inspect(reason)}")
         end
 
-      for {constant, limit} <- [{"SNAPSHOT_BATCH", :snapshot_batch}, {"ACTION_MS", :action_ms}] do
+      pairs = [
+        {"SNAPSHOT_BATCH", :snapshot_batch},
+        {"SNAPSHOT_BATCH_FLOOR", :snapshot_batch_floor},
+        {"ACTION_MS", :action_ms}
+      ]
+
+      for {constant, limit} <- pairs do
         found =
           case Regex.run(~r/\b#{constant}\s*=\s*(\d+)\s*;/, body) do
             [_, digits] -> String.to_integer(digits)

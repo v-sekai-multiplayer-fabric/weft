@@ -35,10 +35,16 @@ inline constexpr const char* PAYLOAD_TYPE = "weft::Snapshot";
 // A C++ plane cannot call Elixir, so these are copies. `Weft.LimitsTest` asserts the
 // same values, so a change on one side fails on the other.
 
-// The floor on entities in one bus message. It is 15 M snapshots each second divided by
-// the 2.38 M messages each second the bus does, both from data_plane_logbook.md. Below
-// this a message cannot reach the target however many cores it gets.
-inline constexpr int SNAPSHOT_BATCH = 7;
+// Entities in one bus message, at the knee. A message costs 419 ns once plus 1.25 ns for
+// each entity, and 336 is where those two are equal. Below it a message spends more time
+// on the bus than on its payload.
+inline constexpr int SNAPSHOT_BATCH = 336;
+
+// The floor, which is a different thing. 15 M snapshots each second divided by the 2.38 M
+// messages each second the bus does. Below this the bus cannot reach the target however
+// many cores it gets, and a message of 7 is 98% overhead. It says where the bus stops
+// failing, and not where to run.
+inline constexpr int SNAPSHOT_BATCH_FLOOR = 7;
 
 // The limit on one action, in milliseconds. A loop that waits longer than this has lost
 // the far end, whatever it is waiting for.
