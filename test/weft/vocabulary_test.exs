@@ -27,6 +27,19 @@ defmodule Weft.VocabularyTest do
       "test/weft/vocabulary_test.exs"],
      "weft uses iceoryx2. v1 does not build here, because it needs libacl. See CLAUDE.md."},
     {"VRChat", [], "Do not name another company or product. See CLAUDE.md."},
+
+    # A blocked design, and not a retired word. One core at the DRAM bound covers about
+    # 1493 SUMO-scale worlds, so a cross-machine tick answers a workload nothing here has
+    # measured. docs/essays/yagni.md holds the arithmetic and says what would change it.
+    # A page that starts describing this instead of citing the decision fails here.
+    {"cross-machine tick", ["docs/essays/yagni.md", "test/weft/vocabulary_test.exs"],
+     "One machine holds about 1493 SUMO-scale worlds. See docs/essays/yagni.md."},
+    {"distributed tick", ["test/weft/vocabulary_test.exs"],
+     "One machine holds about 1493 SUMO-scale worlds. See docs/essays/yagni.md."},
+    {"tick relay", ["test/weft/vocabulary_test.exs"],
+     "One machine holds about 1493 SUMO-scale worlds. See docs/essays/yagni.md."},
+    {"zone spanning", ["test/weft/vocabulary_test.exs"],
+     "A zone is one machine. See docs/essays/yagni.md."},
     {"docs/planes.md", [], "It is the Weft moduledoc in lib/weft.ex."},
     {"docs/reference/architecture.md", [], "It is the Weft moduledoc in lib/weft.ex."},
     {"docs/reference/store.md", [], "It is the Weft.Actor.Store moduledoc."},

@@ -135,7 +135,7 @@ defmodule Weft do
   | SUMO        | Eclipse SUMO traffic microsimulation               | publish-subscribe | out of BEAM                 |
   | Interest    | thread-per-core C++ harness                        | publish-subscribe | out of BEAM                 |
   | Asset baker | OpenUSD + Adobe glTF plugin (fabric-stage-runtime) | request-response  | out of BEAM, crash-isolated |
-  | Store       | native SQLite (WAL) + FoundationDB replica         | request-response  | out of BEAM, crash-isolated |
+  | Store       | native SQLite over a VFS whose pages live in FDB   | request-response  | out of BEAM, crash-isolated |
 
   No row above has networking.
 

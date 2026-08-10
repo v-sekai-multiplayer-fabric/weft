@@ -42,6 +42,11 @@ Both kinds: use one name for one concept. Terms are in `Weft` and
   BEAM, in a repository of its own and a container of its own. weft does not start it and
   does not restart it. The platform does, and today that is a Fly app for each plane.
   `native/` holds the data plane and the NIF, and nothing else.
+- Do not build a path that carries per-tick state between machines. One core at the DRAM
+  bound covers about 1493 SUMO-scale worlds, so it answers a workload nothing here has
+  measured. `docs/essays/yagni.md` holds the arithmetic and names what would change the
+  answer, which is a measured workload that does not fit in one machine.
+  `Weft.VocabularyTest` blocks the names it would arrive under.
 - Two planes on one machine talk over iceoryx2, zero copy. Two planes on different
   machines do not talk directly at all. They go through the store plane to FoundationDB,
   which is a global transaction and is slow. The 10 GiB limit for one actor is sized for
@@ -61,7 +66,11 @@ Both kinds: use one name for one concept. Terms are in `Weft` and
 - A plane runs a thin C++ thread-per-core harness over iceoryx2, not Seastar. One runtime
   model for all planes. iceoryx2 is brokerless, so a machine runs no daemon beside a plane.
 - Durable state is FoundationDB, over the network with `erlfdb`. iceoryx does not cross machines.
-- The store is a native plane. It tiers a local SQLite WAL primary to a FoundationDB replica to S3-compatible object storage.
+- The store is a native plane. SQLite runs inside it with a VFS whose pages live in
+  FoundationDB. There is no local database file, so an actor's database moves between
+  machines with no copy and no restore. `PRAGMA journal_mode=MEMORY` keeps SQLite from
+  writing one. rivet lists the same rule as binding, for the same reason: a local file
+  makes storage stateful and not migratable.
 - The S3-compatible endpoint is `versitygw`. FoundationDB backs up to it with `fdbbackup`.
 - The asset CDN uses casync through the `desync` fork. Chunks go into SQLite to FoundationDB to the S3-compatible tier, not a naive S3 CDN.
 - The native data plane is C++ at `native/dataplane`. It is a seqlock ring built with CMake.
