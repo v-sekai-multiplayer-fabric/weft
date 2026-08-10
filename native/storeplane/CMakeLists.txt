@@ -1,5 +1,5 @@
 # The store plane: SQLite with a VFS whose pages live in FoundationDB.
-# See docs/reference/native_store_plane.md.
+# See native/storeplane/README.md.
 cmake_minimum_required(VERSION 3.16)
 project(weft_storeplane C)
 

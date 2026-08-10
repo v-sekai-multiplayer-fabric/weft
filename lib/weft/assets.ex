@@ -1,20 +1,38 @@
 defmodule Weft.Assets do
   @moduledoc """
-  Chunked asset distribution, ported from the rivet Godot zone
-  (`container-runner/examples/godot-demo/project/zone_commands.gd`).
+  Chunked asset distribution. A resumable upload, a convert step, and a paged fetch.
 
-  Pure control plane: a resumable upload → convert → paged fetch flow, file-backed
-  and durable, entirely outside the data-plane hot path. Bytes move in `chunk_bytes`
-  pieces because the original travels over JSON-RPC/MCP (which has no binary type);
-  here the core takes raw binaries and a transport adapter handles any base64.
+  This is control plane work. It is file backed and durable, and it is nowhere near the
+  hot path. Bytes move in `chunk_bytes` pieces, because the original travels over a
+  transport with no binary type. The core takes raw binaries, and a transport adapter
+  handles any encoding.
 
-  The conversion itself (glb → Godot scene) is environment-specific and runs in a
-  data-plane worker/converter in real deployment, so `convert/2` takes a converter
-  function; the default is identity (copies bytes, reports the input magic), which
-  lets the protocol round-trip end to end without Godot.
+  ## Any type, and not one
+
+  `convert/2` takes a converter function, and the default is identity. It copies the bytes
+  and reports the magic of the input.
+
+  That default is the design and not a placeholder. weft does not know what an asset is.
+  A client asks for a hash and gets the bytes back, so a mesh, a texture, a sound, and a
+  save file all move the same way. A converter is what an environment supplies when it
+  wants one.
+
+  ## What is built, and what is not
+
+  **Built.** This module, and `Weft.Assets.StageTier`, which is the desync adapter. The
+  chunks go into SQLite and then into FoundationDB. An on-demand HTTP/3 and WebTransport
+  endpoint serves them.
+
+  **Not built.** A baker plane. An earlier plan had one that turned glb into an OpenUSD
+  stage, which needs a native OpenUSD toolchain that is not here. That plan also assumed
+  one asset type, which the identity converter above says weft does not.
+
+  So a baker is an environment's job, and the CDN is weft's. Nothing here waits on a
+  toolchain.
   """
 
-  # 4 MiB raw per chunk, mirroring the Godot zone's CHUNK_BYTES.
+  # 4 MiB for each chunk. This is rivet's max actor input, in `Weft.Limits` as
+  # `:input_bytes`, and an asset arrives the same way an actor's input does.
   @chunk_bytes 4 * 1024 * 1024
 
   @type id :: String.t()

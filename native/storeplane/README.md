@@ -149,7 +149,7 @@ Locking is a no-op, because an actor is the single writer of its own store.
 ## Measured
 
 Every number, and the cluster and the settings that produced it, is in
-`store_plane_logbook.md`. Three results shape the design.
+`../logbook/store_plane.md`. Three results shape the design.
 
 A read costs what a local read costs. Point reads and a scan both land within 1.1 times of
 SQLite on a local file, because the page cache absorbs them and no round trip happens.
@@ -170,7 +170,7 @@ the network that check is a round trip for every query.
 
 The pragma tells SQLite that nothing else can change the file, so it trusts its page cache
 and stops the re-read. An actor is the single writer of its own store, so the statement is
-true. `store_plane_logbook.md` holds what it was worth, which was more than the layout of
+true. `../logbook/store_plane.md` holds what it was worth, which was more than the layout of
 the pages.
 
 ## Two writers lost data, silently
@@ -235,7 +235,7 @@ means it did.
 
 Against the layout that committed each `xWrite` on its own, the search finds a witness at
 the first rung. Against the layout above, it covers the space and finds none.
-`store_plane_logbook.md` holds how many candidates each run covered, because a count that
+`../logbook/store_plane.md` holds how many candidates each run covered, because a count that
 lives in two places goes stale in one of them.
 
 ## Every transaction retries

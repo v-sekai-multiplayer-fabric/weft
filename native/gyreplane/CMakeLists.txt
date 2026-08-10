@@ -40,7 +40,7 @@ set(CMAKE_C_FLAGS_RELWITHDEBINFO "${CMAKE_C_FLAGS_RELWITHDEBINFO} -O3")
 
 # A plane has no networking. The QUIC transport and its libraries moved to
 # native/edge, which is the edge. This build must not gain picoquic,
-# picotls, or any HTTP/3 code again. See ../../docs/reference/gyre_plane.md.
+# picotls, or any HTTP/3 code again. See WEFT.md.
 #
 # thirdparty/ is empty and gone. QCBOR had no caller left once upstream
 # removed src/mud/mud_cbor.c, and thirdparty/taskweft-nif had none at

@@ -14,8 +14,11 @@ system in simple words, and needs no knowledge of Elixir or game engines.
 
 The docs split by what they do:
 
-- **[docs/reference/](docs/reference/)** holds the rules, the terms, and the contracts.
-  [architecture.md](lib/) is the architecture of the whole
-  system.
+- **A rule lives with the code it governs.** [`lib/weft.ex`](lib/weft.ex) is the
+  architecture of the whole system. An Elixir rule is a moduledoc, and a native rule is a
+  `README.md` beside the source. Each also carries its own open task, so a task page
+  cannot go stale away from its code.
 - **[docs/essays/](docs/essays/)** explains why those rules exist.
+- **[docs/logbook/](docs/logbook/)** holds every measurement, with the machine and the
+  settings that produced it.
 - **[docs/spec/](docs/spec/)** holds the Lean4 specs that the Elixir tests mirror.

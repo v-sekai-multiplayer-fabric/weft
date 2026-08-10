@@ -8,7 +8,7 @@
 // iceoryx2, and no iceoryx2 header is on the include path. See ../iceoryx2.sigs.
 //
 // This is not the harness. It is the one thing that has to work before a harness is
-// worth writing. See ../../../docs/reference/harness.md.
+// worth writing. See ../README.md.
 //
 // SPDX-License-Identifier: Apache-2.0
 #include "iox2_api.h"

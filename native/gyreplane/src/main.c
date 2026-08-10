@@ -19,7 +19,7 @@
  *
  * That last event-loop job is what the thread-per-core harness over
  * iceoryx takes over. When it does, h2o leaves this build entirely. See
- * ../../docs/reference/gyre_plane.md.
+ * WEFT.md.
  *
  * The libriscv guest sandbox went too. A plane runs one runtime model,
  * and a second sandbox inside it is not that model.

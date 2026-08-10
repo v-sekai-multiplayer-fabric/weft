@@ -9,7 +9,7 @@
 # needs no TLS material. The certs mount and the -p/-t/-k flags are
 # gone with the transport, which moved to native/edge. The SELinux
 # :Z note that used to live here belongs with that mount, so it moved
-# too. See ../../docs/reference/gyre_plane.md.
+# too. See ../gyreplane/WEFT.md.
 #
 # Install: copy to ~/.config/containers/systemd/zone-server-h2o.container.
 

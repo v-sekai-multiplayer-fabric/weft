@@ -111,7 +111,7 @@ through `dlopen` at start.
 ## What this run does not measure
 
 The latency and the rate. Eight messages at a 20 ms cycle measures that a message
-arrives, and nothing else. A number belongs in `data_plane_logbook.md` with the machine
+arrives, and nothing else. A number belongs in `../logbook/data_plane.md` with the machine
 and the settings that produced it, and this run produces none.
 
 ## Why iceoryx2 and not iceoryx v1

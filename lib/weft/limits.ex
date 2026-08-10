@@ -142,7 +142,7 @@ defmodule Weft.Limits do
 
   ## Why 32 in flight
 
-  `store_plane_logbook.md` sweeps the number of commits in flight from 1 to 512. The
+  `../logbook/store_plane.md` sweeps the number of commits in flight from 1 to 512. The
   latency stays nearly flat to about 64, and then it carries the load. From 64 to 512 the
   rate rises 2.2 times and the latency rises 3.4 times.
 
@@ -157,7 +157,7 @@ defmodule Weft.Limits do
   is not a new number.
 
   What the measurement adds is whether that number lands in the right place for a bus.
-  `data_plane_logbook.md` says it does, and it bounds 128 on both sides.
+  `../logbook/data_plane.md` says it does, and it bounds 128 on both sides.
 
   **Below 7 the bus fails.** 15 M snapshots each second divided by the 2.38 M messages
   each second the bus does at batch 1. A message that small is 98% overhead, so the floor
@@ -236,7 +236,7 @@ defmodule Weft.Limits do
 
   ### SQLite storage
 
-  The store plane. `native_store_plane.md` derives its transaction bounds from the FoundationDB value size, and these are the shape rivet arrived at.
+  The store plane. `../../native/storeplane/README.md` derives its transaction bounds from the FoundationDB value size, and these are the shape rivet arrived at.
 
   | limit | value | what rivet calls it |
   | --- | --- | --- |
@@ -345,7 +345,7 @@ defmodule Weft.Limits do
   @in_flight 32
 
   # rivet's max keys per operation. A bus message is the same shape of thing as a batch
-  # put: many items, one operation. data_plane_logbook.md checks it against the batch
+  # put: many items, one operation. docs/logbook/data_plane.md checks it against the batch
   # sweep, which bounds it at 7 below and 336 above.
   @snapshot_batch 128
 

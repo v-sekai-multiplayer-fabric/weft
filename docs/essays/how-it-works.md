@@ -138,7 +138,7 @@ Yes, and by a margin wide enough that the interesting question changes.
 Applying one movement message takes nanoseconds. Even the pessimistic measurement, where
 the entities are scattered over two gigabytes and every write misses the cache, leaves one
 core clearing the target several times over. The figures, and the machine they came from,
-are in `../reference/data_plane_logbook.md`.
+are in `../logbook/data_plane.md`.
 
 The number that matters most is the cheapest one: reading the ring costs microseconds, so
 sampling it sixty times a second costs almost nothing. The manager stays free for

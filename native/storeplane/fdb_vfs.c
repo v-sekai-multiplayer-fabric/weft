@@ -1,6 +1,6 @@
 // A SQLite VFS whose files live in FoundationDB.
 //
-// This is the store plane described in docs/reference/native_store_plane.md. There is no
+// This is the store plane described in README.md, beside this file. There is no
 // local file, so an actor's database moves between machines with no copy and no restore
 // step.
 //

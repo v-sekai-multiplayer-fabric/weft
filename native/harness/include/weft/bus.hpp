@@ -35,7 +35,7 @@ inline bool load_bus() {
         std::fprintf(stderr,
                      "weft: could not load libiceoryx2_ffi_c.\n"
                      "  Set WEFT_ICEORYX2_PATH to the file, or put its directory on\n"
-                     "  LD_LIBRARY_PATH. See docs/reference/harness.md.\n");
+                     "  LD_LIBRARY_PATH. See native/harness/README.md.\n");
         return false;
     }
     return true;
