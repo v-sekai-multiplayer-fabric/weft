@@ -25,6 +25,28 @@ defmodule Weft.LimitsTest do
       assert Limits.get(:in_flight) == 32
     end
 
+    test "every limit the type names is reachable" do
+      # The union in @type limit and the clauses of get/1 are two lists of the same thing.
+      # A row transcribed into one and not the other reads as present and is not.
+      {:ok, specs} = Code.Typespec.fetch_types(Limits)
+
+      named =
+        Enum.find_value(specs, fn
+          {:type, {:limit, {:type, _, :union, parts}, _}} ->
+            Enum.map(parts, fn {:atom, _, atom} -> atom end)
+
+          _ ->
+            nil
+        end)
+
+      refute named == nil, "Weft.Limits has no @type limit union"
+      assert length(named) >= 49
+
+      for limit <- named do
+        assert is_integer(Limits.get(limit)), "get(#{inspect(limit)}) is not a number"
+      end
+    end
+
     test "the batch is rivet's max keys per operation, and not a number of its own" do
       # Every limit here is rivet's. A bus message is the same shape of thing as a batch
       # put: many items, one operation. The measurement checks the number rather than
@@ -36,7 +58,7 @@ defmodule Weft.LimitsTest do
       # A C++ plane cannot call Elixir, so native/harness/src/snapshot.hpp transcribes the
       # limits it needs. A transcription that nothing checks is a copy that goes stale,
       # and the stale one still reads as authoritative. This reads the header.
-      header = "native/harness/src/snapshot.hpp"
+      header = "native/harness/include/weft/limits.hpp"
 
       body =
         case File.read(header) do
@@ -46,13 +68,21 @@ defmodule Weft.LimitsTest do
 
       pairs = [
         {"SNAPSHOT_BATCH", :snapshot_batch},
-        {"ACTION_MS", :action_ms}
+        {"QUEUE_MESSAGES", :queue_messages},
+        {"ACTION_MS", :action_ms},
+        {"KEY_BYTES", :key_bytes},
+        {"VALUE_BYTES", :value_bytes},
+        {"IN_FLIGHT", :in_flight}
       ]
 
       for {constant, limit} <- pairs do
         found =
-          case Regex.run(~r/\b#{constant}\s*=\s*(\d+)\s*;/, body) do
-            [_, digits] -> String.to_integer(digits)
+          case Regex.run(~r/\b#{constant}\s*=\s*([0-9 *]+?)\s*;/, body) do
+            [_, expr] ->
+              expr
+              |> String.split("*")
+              |> Enum.map(&(&1 |> String.trim() |> String.to_integer()))
+              |> Enum.product()
             nil -> flunk("#{header} does not define #{constant}")
           end
 

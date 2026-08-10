@@ -1,18 +1,20 @@
-# The iceoryx2 proof.
+# The harness. Every plane and every edge links this, and none of them links iceoryx2.
 #
-# This directory holds the smallest thing that must work before a thread-per-core harness
-# is worth writing: one message across the bus, checked at the other end.
+# `weft::harness` gives three things:
 #
-# Nothing here links iceoryx2 and nothing here includes an iceoryx2 header. iceoryx2.sigs
-# lists the C ABI, and Chromium's generate_stubs.py turns it into a dlsym dispatch table.
-# So this builds on a machine that has never seen iceoryx2, and it fails at start rather
-# than at link when the library is absent. weft writes no Rust, and this keeps the Rust
-# artifact out of weft's build graph as well.
+#   - The bus. iceoryx2.sigs lists the C ABI, and Chromium's generate_stubs.py turns it
+#     into a dlsym dispatch table. So a plane builds on a machine that has never seen
+#     iceoryx2, and it fails at start rather than at link when the library is absent.
+#     weft writes no Rust, and this keeps the Rust artifact out of the build graph too.
+#   - The limits, in include/weft/limits.hpp. Every value is `Weft.Limits`, which is
+#     rivet's. A plane includes them rather than choosing for itself.
+#   - The payload, in include/weft/snapshot.hpp.
 #
-#   cmake -S native/harness -B native/harness/build -DCMAKE_BUILD_TYPE=Release
-#   cmake --build native/harness/build -j
+# `Weft.PlaneNetworkingTest` enforces the first of those. A plane that names an iceoryx2
+# symbol and does not link this target fails.
 #
-# See ../../docs/reference/harness.md.
+# proof/ holds the two programs that show the bus works, and the bench that measured it.
+# They are not the harness. See ../../docs/reference/harness.md.
 #
 # SPDX-License-Identifier: Apache-2.0
 cmake_minimum_required(VERSION 3.22)
@@ -26,6 +28,7 @@ find_package(Python3 REQUIRED COMPONENTS Interpreter)
 set(STUB_DIR ${CMAKE_CURRENT_BINARY_DIR}/gen/native/harness)
 set(STUB_CC ${STUB_DIR}/iceoryx2_stubs.cc)
 set(STUB_H ${STUB_DIR}/iceoryx2_stubs.h)
+set(API_H ${CMAKE_CURRENT_BINARY_DIR}/gen/iox2_api.h)
 
 # The generator runs when the signature file is newer than the table, and not on every
 # build. -p sets the namespace and the include path the generated .cc uses for its own
@@ -47,8 +50,8 @@ add_custom_command(
     VERBATIM)
 
 # The prototypes, from the same signature file. generate_stubs.py emits none, because
-# Chromium's callers include the real library headers and weft has none on the path.
-set(API_H ${CMAKE_CURRENT_BINARY_DIR}/gen/iox2_api.h)
+# Chromium's callers include the real library headers and weft has none on the path. A
+# prototype that disagrees with the table it calls through is a crash with no diagnostic.
 add_custom_command(
     OUTPUT ${API_H}
     COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/gen
@@ -60,23 +63,29 @@ add_custom_command(
     COMMENT "Generating the iceoryx2 prototypes from iceoryx2.sigs"
     VERBATIM)
 
-add_library(weft-iceoryx2-stubs STATIC ${STUB_CC} ${API_H})
-target_include_directories(weft-iceoryx2-stubs
-    PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/gen
+add_library(weft-harness STATIC ${STUB_CC} ${API_H})
+add_library(weft::harness ALIAS weft-harness)
+target_include_directories(weft-harness
+    PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include
+           ${CMAKE_CURRENT_SOURCE_DIR}/src
+           ${CMAKE_CURRENT_BINARY_DIR}/gen
     PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
-target_link_libraries(weft-iceoryx2-stubs PUBLIC ${CMAKE_DL_LIBS})
+target_link_libraries(weft-harness PUBLIC ${CMAKE_DL_LIBS})
 
-foreach(prog publisher subscriber bench_send)
-    add_executable(weft-harness-${prog} src/${prog}.cpp)
-    target_include_directories(weft-harness-${prog}
-        PRIVATE src ${CMAKE_CURRENT_BINARY_DIR}/gen)
-    target_link_libraries(weft-harness-${prog} PRIVATE weft-iceoryx2-stubs)
-    target_compile_options(weft-harness-${prog} PRIVATE -Wall -Wextra)
-endforeach()
+# The proof, and the bench that measured it. Off by default, because a plane that links
+# the harness has no use for them.
+option(WEFT_HARNESS_PROOF "Build the publish and subscribe proof, and the bench" ON)
+if(WEFT_HARNESS_PROOF)
+    foreach(prog publisher subscriber bench_send)
+        add_executable(weft-harness-${prog} proof/${prog}.cpp)
+        target_link_libraries(weft-harness-${prog} PRIVATE weft::harness)
+        target_compile_options(weft-harness-${prog} PRIVATE -Wall -Wextra)
+    endforeach()
+endif()
 
 # The same bench, linked straight against iceoryx2, so the dlsym table has something to be
 # compared with. It needs an iceoryx2 install, so it is off unless asked for:
-#   cmake -S native/harness -B build -DWEFT_ICEORYX2_DIRECT=ON -DCMAKE_PREFIX_PATH=$PWD/.iceoryx
+#   cmake -S native -B build -DWEFT_ICEORYX2_DIRECT=ON -DCMAKE_PREFIX_PATH=$PWD/.iceoryx
 option(WEFT_ICEORYX2_DIRECT "Also build a directly linked bench, for comparison" OFF)
 if(WEFT_ICEORYX2_DIRECT)
     find_package(iceoryx2-c REQUIRED)
@@ -85,8 +94,9 @@ if(WEFT_ICEORYX2_DIRECT)
     # A shared link is the realistic one: it already pays an indirect jump through the
     # PLT, which is most of what the dlsym table costs.
     foreach(link static shared)
-        add_executable(weft-harness-bench-${link} src/bench_send.cpp)
-        target_include_directories(weft-harness-bench-${link} PRIVATE src)
+        add_executable(weft-harness-bench-${link} proof/bench_send.cpp)
+        target_include_directories(weft-harness-bench-${link}
+            PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
         target_compile_definitions(weft-harness-bench-${link} PRIVATE WEFT_ICEORYX2_DIRECT)
         target_link_libraries(weft-harness-bench-${link} PRIVATE iceoryx2-c::${link}-lib)
         target_compile_options(weft-harness-bench-${link} PRIVATE -Wall -Wextra)

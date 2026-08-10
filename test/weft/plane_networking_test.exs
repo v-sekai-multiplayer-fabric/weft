@@ -110,6 +110,58 @@ defmodule Weft.PlaneNetworkingTest do
     end
   end
 
+  describe "one bus, one harness" do
+    # weft has several planes and two edges, and the number grows. Each one needs the bus
+    # and each one needs the limits. Left alone, each would grow its own copy of both, and
+    # the copies would drift the way a decision written twice always drifts.
+    #
+    # So there is one harness. `native/harness` holds the signature file, the generated
+    # dispatch table, and the limits, and every plane links it.
+
+    test "only the harness holds the iceoryx2 signature file" do
+      found = Path.wildcard("native/**/*.sigs")
+
+      assert found == ["native/harness/iceoryx2.sigs"],
+             "the C ABI is declared in one place. A second .sigs file is a second copy " <>
+               "of the bus:\n" <> Enum.join(found, "\n")
+    end
+
+    test "only the harness declares an iceoryx2 limit" do
+      # A limit belongs to Weft.Limits, and the harness transcribes it once for the native
+      # side. A plane that writes its own number is guessing about a workload.
+      others =
+        "native/**/*.{h,hpp,c,cc,cpp}"
+        |> Path.wildcard()
+        |> Enum.reject(&String.starts_with?(&1, "native/harness/"))
+        |> Enum.reject(&(&1 =~ ~r{/thirdparty/}))
+        |> Enum.filter(fn path ->
+          case File.read(path) do
+            {:ok, body} -> body =~ ~r/\b(SNAPSHOT_BATCH|ACTION_MS|IN_FLIGHT)\b/
+            _ -> false
+          end
+        end)
+
+      assert others == [],
+             "a plane declared a limit of its own. Include weft/limits.hpp:\n" <>
+               Enum.join(others, "\n")
+    end
+
+    test "the root build reaches every plane that has a build file" do
+      root = File.read!("native/CMakeLists.txt")
+
+      buildable =
+        "native/*/CMakeLists.txt"
+        |> Path.wildcard()
+        |> Enum.map(&(&1 |> Path.dirname() |> Path.basename()))
+
+      missing = Enum.reject(buildable, &(root =~ "add_subdirectory(#{&1})"))
+
+      assert missing == [],
+             "native/CMakeLists.txt does not add: #{Enum.join(missing, ", ")}. A plane " <>
+               "outside the root build does not share the harness."
+    end
+  end
+
   describe "an edge is a plane with networking" do
     test "the edge holds the transport the plane gave up" do
       # This is the other half of the rule. If the transport is in neither directory, then
