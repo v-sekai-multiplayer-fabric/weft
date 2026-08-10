@@ -3,7 +3,7 @@
  * response to being told a zone is a fabric of zones, not a singleton.
  * Every earlier test used a single z_id (7); this proves the property
  * every zone-server-h2o *process* depends on regardless of which zone
- * it is configured for (webtransport_server.c's z_id, set via main.c's
+ * it is configured for (the z_id, set via main.c's
  * -z flag): N zones sharing one FDB keyspace never see each other's
  * entities, for any z_id spacing (not just adjacent small integers).
  * The isolation matters even though each process only ever touches its

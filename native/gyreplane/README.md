@@ -9,15 +9,22 @@ authoritative zone server moves.
 
 ## Status
 
-This repo wires QUIC transport and H3/WebTransport session negotiation
-(`src/transport/webtransport_server.c`, `src/transport/wt_session.c`). These
-drive a real FDB-backed `ZoneTick` (`src/zf_zonetick.c`). Each process runs
+**weft fork.** A plane has no networking, so the QUIC transport and
+H3/WebTransport session negotiation moved out of this directory to
+`../gyreedge/transport`, together with `picoquic` and `picotls`. This
+process now opens no socket. `h2o` stays for its event loop only.
+Nothing drives the `ZoneTick` until iceoryx carries the decoded input
+from the edge. See `../../docs/reference/gyre_plane.md`.
+
+This repo drives a real FDB-backed `ZoneTick` (`src/zf_zonetick.c`).
+Each process runs
 exactly one zone. The zone ID comes from `main.c`'s required `-z<zone_id>`
 flag, not a hardcoded value.
 
 A zone fabric means multiple processes. Each process runs one zone (1
 process : 1 zone). This matches `zone-server/AGENTS.md`'s deployment
-shape: one UDP port per zone instance, up to 100 concurrent zones.
+shape of up to 100 concurrent zones. The one UDP port per zone
+instance that shape also named is the edge's job now.
 Avatar IK (`sinew-mocap/solve`'s `Align.lean`) is wired and tested; see
 `rfd/0087` for that decision, and why MuJoCo was dropped for Godot's own
 Jolt physics.
@@ -75,7 +82,7 @@ not inline here:
 - `rfd/0087`: avatar IK uses `sinew-mocap/solve`'s `Align.lean`, not
   `kevinzakka/mink`; also the MuJoCo-to-Jolt physics drop.
 - `rfd/0088`: transport is `picoquic` + `picotls`, not `h2o`'s own
-  (absent) QUIC stack.
+  (absent) QUIC stack. That transport lives in `../gyreedge` now.
 - `rfd/0072`, `rfd/0073`: the actor-lite architecture and async FDB
   callback chain the event loop, worker pool, and SPSC ring port as-is
   from `h2o-bench-tpcc`'s `src/`.
@@ -105,9 +112,9 @@ This build also requires OpenSSL and the FoundationDB C client
 It requires `mbedtls` too, built from source, not the system package.
 Apt's `libmbedtls-dev` does not include `mbedtls_config.h`.
 
-It also requires the vendored `thirdparty/` git subtrees (`picoquic`,
-`picotls`, `QCBOR`), checked in directly (no separate init/fetch step),
-built via `cmake/picoquic.cmake` / `cmake/qcbor.cmake`.
+It also requires the vendored `thirdparty/` content (`QCBOR`,
+`libriscv`), checked in directly (no separate init/fetch step), built
+via `cmake/qcbor.cmake`.
 `.github/workflows/real-build.yml` runs this full build in CI. Check that
 workflow's latest run for current status before assuming this build is
 green.

@@ -6,8 +6,7 @@
 # QCBOR is small (5 .c files, no external deps beyond libm for its
 # float-conversion helpers), so this vendors it as a plain source list
 # rather than add_subdirectory()-ing QCBOR's own CMakeLists.txt --
-# consistent with how cmake/picoquic.cmake already treats
-# thirdparty/picoquic/picotls as a source list, not a nested project.
+# it treats thirdparty/QCBOR as a source list, not a nested project.
 
 set(QCBOR_DIR "${CMAKE_SOURCE_DIR}/thirdparty/QCBOR")
 

@@ -10,18 +10,25 @@ native process outside the BEAM.
 | `dataplane` | The seqlock ring. C++, built with CMake. | weft |
 | `nif` | The NIF that the control plane loads. | weft |
 | `storeplane` | The SQLite VFS over FoundationDB. | weft |
-| `gyreplane` | The zone server. Transport, an FDB zone tick, and a guest sandbox. | subtree of `zone-server-h2o` |
-| `gyreedge` | The browser client that the edge serves. | subtree of `zone-guest-gyre` |
+| `gyreplane` | The zone server. An FDB zone tick and a guest sandbox. | fork of `zone-server-h2o` |
+| `gyreedge` | The browser client, and the transport that serves it. | fork of `zone-guest-gyre` |
 
-## The two subtrees
+## The two forks
 
-A subtree holds upstream code. Do not edit a file inside one to fix weft. Send the change
-upstream, and pull the subtree again.
+Each of the two came in as a subtree. Neither one is a subtree any more.
 
-`README.md` inside each subtree belongs to its upstream. It describes that repository and
-not this one. Read `../docs/reference/gyre_plane.md` for what weft does with them.
+A plane has no networking. `zone-server-h2o` terminated QUIC in the process that holds
+authority, so the transport and its libraries moved to `gyreedge`. That edit is inside the
+subtree, which makes it a fork.
 
-The command that added each one:
+The cost is real. `git subtree pull` conflicts on every file that moved, and there are
+many. Read `gyreedge/TRANSPORT.md` for the list.
+
+`README.md` inside each fork belongs to its upstream, except for a note at the top of
+`gyreplane/README.md` that records the change. Read `../docs/reference/gyre_plane.md` for
+what weft does with them.
+
+The command that added each one, before the fork:
 
     git subtree add --prefix=native/gyreplane \
       https://github.com/v-sekai-multiplayer-fabric/zone-server-h2o.git main --squash
