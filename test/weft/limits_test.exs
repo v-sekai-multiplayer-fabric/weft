@@ -16,15 +16,13 @@ defmodule Weft.LimitsTest do
   end
 
   describe "the values" do
-    test "are the ones actor_limits.md gives" do
-      assert Limits.all() == %{
-               storage_bytes: 10 * 1024 * 1024 * 1024,
-               key_bytes: 2 * 1024,
-               value_bytes: 128 * 1024,
-               action_ms: 60_000,
-               requests_each_minute: 1200,
-               in_flight: 32
-             }
+    test "are the ones the moduledoc gives" do
+      assert Limits.get(:storage_bytes) == 10 * 1024 * 1024 * 1024
+      assert Limits.get(:key_bytes) == 2 * 1024
+      assert Limits.get(:value_bytes) == 128 * 1024
+      assert Limits.get(:action_ms) == 60_000
+      assert Limits.get(:requests_each_minute) == 1200
+      assert Limits.get(:in_flight) == 32
     end
   end
 
@@ -55,13 +53,6 @@ defmodule Weft.LimitsTest do
 
       assert {:error, {:limit, :storage_bytes, limit: _, actual: _}} =
                Limits.check_storage(Limits.get(:storage_bytes), 1)
-    end
-
-    test "an action over sixty seconds is refused" do
-      assert {:ok, 60_000} = Limits.check_action_ms(60_000)
-
-      assert {:error, {:limit, :action_ms, limit: 60_000, actual: 60_001}} =
-               Limits.check_action_ms(60_001)
     end
   end
 

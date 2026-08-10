@@ -206,19 +206,6 @@ defmodule Weft.Limits do
   def get(:requests_each_minute), do: @requests_each_minute
   def get(:in_flight), do: @in_flight
 
-  @doc "Every limit and its value."
-  @spec all() :: %{limit() => non_neg_integer()}
-  def all do
-    %{
-      storage_bytes: @storage_bytes,
-      key_bytes: @key_bytes,
-      value_bytes: @value_bytes,
-      action_ms: @action_ms,
-      requests_each_minute: @requests_each_minute,
-      in_flight: @in_flight
-    }
-  end
-
   @doc """
   Check a key against the key limit.
 
@@ -243,10 +230,6 @@ defmodule Weft.Limits do
       when is_integer(held) and held >= 0 and is_integer(added) and added >= 0 do
     check_size(:storage_bytes, held + added)
   end
-
-  @doc "Check how long an action ran, or is allowed to run, against the action limit."
-  @spec check_action_ms(non_neg_integer()) :: {:ok, non_neg_integer()} | {:error, error()}
-  def check_action_ms(ms) when is_integer(ms) and ms >= 0, do: check_size(:action_ms, ms)
 
   defp check_size(limit, actual) do
     allowed = get(limit)

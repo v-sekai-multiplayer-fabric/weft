@@ -94,22 +94,30 @@ defmodule Weft.Actor.Store.Replicator do
 
   # Merge SHARD (base) with remaining DELTA rows in seq order into the current
   # state. This is rivet's read path, run once at open, not per read.
+  #
+  # Both ranges are read in one transaction, so the read sees one state of the store.
+  # Two transactions lose a write. Compaction folds a DELTA row into the SHARD and clears
+  # it in one transaction, so a read that takes the SHARD before that commit and the DELTA
+  # rows after it misses every row that was folded between the two. `../spec/Store.lean`
+  # states the rule as `read_preserved_by_compaction`.
   defp read_current(db, name, key) do
-    base =
-      db
-      |> :erlfdb.get_range_startswith(shard_prefix(name, key))
-      |> Map.new(fn {packed, value} ->
-        {@prefix, @shard, ^name, ^key, uk_bin} = :erlfdb_tuple.unpack(packed)
-        {:erlang.binary_to_term(uk_bin), :erlang.binary_to_term(value)}
-      end)
+    :erlfdb.transactional(db, fn tx ->
+      base =
+        tx
+        |> :erlfdb.get_range_startswith(shard_prefix(name, key))
+        |> Map.new(fn {packed, value} ->
+          {@prefix, @shard, ^name, ^key, uk_bin} = :erlfdb_tuple.unpack(packed)
+          {:erlang.binary_to_term(uk_bin), :erlang.binary_to_term(value)}
+        end)
 
-    db
-    |> :erlfdb.get_range_startswith(delta_prefix(name, key))
-    |> Enum.reduce(base, fn {_packed, packed_value}, acc ->
-      {user_key, value} = :erlang.binary_to_term(packed_value)
-      Map.put(acc, user_key, value)
+      tx
+      |> :erlfdb.get_range_startswith(delta_prefix(name, key))
+      |> Enum.reduce(base, fn {_packed, packed_value}, acc ->
+        {user_key, value} = :erlang.binary_to_term(packed_value)
+        Map.put(acc, user_key, value)
+      end)
+      |> Map.to_list()
     end)
-    |> Map.to_list()
   end
 
   defp read_seq(db, name, key) do

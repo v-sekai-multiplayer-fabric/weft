@@ -17,8 +17,12 @@ defmodule Weft.Actor.Store.ReplicatedTest do
   # Wait for the async replica to catch up: poll FoundationDB rather than sleep, so
   # the test is deterministic and fast. Replication is off the write path, so a put
   # returns before the FoundationDB row exists.
+  # Replication is off the write path, so a test can only wait for it. The budget is
+  # generous on purpose: the assertion is that the write arrives, and not that it arrives
+  # inside a deadline. A tight budget turns a slow test machine into a failure that says
+  # nothing about the code.
   defp await_replicated(id, user_key, expected) do
-    Enum.reduce_while(1..200, :never, fn _, _ ->
+    Enum.reduce_while(1..1_000, :never, fn _, _ ->
       case List.keyfind(Replicator.hydrate(id), user_key, 0) do
         {^user_key, ^expected} -> {:halt, :ok}
         _ -> Process.sleep(5) && {:cont, :never}
