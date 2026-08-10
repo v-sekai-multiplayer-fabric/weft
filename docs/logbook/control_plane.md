@@ -92,3 +92,52 @@ the spawn, the SQLite open, and the restore of the state.
   in these benches.
 - **A cold actor under load.** The cold start above is one actor at a time on an idle
   machine.
+
+## 2026-08-10: how long a Horde name stays invisible after it registers
+
+One machine, 16 cores, `mix run` against the started application. Each round starts a zone
+with `Weft.Zone.start_link`, which registers through
+`{:via, Horde.Registry, {Weft.Registry, {:zone, id}}}`, and then looks the name up.
+
+| shape | lookups that found nothing |
+| --- | --- |
+| sequential, same process, 200 rounds | 0 |
+| sequential, lookup in another process, 200 rounds | 0 |
+| sequential, 600 rounds, one worker | 0 |
+| **32 concurrent workers, 20 rounds each** | **631 of 640** |
+
+Every one of the 631 appeared later. Polling at 1 ms until it did:
+
+| | microseconds |
+| --- | --- |
+| minimum | 1 |
+| median | 1586 |
+| maximum | 2048 |
+
+So a register that returned is invisible to a lookup for about 2 ms, and only under
+concurrent registration.
+
+### Why
+
+`Horde.Registry.register` writes to the delta CRDT. `Horde.RegistryImpl.on_diffs/2` then
+does `Kernel.send(name, {:crdt_update, diffs})`, and the registry process materialises the
+name into ETS when it handles that message. `lookup` reads that ETS table.
+
+So the visible name is behind one process mailbox. Sequentially the mailbox is empty and
+the gap is unmeasurable. At 32 registrations at once it is the queue.
+
+This is how Horde works. It is not a setting, and the 300 ms `sync_interval` in
+`delta_crdt_options` is a different mechanism that does not explain a 2 ms number.
+
+### What it broke, and what it still means
+
+`Weft.GatewayTest` "routes to a zone" failed about one run in three at seed 1, and never
+alone. It starts a zone and dispatches to it, and `Weft.Gateway.dispatch/1` resolves a zone
+with `Horde.Registry.lookup`. Inside that 2 ms it returns `{:error, :no_zone}`.
+
+The test waits for the name now, because the test is about routing.
+
+**The gateway behaviour is unchanged and it is real.** A caller that starts a zone and
+dispatches to it at once can be told there is no such zone. That is not a test artifact,
+and it is not fixed here. What to do about it is a design question: retry inside
+`dispatch`, make the caller retry, or address a zone without asking the registry.

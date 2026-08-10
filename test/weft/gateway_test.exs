@@ -10,6 +10,27 @@ defmodule Weft.GatewayTest do
   alias Weft.Gateway
   alias Weft.Gateway.Request
 
+  # `Horde.Registry.register` returns before `Horde.Registry.lookup` can see the name.
+  # Horde's `on_diffs/2` sends `{:crdt_update, diffs}` to the registry process, and that
+  # process materialises the name into ETS when it handles the message. So a register
+  # that succeeded is invisible until that mailbox drains.
+  #
+  # It is invisible for about 2 ms. `../../docs/logbook/control_plane.md` measures it: at
+  # 32 concurrent registrations, 631 of 640 lookups straight after a register found
+  # nothing, and every one of them appeared later, at a median of 1586 us and a maximum of
+  # 2048 us. Sequentially it never happens, which is why this only failed in a full run.
+  #
+  # These tests are about routing, so they wait for the name rather than assert that
+  # registration is instant. `Weft.Gateway.dispatch/1` returning `{:error, :no_zone}` in
+  # that window is real behaviour, and it belongs to the gateway rather than to a test.
+  defp await_registered(key, tries \\ 500) do
+    case Horde.Registry.lookup(Weft.Registry, key) do
+      [{_pid, _}] -> :ok
+      [] when tries > 0 -> Process.sleep(1) && await_registered(key, tries - 1)
+      [] -> flunk("#{inspect(key)} never appeared in Weft.Registry")
+    end
+  end
+
   test "routes a reliable request to an actor and round-trips" do
     key = Weft.Test.Fresh.id("gw")
 
@@ -23,6 +44,7 @@ defmodule Weft.GatewayTest do
   test "routes to a zone" do
     zone_id = "gw-zone-#{System.unique_integer([:positive])}"
     {:ok, _} = Zone.start_link(zone_id: zone_id, worker_opts: [tick_ms: 3_600_000])
+    await_registered({:zone, zone_id})
 
     assert {:ok, :ok} =
              Gateway.dispatch(%Request{
