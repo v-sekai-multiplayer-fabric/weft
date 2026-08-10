@@ -1,8 +1,8 @@
 # What rivet already learned that weft has not
 
 weft copies rivet's store layout, which `CLAUDE.md` says outright. So the interesting
-question is not what rivet does. It is where rivet's own documents disagree with weft's,
-because one of the two is wrong and it is cheaper to find out by reading than by shipping.
+question worth asking is where rivet's own documents disagree with weft's, because one of
+the two is wrong and it is cheaper to find out by reading than by shipping.
 
 `docs-internal/engine/` holds 77 pages. Five things in them matter here.
 

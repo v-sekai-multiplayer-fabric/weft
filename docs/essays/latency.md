@@ -17,8 +17,8 @@ scheduler. Coordination work — deciding which node owns a zone, restarting a c
 thing, looking up an address — takes microseconds, and microseconds do not disturb
 anyone. A physics step or a glb parse takes milliseconds, and milliseconds do.
 
-So the BEAM is not chosen because it is fast at computing. It is chosen because it is
-excellent at coordinating, and coordination is the only thing we let it do. A long NIF
+So the BEAM earns its place by being excellent at coordinating, and coordination is the
+only thing we let it do. A long NIF
 would park a scheduler for milliseconds, so we never write one.
 
 This has a consequence people find surprising: making the BEAM do less is what keeps
@@ -43,8 +43,6 @@ choice turned into a deployment architecture, and it is worth being honest that 
 took the constraint on knowingly.
 
 ## Do not deliver every update. Deliver the newest one
-
-Here is the counter-intuitive one.
 
 The naive design sends the BEAM one message per state update. It is correct, it is
 simple, and it caps out near 1.38M snapshots per second, because each message copies a

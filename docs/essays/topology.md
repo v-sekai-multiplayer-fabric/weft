@@ -139,7 +139,7 @@ replicas.
 That is a genuine exception to "planes never cross machines," and it is worth admitting
 rather than hiding, because it is the seam where the architecture would have to change.
 It is one way and it is small — 1000 entities of 20 bytes at 60 Hz is 1.2 MB each second
-— so it is not hard. It is just not built, and it should not be built until the client
+— so the work is small. It is simply unbuilt, and it should stay that way until the client
 count actually crosses the line.
 
 ## High availability
@@ -154,7 +154,7 @@ The last row is the one people argue with. Surely a world should have a hot stan
 
 It cannot. An entity is authoritative on exactly one zone, so two live copies of a world
 are two writers, and two writers corrupt the world rather than degrade it. This
-is not a limitation of the deployment that a better deployment would fix. It is the
+follows from the model rather than the deployment, so a better deployment fixes nothing. It is the
 single-writer rule, which is also the thing that makes the rest of the system simple.
 
 So when a world machine is lost, the people in it are disconnected and rejoin. The state

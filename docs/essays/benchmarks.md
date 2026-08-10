@@ -47,7 +47,7 @@ card into memory. That is why the ladder is AF_XDP, then DPDK, then a SmartNIC, 
 the hot path stays native and out of the BEAM. It is not because decoding is expensive.
 It is because decoding is free and the I/O is not.
 
-## The message-passing ceiling is real, and the fix is not a faster message
+## The message-passing ceiling is real, and a faster message will not lift it
 
 Handing snapshots to the BEAM one Erlang message at a time tops out near 1.4 million per
 second, because each message copies a term into a mailbox. Nothing about that improves

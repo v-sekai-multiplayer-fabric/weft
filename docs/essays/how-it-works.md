@@ -10,7 +10,7 @@ Read this first, then `Weft` for the full architecture.
 weft runs one shared 3D world. Many people join that world at the same time. Each
 person controls an avatar. Each person sees the other people move.
 
-The hard part is not drawing the world. It is that everyone has to see roughly the same
+Drawing the world is the easy half. The hard part is that everyone has to see roughly the same
 world at roughly the same moment, and "roughly" has to be measured in milliseconds. When
 you move your hand, everyone else should see it move now, not a beat later. Every choice
 below is downstream of that.
@@ -157,7 +157,7 @@ person in a headset. The client is not built yet. The number of people one world
 hold is an open question, and `../reference/vr_acceptance_proof.md` records it as
 unstarted work.
 
-**The measured numbers test parts, not the whole.** They come from one developer
+**The measured numbers cover parts of the system.** They come from one developer
 machine. They show that the physics work and the ring are fast enough. They do not show
 that the whole mesh holds together under a real load.
 
