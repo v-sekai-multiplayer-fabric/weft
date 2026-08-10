@@ -14,10 +14,15 @@ store plane (native)
 FoundationDB
 ```
 
-State: not started. The Elixir prototype, `Weft.Actor.Store.Replicated` and
-`.Replicator`, passes three FoundationDB tests. It is not this design. It uses SQLite as
-a key and value table, it replicates logical rows rather than pages, and
-`Weft.Actor.load_all` reads the whole actor into memory when the actor starts.
+State: the VFS is built, and it holds the layout below. A commit is one FoundationDB
+transaction. Reads, writes, compaction, and the fence run against a live cluster. The
+plane itself is not built. There is no iceoryx harness and no thread-per-core loop yet,
+so nothing calls this VFS except the programs in `native/storeplane/`.
+
+The Elixir prototype, `Weft.Actor.Store.Replicated` and `.Replicator`, still exists. It
+is not this design. It uses SQLite as a key and value table, it replicates logical rows
+rather than pages, and `Weft.Actor.load_all` reads the whole actor into memory when the
+actor starts.
 
 ## Why a VFS
 
@@ -92,35 +97,86 @@ read 3 rows from zone-atlantis.db in a new process, nothing was copied
 SQLite wrote the rows through the VFS, no file exists on the disk, and a different
 process read them. A handoff copies nothing because there is nothing to copy.
 
-The layout is one key for one 4 kB block:
+The layout is the one above, and the keys are these:
 
 ```
-("weft", "afile", name, block_index) -> block bytes
-("weft", "asize", name)              -> file size
+weft/db/<name>/HEAD                 the txid of the newest commit
+weft/db/<name>/SIZE                 the file size
+weft/db/<name>/FENCE                the ownership fence
+weft/db/<name>/PIDX/<pgno>          the txid that owns a page
+weft/db/<name>/DELTA/<txid>/<pgno>  the pages of one commit
+weft/db/<name>/SHARD/<as_of>/<pgno> a compacted base, versioned
+weft/db/<name>/SHARDN/<as_of>       the page count of a shard version
+weft/db/<name>/LOGN                 the page count of the log since compaction
+weft/db/<name>/PIN/<txid>           a read that holds a shard version
 ```
 
-That is the simplest correct layout, not the target. It is not rivet's layout, so it
-has none of the properties `../spec/Store.lean` proves: a write is a transaction for
-each `xWrite` rather than one for each commit, there is no PIDX, and there is no
-compaction. The next increment replaces it.
+A read finds the owner in PIDX and then reads one of DELTA or SHARD. So a read touches
+two rows whatever the log holds. `../spec/Store.lean` proves this as
+`read_touches_two_rows`.
+
+### A commit is one transaction
+
+The VFS holds the pages SQLite writes in memory. It sends them when SQLite syncs the
+file, which is the end of a commit. So the pages of one SQLite commit reach FoundationDB
+together, and a crash leaves the whole commit or none of it.
+
+A commit that fits one transaction is one transaction. That is the common case, and it
+costs one round trip.
+
+A commit too large for one transaction stages instead. The pages go first, under a txid
+that no read can reach, and one more transaction then moves the head. This is the shape
+CockroachDB calls a parallel commit. The staged pages are safe to leave behind, because
+the next open clears every txid above the head.
+
+### Compaction
+
+Compaction folds the log into a new shard version. It adds a version and never
+overwrites one. It clears a PIDX row only when that row points at a folded txid.
+`../spec/Store.lean` proves that these two rules preserve every read.
+
+The trigger is a ratio and not a number. Compaction runs when the log is as large as the
+base. A ratio has no units to tune, and it moves with the load. A quiet actor never
+compacts.
+
+Retention follows demand. A shard version below the oldest pin is one that nobody can
+read, so compaction drops it. Nothing writes a pin yet.
 
 Locking is a no-op, because an actor is the single writer of its own store.
 
 ## Measured
 
-Against a live FoundationDB in a container, 500 rows, beside SQLite on a local file. The
-local file is the floor, not the target: it is one machine with no durability across
-machines.
+Against a live FoundationDB in a container, 500 rows, beside SQLite on a local file. Both
+run with the journal in memory, so neither number includes an fsync. The local file is a
+reference and not a floor: it is one machine with no durability across machines.
 
 | op | local file/s | FoundationDB/s | ratio |
 | --- | --- | --- | --- |
-| insert, one commit each | 1631 | 404 | 4.0x |
-| insert, one commit for all | 216516 | 36838 | 5.9x |
-| point read | 1283776 | 1192302 | **1.1x** |
-| scan | 9532525 | 9642829 | **1.0x** |
+| insert, one commit each | 267346 | 420 | 637x |
+| insert, one commit for all | 607002 | 80450 | 7.5x |
+| point read | 2141392 | 2026893 | **1.1x** |
+| scan | 13946612 | 13350778 | **1.0x** |
 
-A read costs what a local read costs. A write pays for the network, which is the trade
-the design takes.
+A read costs what a local read costs. A write pays for the network, which is the trade the
+design takes.
+
+The atomic commit is faster than the torn one it replaced. The layout that committed each
+`xWrite` gave 404 commits each second. Staging the pages and then moving the head gave 280,
+because it costs two round trips. Putting a commit that fits into one transaction gave 420.
+
+### The write path is latency, not work
+
+One commit costs about 2.4 ms, and almost all of it is the round trip and FoundationDB's
+own commit. The gap between the first row and the second says the rest: the same rows in
+one transaction go 190 times faster.
+
+So the write path does not need a faster client. It needs fewer commits for the same rows,
+or more commits in flight at once. Batching the writes of many actors into one transaction
+is the lever, and it is the reason the plane is one process that many actors reach over
+iceoryx rather than one process for each actor.
+
+Reads have no such room. They are already at parity with a local file, because the page
+cache absorbs them and no round trip happens at all.
 
 ### One pragma is worth 2266 times
 
@@ -164,30 +220,81 @@ the fence moved. rivet does the same, in `depot_client_types::is_head_fence_mism
 With the fence:
 
 ```
-writer 1: wrote 162, refused 138
-writer 2: wrote 300, refused 0
+writer 1: wrote 200, refused 0
+writer 2: wrote 0, refused 200
 ```
 
 The loss became a loud failure. That is the whole point: a store may refuse a write, and
 it may not accept a write and drop it.
 
+The fence guards every write transaction, and not only the commit. The first version
+checked it in the commit alone, and a stale writer could still compact. Compaction drops
+the shard version that the owner is reading, so the owner then read pages that were no
+longer there. Both writers failed, and the database was intact but unusable. A fence that
+covers one write path and not the others is not a fence.
+
+## A crash point is a better test than a delay
+
+`prove_crash` crashes a writer and then looks for a database that holds half of a commit.
+`PRAGMA integrity_check` cannot see that fault, because a database that mixes pages from
+two commits is structurally valid. So the program checks the contents directly: every
+round writes the same text into every row, and two distinct values mean a torn commit.
+
+It crashes in two ways. `kill` sends SIGKILL after a delay, which is the crash a machine
+gives. `at` stops the writer before a numbered commit. The second repeats exactly, and a
+search cannot address a failure it cannot repeat.
+
+`witness/` searches the crash points with [plausible-witness-dag][pwd]. A candidate names
+a commit size and a crash point. plausible samples the space at each rung of a ladder, and
+a deterministic walk then covers it in order. The two negatives differ, and the difference
+is the point: a budget hit means the search did not look everywhere, and `provablyNone`
+means it did.
+
+[pwd]: https://github.com/fire/plausible-witness-dag
+
+Against the layout that committed each `xWrite` on its own, the search finds a witness at
+the first rung after nine crashes. Against the layout above, it covers 2500 candidates and
+finds none.
+
+## Every transaction retries
+
+FoundationDB expects a client to retry. `fdb_transaction_on_error` decides whether an
+error may be retried, and it waits the right amount before the next attempt. Every
+transaction in the VFS runs in that loop.
+
+This matters for two errors that arrive with load rather than with a bug. Error 1020,
+`not_committed`, means the transaction conflicted. Error 1007, `transaction_too_old`,
+ends a read that ran past the five second limit. Both were hard failures before, and
+both now retry.
+
+A fence mismatch does not retry. Refusing the write is the correct answer, so it reaches
+the caller as `SQLITE_READONLY`.
+
 ## What is not handled
 
-- **A FoundationDB conflict is not retried.** A retryable error becomes
-  `SQLITE_IOERR_WRITE`. `fdb_transaction_on_error` is the fix.
-- **A read transaction can age out.** FoundationDB limits a transaction to five seconds,
-  and a long scan through one transaction will fail.
-- **A commit is not one transaction.** Each `xWrite` commits on its own, so a SQLite
-  commit that dirties several pages is not atomic. This is what the rivet layout in
-  `../spec/Store.lean` fixes, and it is the next increment.
+- **There is no read-ahead.** A page miss is a network round trip, and the section above
+  says read-ahead is most of the engineering. `../spec/Prefetch.lean` models it. The VFS
+  reads one page at a time.
+- **Nothing writes a pin.** Compaction reads the pin range and keeps every version at or
+  above the oldest pin. No reader creates one, so only the newest version survives, and
+  a read below the head has nothing to hold.
+- **A commit larger than one transaction cannot be indexed.** The pages of a large commit
+  stage across transactions, but the index rows must fit one. The limit is derived from
+  the FoundationDB transaction size, not chosen.
+- **One writer commits, not many.** The fence gives one owner at a time. Committing from
+  several actors at once needs the parallel commit protocol, modelled in
+  [ParallelCommits.tla][pc]. That is a different problem from the one the fence solves.
+
+[pc]: https://github.com/V-Sekai/cockroach/blob/release-22.1-v-sekai/docs/tla-plus/ParallelCommits/ParallelCommits.tla
 
 ## Next
 
-1. Read the two implementations that already do this: `mvsqlite`, and rivet's
-   `engine/packages/depot-client`. Do not design a third.
-2. Decide whether to use `mvsqlite` or to write the VFS. Writing one is a C API against
-   `libfdb_c`, which is why the plane is native.
-3. Build the plane on the thread-per-core harness over iceoryx v1, per `Weft`.
+1. Add read-ahead, which `../spec/Prefetch.lean` already models. This is the largest
+   remaining piece, and it is what makes a scan affordable.
+2. Build the plane on the thread-per-core harness over iceoryx v1, per `Weft`. Nothing
+   calls the VFS yet except the programs in `native/storeplane/`.
+3. Write a pin when a read needs a version below the head, so a restore point survives
+   compaction.
 4. Delete `Weft.Actor.Store.Replicated`, `.Replicator`, and `Weft.Actor.load_all` when the
    plane serves reads.
 
