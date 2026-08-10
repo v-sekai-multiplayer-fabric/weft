@@ -7,7 +7,7 @@ Rules and conventions for the weft repo. Follow them.
 - weft is the Elixir and OTP control plane of the multiplayer fabric.
 - The docs in `docs/` are the source of truth. Start with `docs/reference/architecture.md`.
 - A page that describes unbuilt work says so at the top, in a "What is built" note. A
-  reader must not need `docs/reference/tasks.md` to tell design from running code.
+  reader must not need the task pages to tell design from running code.
 - `docs/essays/how-it-works.md` is the plain explanation for a new reader. Keep it correct.
 
 ## Writing
@@ -115,7 +115,8 @@ The directory says which kind of page it holds. Put a new page in the right one.
 
 - `docs/reference/` holds the rules, the terms, and the contracts. Start at
   `docs/reference/architecture.md`, which is the architecture of the whole system.
-  `docs/reference/tasks.md` records the open work and the next step.
+  `docs/reference/` holds one page for each open task, with its goal, its state today,
+  and its next step.
 - `docs/essays/` explains why those rules exist. Send a newcomer to
   `docs/essays/how-it-works.md`.
 - `docs/spec/` holds the Lean4 specs. `docs/spec/README.md` explains how a test mirrors

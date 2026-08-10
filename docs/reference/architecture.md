@@ -11,7 +11,8 @@ The main rule of weft's architecture:
 > producer, and the SUMO producer run in the BEAM. **No plane and no edge exists yet,
 > and there is no iceoryx code at all.** `native/dataplane` links only threads. So this
 > page describes the design that the code is written toward, not a running system. See
-> `tasks.md` for the state of each item, and `../essays/yagni.md` for why the order is
+> the task pages beside this one for the state of each item, and `../essays/yagni.md`
+> for why the order is
 > what it is.
 
 The BEAM does coordination: placement, lifecycle, supervision, routing,
