@@ -1,0 +1,37 @@
+# clangd configuration for the store plane.
+#
+# The real build runs in a container, where FoundationDB and SQLite headers are
+# installed. An editor on the host has neither, so clangd reports every include as
+# missing and then guesses at every type.
+#
+# `CompileFlags.Add` gives clangd the include paths and the API version it needs. A
+# `compile_commands.json` from CMake takes priority when one exists, so this is the
+# fallback that makes an editor useful without a container.
+#
+# Fetch the headers into `.deps/` first. That directory is not committed:
+#
+#   curl -fsSL https://github.com/apple/foundationdb/releases/download/7.3.76/fdb-headers-7.3.76.tar.gz \
+#     | tar xz -C native/storeplane/.deps
+#   curl -fsSL -o /tmp/sq.zip https://sqlite.org/2024/sqlite-amalgamation-3450100.zip
+#   unzip -oj /tmp/sq.zip '*/sqlite3.h' -d native/storeplane/.deps
+#
+# The container copy of `fdb_c_types.h` is needed as well, because the published
+# headers tarball does not carry it:
+#
+#   docker create --name h deploy-weft:latest
+#   docker cp h:/usr/include/foundationdb/fdb_c_types.h native/storeplane/.deps/
+#   docker rm -f h
+#
+# Or generate the real thing in the container, which is better because it carries the
+# exact flags the build uses. `native/storeplane/compiledb.sh` does this:
+#
+#   native/storeplane/compiledb.sh
+#
+# A host editor still cannot resolve a Linux system header such as `pthread.h`, because
+# the host has no Linux sysroot. Editing inside the container gives complete results.
+CompileFlags:
+  Add:
+    - -I.deps
+    - -I/usr/include/foundationdb
+    - -DFDB_API_VERSION=730
+    - -std=c11
