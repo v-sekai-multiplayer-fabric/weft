@@ -156,6 +156,7 @@ defmodule Weft.ClusterTest do
         if System.monotonic_time(:millisecond) > deadline do
           flunk("condition not reached before deadline")
         else
+          # Another node's state, which this one cannot be told about. Bounded poll.
           Process.sleep(50)
           wait_until(fun, deadline)
         end

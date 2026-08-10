@@ -203,6 +203,8 @@ defmodule Weft.LimitsTest do
     cond do
       Limits.in_flight() == 0 -> :ok
       tries == 0 -> flunk("in flight did not fall back to zero")
+      # Task.Supervisor frees a slot when it handles the child's exit, and it announces
+      # nothing. Bounded poll, and it flunks at the bound rather than hanging.
       true -> Process.sleep(10) && drain(tries - 1)
     end
   end

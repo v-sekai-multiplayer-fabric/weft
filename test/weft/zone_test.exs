@@ -17,18 +17,18 @@ defmodule Weft.ZoneTest do
     # instant `start_link` returns. Wait for the name, then call through it. A call to a
     # name that is not there yet exits, and an exit is not a value that `eventually` can
     # try again.
-    assert eventually(fn -> registered?(zone_id) end)
+    # The zone fans every tick out to its subscribers, so a test waits for a message
+    # rather than polling a counter. `assert_receive` is the wait, and it has no interval
+    # to pick: it returns the moment the message lands.
+    :ok = Zone.subscribe(zone_id)
 
-    # Snapshots arrive as messages; the zone never polls. Wait for the first tick.
-    assert eventually(fn -> Zone.tick(zone_id) > 0 end)
-
-    snapshot = Zone.latest(zone_id)
+    assert_receive {:zone_snapshot, ^zone_id, snapshot}, 1_000
     assert snapshot.zone_id == zone_id
     assert length(snapshot.entities) == 4
 
-    before = Zone.tick(zone_id)
-    Process.sleep(30)
-    assert Zone.tick(zone_id) > before
+    # A second tick proves it keeps going, and it arrives as a message too.
+    assert_receive {:zone_snapshot, ^zone_id, later}, 1_000
+    assert later.tick > snapshot.tick
 
     GenServer.stop(zone)
   end
@@ -37,17 +37,30 @@ defmodule Weft.ZoneTest do
     zone_id = "z-#{System.unique_integer([:positive])}"
     {:ok, zone} = Zone.start_link(zone_id: zone_id, worker_opts: [tick_ms: 5])
 
-    assert eventually(fn -> Zone.tick(zone_id) > 0 end)
+    :ok = Zone.subscribe(zone_id)
+    assert_receive {:zone_snapshot, ^zone_id, _}, 1_000
 
     :ok = Zone.command(zone_id, :pause)
-    # Let any in-flight tick settle, then confirm the tick stops advancing.
-    Process.sleep(25)
-    paused_at = Zone.tick(zone_id)
-    Process.sleep(30)
-    assert Zone.tick(zone_id) == paused_at
+
+    # `Weft.DataPlane.Stub.command/2` is a cast, so `Zone.command/2` returns before the
+    # worker applies it. A call to the worker orders after that cast, so this returns only
+    # once the pause is applied. It is the mailbox doing the ordering, not a delay.
+    _ = :sys.get_state(:sys.get_state(zone).worker)
+
+    # Drain any tick that was already sent before the pause landed.
+    receive do
+      {:zone_snapshot, ^zone_id, _} -> :ok
+    after
+      0 -> :ok
+    end
+
+    # Absence is the one thing a message cannot announce, so it needs a window. This is
+    # `refute_receive`, which is ExUnit's primitive for it, and the window is 30 ms
+    # against a 5 ms tick: six chances for a broken pause to show.
+    refute_receive {:zone_snapshot, ^zone_id, _}, 30
 
     :ok = Zone.command(zone_id, :resume)
-    assert eventually(fn -> Zone.tick(zone_id) > paused_at end)
+    assert_receive {:zone_snapshot, ^zone_id, _}, 1_000
 
     GenServer.stop(zone)
   end
@@ -63,15 +76,4 @@ defmodule Weft.ZoneTest do
     assert_receive {:DOWN, ^ref, :process, ^worker, _}, 1_000
   end
 
-  defp registered?(zone_id) do
-    Horde.Registry.lookup(Weft.Registry, {:zone, zone_id}) != []
-  end
-
-  defp eventually(fun, tries \\ 200) do
-    cond do
-      fun.() -> true
-      tries == 0 -> false
-      true -> Process.sleep(5) && eventually(fun, tries - 1)
-    end
-  end
 end
