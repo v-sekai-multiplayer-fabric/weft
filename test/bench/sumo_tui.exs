@@ -33,7 +33,10 @@ frames =
   end
 
 if frames == [] do
-  IO.puts("no SUMO trace at #{path}; generate it with test/bench/sumo (see test/bench/sumo/README.md)")
+  IO.puts(
+    "no SUMO trace at #{path}; generate it with test/bench/sumo (see test/bench/sumo/README.md)"
+  )
+
   System.halt(1)
 end
 

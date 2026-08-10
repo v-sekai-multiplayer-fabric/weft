@@ -45,6 +45,7 @@ defmodule Weft.MixProject do
       {:horde, "~> 0.9"},
       {:libcluster, "~> 3.3"},
       {:telemetry, "~> 1.2"},
+      {:hammer, "~> 7.4"},
       {:elixir_make, "~> 0.8", runtime: false},
       {:cc_precompiler, "~> 0.1", runtime: false},
       {:stream_data, "~> 1.1", only: :test},

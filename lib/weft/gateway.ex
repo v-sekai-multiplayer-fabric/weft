@@ -62,7 +62,7 @@ defmodule Weft.Gateway.Request do
   """
 
   @enforce_keys [:target, :op]
-  defstruct [:target, :op, args: [], reliable: true, seq: nil]
+  defstruct [:target, :op, args: [], reliable: true, seq: nil, from: nil]
 
   @type target :: {:actor, name :: String.t(), key :: String.t()} | {:zone, zone_id :: term()}
   @type t :: %__MODULE__{
@@ -73,7 +73,11 @@ defmodule Weft.Gateway.Request do
           # App-level sequence for unreliable datagrams: the gateway drops any
           # request whose seq is not newer than the last seen for its target
           # (last-write-wins), so stale/out-of-order packets are discarded.
-          seq: non_neg_integer() | nil
+          seq: non_neg_integer() | nil,
+          # The address the request came from. `Weft.Limits` counts the rate and the
+          # requests in flight for each address. The native front sets it. A request
+          # with no address is a call from inside the node, and it is not counted.
+          from: term() | nil
         }
 end
 
@@ -99,8 +103,20 @@ defmodule Weft.Gateway do
     kind = elem(target, 0)
 
     :telemetry.span([:weft, :gateway, :dispatch], %{target: kind, op: op}, fn ->
-      {routed(req), %{}}
+      {limited(req), %{}}
     end)
+  end
+
+  # The limits of `Weft.Limits`, at the edge where a caller reaches the node. A request
+  # with no address comes from inside the node and is not counted, because the limits
+  # bound what one caller outside may take.
+  defp limited(%Request{from: nil} = req), do: routed(req)
+
+  defp limited(%Request{from: from} = req) do
+    with {:ok, _count} <- Weft.Limits.take_request(from),
+         {:ok, reply} <- Weft.Limits.with_in_flight(fn -> routed(req) end) do
+      reply
+    end
   end
 
   # Unreliable + sequenced: drop the packet unless it is newer than the last one
