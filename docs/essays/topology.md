@@ -179,9 +179,14 @@ lives in one place. Identity is that same rule one level up: one world is author
 for the data, and the data lives there as actors.
 
 So there is one home world. An account is an actor in it. A friend list is an actor in
-it. The store tiers it the same way as any other actor: a local SQLite primary, an async
-FoundationDB replica, and the S3 cold tier. Handoff, restore, and the limits all work
-without a change.
+it. The store holds it the same way as any other actor, so handoff, restore, and the
+limits all work without a change.
+
+How the store holds it changed after this was written. The Elixir prototype keeps a local
+SQLite primary and replicates to FoundationDB behind the write. The plane does not: SQLite
+runs over a VFS whose pages are already in FoundationDB, and there is no local file at all.
+Nothing in the paragraph above depends on which, which is the point of putting it behind
+the store.
 
 | Data                          | Home                          | Read from a different region    |
 | ----------------------------- | ----------------------------- | ------------------------------- |
