@@ -68,10 +68,13 @@ int main(int argc, char** argv) {
     int seen = 0;
     int idle = 0;
 
-    // 500 idle polls at 10 ms is 5 s of silence before this gives up. It is a stop
-    // condition and not a timeout to tune: the run publishes at 20 ms, so any real gap
-    // is two orders of magnitude smaller.
-    while (seen < expect && idle < 500) {
+    // Give up after the action limit, and not after a number chosen here. `Weft.Limits`
+    // holds 60 s for one action, and this loop polls at 10 ms, so the count is that
+    // limit divided by that period. A publisher that is alive answers in 20 ms, which is
+    // three orders of magnitude sooner.
+    const int give_up_after = weft::ACTION_MS / 10;
+
+    while (seen < expect && idle < give_up_after) {
         iox2_sample_h sample = nullptr;
         if (iox2_subscriber_receive(&subscriber, nullptr, &sample) != IOX2_OK) {
             std::fprintf(stderr, "subscriber: receive failed\n");

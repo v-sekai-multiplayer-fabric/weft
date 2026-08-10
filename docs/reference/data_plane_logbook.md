@@ -168,11 +168,113 @@ measuring the send side of loopback, which throttles on ENOBUFS and one softirq 
 
 Loopback is not a proxy for a network card. The tool stays for a host that has one.
 
+## What the dlsym dispatch table costs
+
+`native/harness/src/bench_send.cpp`, built three ways from one source. The loop is loan,
+write 40 bytes, send, receive, drop, with a subscriber in the same process so the send
+path is a real send path. 200000 messages for each pass, 7 passes, median of the passes,
+and the run repeated 4 times.
+
+One machine, 16 cores, Fedora, GCC 16.1.1 at `-O2`, iceoryx2 v0.9.3, Release.
+
+| build | ns for each message | against shared |
+| --- | --- | --- |
+| dlsym table, from `iceoryx2.sigs` | 428 | +1.1% |
+| direct, shared library | 423 | — |
+| direct, static library | 418 | -1.2% |
+
+The loop makes 5 iceoryx2 calls for each message, so the table costs about 1 ns for each
+call. That is one indirect call, which is what it is.
+
+Read the shared row and not the static row. A shared link already pays an indirect jump
+through the PLT, so it is the alternative weft would otherwise have. The static row is the
+strictest baseline and the least realistic, because it is the only build where the
+compiler could inline across the call, and it does not link a Rust artifact the way weft
+would have to.
+
+The effect is close to the run-to-run spread. Four repeats of the shared build ranged 421
+to 428 ns, and the gap to the table is about 5 ns. So this bounds the cost rather than
+measuring it precisely: it is small, and it is not zero.
+
+The payload never crosses the table. `loan` returns a pointer into shared memory, and the
+write is a `memcpy` the caller does. So the cost is for each call and not for each byte,
+and a larger message does not pay more.
+
+### The batch size the 15 M target needs
+
+Same apparatus. `iox2_publisher_loan_slice_uninit` loans a slice, so one message carries a
+batch whatever its length, at one loan and one send.
+
+| entities in a message | ns for each message | M snapshots/s |
+| --- | --- | --- |
+| 1 | 420.3 | 2.38 |
+| 8 | 424.5 | 18.85 |
+| 32 | 454.9 | 70.35 |
+| 64 | 497.7 | 128.58 |
+| 128 | 596.2 | 214.68 |
+| 256 | 730.2 | 350.61 |
+| 1024 | 1695.1 | 604.11 |
+
+Two numbers come out of this, and they are far apart.
+
+**The floor is 7.** 15 M snapshots each second divided by the 2.38 M messages each second
+at batch 1. Below 7 the bus cannot reach the target however many cores it gets.
+
+**The knee is 336.** Split a message in two: a fixed part it pays once, and a marginal
+part for each entity. From batch 8 to batch 1024 the marginal part is
+`(1695.1 - 424.5) / 1016`, which is 1.25 ns. The fixed part is the batch-1 cost less one
+entity, which is 419 ns. They are equal at 336.
+
+The floor is not a size to run at, and the gap says why:
+
+| entities in a message | fixed cost for each entity | overhead |
+| --- | --- | --- |
+| 7 | 59.9 ns | 98% |
+| 32 | 13.1 ns | 91% |
+| 256 | 1.6 ns | 57% |
+| 336 | 1.25 ns | 50% |
+| 1024 | 0.4 ns | 25% |
+
+A message of 7 clears the target and is 98% overhead. So the floor says where the bus
+stops failing, and not where to run.
+
+**weft uses 128, and that number is rivet's.** It is the max keys in one batch operation,
+at <https://rivet.dev/docs/actors/limits/>, and every other value in `Weft.Limits` comes
+from the same page. A bus message is the same shape of thing as a batch put: many items,
+one operation.
+
+128 sits 18 times above the floor at 72% overhead, and it carries 214.68 M snapshots each
+second on one core, which clears the 15 M target by 14 times. Going to 256 buys 1.5 times
+the rate and costs 1.3 times the latency of a message.
+
+Neither 7 nor 336 is a limit. They are the check on 128, and they live here rather than in
+`Weft.Limits`.
+
+### The bus is not the per-snapshot path
+
+428 ns for each message is 2.3 M messages each second on one core. The C++ ring above does
+189.4 M snapshots each second on one core, which is 5.3 ns each. The bus is about 80 times
+slower than the ring, and the two numbers are not comparable work.
+
+So one iceoryx2 message for each snapshot is not a design. At the 15 M snapshots each
+second target it would need about 6.4 cores for the bus alone, and the ring needs a
+fraction of one. The table above shows what fixes it, and it is one number: 8.
+
+A message carries a frame, and a frame carries many entities. The replication entry above
+uses 256 entities for each frame. At that size, 15 M snapshots each second is 58.6 K
+messages each second, which is about 25 µs of bus time in each second on one core. The
+dlsym table takes about 1.1% of that.
+
+This is the reason the ring exists beside the bus, and it is worth stating plainly: the
+ring carries state at packet rate, and the bus carries frames and commands.
+
 ## Not measured
 
 - **A real network card.** `test/bench/fly/netbench.c` is ready to run between two
   machines on Fly, and it is held until a run that is bounded in cost. Loopback cannot
   give this number, as the entry above shows.
+- **The bus under load.** The table above is one publisher and one subscriber in one
+  process. A real plane has one for each core, and the numbers will differ.
 - **Scattered entities under real traffic.** The two apply numbers bracket it. The truth
   is between the cache hot 1.21 ns and the DRAM bound 24.2 ns, and it depends on the
   layout of the entities and on the locality of the area of interest.

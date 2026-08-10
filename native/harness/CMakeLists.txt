@@ -66,10 +66,29 @@ target_include_directories(weft-iceoryx2-stubs
     PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(weft-iceoryx2-stubs PUBLIC ${CMAKE_DL_LIBS})
 
-foreach(prog publisher subscriber)
+foreach(prog publisher subscriber bench_send)
     add_executable(weft-harness-${prog} src/${prog}.cpp)
     target_include_directories(weft-harness-${prog}
         PRIVATE src ${CMAKE_CURRENT_BINARY_DIR}/gen)
     target_link_libraries(weft-harness-${prog} PRIVATE weft-iceoryx2-stubs)
     target_compile_options(weft-harness-${prog} PRIVATE -Wall -Wextra)
 endforeach()
+
+# The same bench, linked straight against iceoryx2, so the dlsym table has something to be
+# compared with. It needs an iceoryx2 install, so it is off unless asked for:
+#   cmake -S native/harness -B build -DWEFT_ICEORYX2_DIRECT=ON -DCMAKE_PREFIX_PATH=$PWD/.iceoryx
+option(WEFT_ICEORYX2_DIRECT "Also build a directly linked bench, for comparison" OFF)
+if(WEFT_ICEORYX2_DIRECT)
+    find_package(iceoryx2-c REQUIRED)
+    # Two baselines, because they bound the answer from both sides. A static link is the
+    # strictest: it is the only build where the compiler could inline across the call.
+    # A shared link is the realistic one: it already pays an indirect jump through the
+    # PLT, which is most of what the dlsym table costs.
+    foreach(link static shared)
+        add_executable(weft-harness-bench-${link} src/bench_send.cpp)
+        target_include_directories(weft-harness-bench-${link} PRIVATE src)
+        target_compile_definitions(weft-harness-bench-${link} PRIVATE WEFT_ICEORYX2_DIRECT)
+        target_link_libraries(weft-harness-bench-${link} PRIVATE iceoryx2-c::${link}-lib)
+        target_compile_options(weft-harness-bench-${link} PRIVATE -Wall -Wextra)
+    endforeach()
+endif()

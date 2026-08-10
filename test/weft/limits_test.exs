@@ -24,6 +24,42 @@ defmodule Weft.LimitsTest do
       assert Limits.get(:requests_each_minute) == 1200
       assert Limits.get(:in_flight) == 32
     end
+
+    test "the batch is rivet's max keys per operation, and not a number of its own" do
+      # Every limit here is rivet's. A bus message is the same shape of thing as a batch
+      # put: many items, one operation. The measurement checks the number rather than
+      # sourcing it.
+      assert Limits.get(:snapshot_batch) == 128
+    end
+
+    test "the native copy of a limit matches this module" do
+      # A C++ plane cannot call Elixir, so native/harness/src/snapshot.hpp transcribes the
+      # limits it needs. A transcription that nothing checks is a copy that goes stale,
+      # and the stale one still reads as authoritative. This reads the header.
+      header = "native/harness/src/snapshot.hpp"
+
+      body =
+        case File.read(header) do
+          {:ok, body} -> body
+          {:error, reason} -> flunk("cannot read #{header}: #{inspect(reason)}")
+        end
+
+      pairs = [
+        {"SNAPSHOT_BATCH", :snapshot_batch},
+        {"ACTION_MS", :action_ms}
+      ]
+
+      for {constant, limit} <- pairs do
+        found =
+          case Regex.run(~r/\b#{constant}\s*=\s*(\d+)\s*;/, body) do
+            [_, digits] -> String.to_integer(digits)
+            nil -> flunk("#{header} does not define #{constant}")
+          end
+
+        assert found == Limits.get(limit),
+               "#{header} says #{constant} is #{found}. Weft.Limits says #{Limits.get(limit)}."
+      end
+    end
   end
 
   describe "size limits" do
