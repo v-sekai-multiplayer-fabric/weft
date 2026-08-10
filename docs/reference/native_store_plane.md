@@ -16,8 +16,10 @@ FoundationDB
 
 State: the VFS is built, and it holds the layout below. A commit is one FoundationDB
 transaction. Reads, writes, compaction, and the fence run against a live cluster. The
-plane itself is not built. There is no iceoryx harness and no thread-per-core loop yet,
-so nothing calls this VFS except the programs in `native/storeplane/`.
+plane itself is not built. The bus works, and the loop that sits on it does not.
+`native/harness` passes a message between two processes over iceoryx2, and
+`harness.md` records it. There is no thread-per-core loop yet, so nothing calls this VFS
+except the programs in `native/storeplane/`.
 
 The Elixir prototype, `Weft.Actor.Store.Replicated` and `.Replicator`, still exists. It
 is not this design. It uses SQLite as a key and value table, it replicates logical rows

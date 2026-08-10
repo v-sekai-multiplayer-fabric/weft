@@ -9,7 +9,9 @@ the cluster file through a volume, and points `WEFT_FDB_CLUSTER_FILE` at it.
 
 ## Files
 
-- `Containerfile` builds and runs weft.
+- `Containerfile` builds and runs weft. It also builds iceoryx2, the zero-copy bus
+  between planes, in a stage of its own so the Rust toolchain does not reach the runtime
+  image. iceoryx2 is brokerless, so a node runs no daemon for it.
 - `compose.yaml` runs weft and FoundationDB with Docker Compose.
 - `quadlet/` holds the Podman Quadlet units for systemd.
 - `packaging/` holds the OS package inputs. `release-native.yml` builds the .deb and the
