@@ -11,7 +11,7 @@ defmodule Weft.ActorPersistenceTest do
   alias Weft.{Actor, Actors}
 
   test "actor state survives a restart" do
-    key = "persist-#{System.unique_integer([:positive])}"
+    key = Weft.Test.Fresh.id("persist")
 
     {:ok, pid} = Actors.get_or_create("zone", key)
     Actor.put(pid, :world_seed, 42)
@@ -30,8 +30,8 @@ defmodule Weft.ActorPersistenceTest do
   end
 
   test "distinct actors keep isolated state" do
-    {:ok, a} = Actors.get_or_create("zone", "iso-a-#{System.unique_integer([:positive])}")
-    {:ok, b} = Actors.get_or_create("zone", "iso-b-#{System.unique_integer([:positive])}")
+    {:ok, a} = Actors.get_or_create("zone", Weft.Test.Fresh.id("iso-a"))
+    {:ok, b} = Actors.get_or_create("zone", Weft.Test.Fresh.id("iso-b"))
 
     Actor.put(a, :v, "a")
     Actor.put(b, :v, "b")

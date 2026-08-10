@@ -11,7 +11,7 @@ defmodule Weft.GatewayTest do
   alias Weft.Gateway.Request
 
   test "routes a reliable request to an actor and round-trips" do
-    key = "gw-#{System.unique_integer([:positive])}"
+    key = Weft.Test.Fresh.id("gw")
 
     assert {:ok, :ok} =
              Gateway.dispatch(%Request{target: {:actor, "player", key}, op: :put, args: [:hp, 9]})

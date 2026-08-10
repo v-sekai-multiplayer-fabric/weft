@@ -6,6 +6,8 @@ defmodule Weft.MixProject do
       app: :weft,
       version: "0.1.0",
       elixir: "~> 1.20",
+      # `test/support` holds helpers that a test needs and the release does not.
+      elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
       compilers: [:elixir_make | Mix.compilers()],
       make_clean: ["clean"],
@@ -38,6 +40,9 @@ defmodule Weft.MixProject do
   end
 
   # Run "mix help deps" to learn about dependencies.
+  defp elixirc_paths(:test), do: ["lib", "test/support"]
+  defp elixirc_paths(_env), do: ["lib"]
+
   defp deps do
     [
       {:exqlite, "~> 0.27"},
@@ -49,6 +54,7 @@ defmodule Weft.MixProject do
       {:elixir_make, "~> 0.8", runtime: false},
       {:cc_precompiler, "~> 0.1", runtime: false},
       {:stream_data, "~> 1.1", only: :test},
+      {:uuidv7, "~> 1.0", only: :test},
       {:benchee, "~> 1.3", only: :dev},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false}
     ]

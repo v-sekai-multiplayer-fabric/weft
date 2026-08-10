@@ -25,7 +25,7 @@ defmodule Weft.Actor.Store.FdbTest do
   end
 
   test "actor state persists in FoundationDB across a restart" do
-    key = "fdb-#{System.unique_integer([:positive])}"
+    key = Weft.Test.Fresh.id("fdb")
 
     {:ok, pid} = Actors.get_or_create("zone", key)
     Actor.put(pid, :seed, 1234)
@@ -43,8 +43,8 @@ defmodule Weft.Actor.Store.FdbTest do
   end
 
   test "distinct actors occupy isolated FoundationDB subspaces" do
-    {:ok, a} = Actors.get_or_create("zone", "fdb-iso-a-#{System.unique_integer([:positive])}")
-    {:ok, b} = Actors.get_or_create("zone", "fdb-iso-b-#{System.unique_integer([:positive])}")
+    {:ok, a} = Actors.get_or_create("zone", Weft.Test.Fresh.id("fdb-iso-a"))
+    {:ok, b} = Actors.get_or_create("zone", Weft.Test.Fresh.id("fdb-iso-b"))
 
     Actor.put(a, :v, "a")
     Actor.put(b, :v, "b")

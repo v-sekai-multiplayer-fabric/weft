@@ -13,6 +13,12 @@ defmodule Weft.ZoneTest do
     zone_id = "z-#{System.unique_integer([:positive])}"
     {:ok, zone} = Zone.start_link(zone_id: zone_id, worker_opts: [tick_ms: 5, entities: 4])
 
+    # Horde registers the name on its own schedule, so the name may not resolve the
+    # instant `start_link` returns. Wait for the name, then call through it. A call to a
+    # name that is not there yet exits, and an exit is not a value that `eventually` can
+    # try again.
+    assert eventually(fn -> registered?(zone_id) end)
+
     # Snapshots arrive as messages; the zone never polls. Wait for the first tick.
     assert eventually(fn -> Zone.tick(zone_id) > 0 end)
 
@@ -55,6 +61,10 @@ defmodule Weft.ZoneTest do
     ref = Process.monitor(worker)
     GenServer.stop(zone)
     assert_receive {:DOWN, ^ref, :process, ^worker, _}, 1_000
+  end
+
+  defp registered?(zone_id) do
+    Horde.Registry.lookup(Weft.Registry, {:zone, zone_id}) != []
   end
 
   defp eventually(fun, tries \\ 200) do
