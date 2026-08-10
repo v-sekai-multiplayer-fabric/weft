@@ -25,7 +25,32 @@ defmodule Weft.Zone do
   @spec start_link(keyword()) :: GenServer.on_start()
   def start_link(opts) do
     zone_id = Keyword.fetch!(opts, :zone_id)
-    GenServer.start_link(__MODULE__, opts, name: via(zone_id))
+
+    case GenServer.start_link(__MODULE__, opts, name: via(zone_id)) do
+      {:ok, pid} ->
+        # OTP's promise is that a process is addressable by name once `start_link` returns.
+        # `Horde.Registry` does not keep it. `Horde.RegistryImpl.on_diffs/2` sends
+        # `{:crdt_update, diffs}` to the registry process, and that process materialises
+        # the name into ETS when it handles the message, so every `via(zone_id)` call in
+        # between exits with "no process".
+        #
+        # The registry is a GenServer, so its mailbox is a queue. A call to it returns
+        # after every message sent before it, including that one. This is not a delay and
+        # there is no interval to pick.
+        #
+        # `../../docs/logbook/control_plane.md` measures the window: at 32 registrations
+        # at once, 617 of 640 lookups straight after a register found nothing, and 0 of
+        # 640 did after this call.
+        #
+        # Keeping the promise here rather than at each caller is the point. `subscribe/1`,
+        # `tick/1`, and `command/2` all address through `via/1`, and a fix at one of them
+        # leaves the others broken.
+        _ = :sys.get_state(Weft.Registry)
+        {:ok, pid}
+
+      other ->
+        other
+    end
   end
 
   @doc "Distributed address of a zone."
