@@ -25,7 +25,7 @@ defmodule Weft.ActorLifecycleTest do
   end
 
   test "an idle actor sleeps and wakes with durable state" do
-    key = "sleep-#{System.unique_integer([:positive])}"
+    key = Weft.Test.Fresh.id("sleep")
 
     {:ok, pid} = Actors.get_or_create("zone", key)
     Actor.put(pid, :hp, 7)
@@ -45,7 +45,7 @@ defmodule Weft.ActorLifecycleTest do
   end
 
   test "activity resets the idle timer" do
-    key = "active-#{System.unique_integer([:positive])}"
+    key = Weft.Test.Fresh.id("active")
 
     {:ok, pid} = Actors.get_or_create("zone", key)
 

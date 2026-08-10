@@ -30,7 +30,7 @@ defmodule Weft.Actor.Store.ReplicatedTest do
     end)
   end
 
-  defp fresh_id, do: {"zone", "repl-#{System.unique_integer([:positive])}"}
+  defp fresh_id, do: Weft.Test.Fresh.actor_id("repl")
 
   test "a local write replicates to FoundationDB off the write path" do
     id = fresh_id()
