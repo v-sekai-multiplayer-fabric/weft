@@ -78,8 +78,14 @@ defmodule Weft do
 
   Every plane that is not the control plane follows the same rules:
 
-  1. **It is a separate native OS process.** The container image starts it. The BEAM
-     does not start it as a Port.
+  1. **It is a separate native OS process, in its own repository and its own image.** The
+     platform starts it, and today that is a Fly app for each plane. The BEAM does not
+     start it as a Port and does not supervise it.
+
+     A plane may be its own Fly app, and what it can reach follows from where it lands.
+     Two planes on one machine talk over iceoryx2, zero copy. Two planes on different
+     machines do not talk directly. They go through the store plane to FoundationDB, which
+     is a global transaction and is slow. See `../native/README.md`.
   2. **It is sandboxed and crash-isolated.** Each plane runs in a
      [bubblewrap](https://github.com/containers/bubblewrap) sandbox: restricted
      filesystem, namespaces, and seccomp. It can reach only what it is given — the
@@ -102,8 +108,9 @@ defmodule Weft do
      reaches the data plane over iceoryx2. The BEAM reaches the data plane through the
      NIF, which reads the seqlock ring in shared memory. So the BEAM never links iceoryx2,
      and a plane is opaque to it in every way except what that plane writes to the ring.
-     That is what makes a plane a black box: weft starts it, watches it, and restarts it,
-     and it reads the result. The NIF takes a sample or sends a request,
+     That is what makes a plane a black box. weft does not start it and does not restart
+     it, and it reads only what the plane wrote. The platform runs it, and today that is a
+     Fly app. The NIF takes a sample or sends a request,
      copies the bytes into a BEAM binary, and returns at once. No long work, no
      busy-poll, no blocked scheduler. The hard rules in `Weft.DataPlane` apply to
      every plane.
@@ -253,8 +260,13 @@ defmodule Weft do
 
   Two boundaries, two jobs:
 
-  - **iceoryx**: same machine, zero-copy, hot path, between planes.
-  - **FoundationDB**: across machines, durable state, over the network.
+  - **iceoryx2**: same machine, zero copy, hot path, between planes.
+  - **FoundationDB, through the store plane**: across machines, durable state. A global
+    transaction is slow, and the 10 GiB limit for one actor is sized for it.
+
+  There is no third. Two planes on different machines do not talk directly, and HTTP/3 and
+  WebTransport is not an internal path. It is the client transport, and an edge terminates
+  it.
 
   ### Who holds the FoundationDB client
 

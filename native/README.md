@@ -15,9 +15,9 @@ the BEAM loads into itself.
 
 ## Where the planes went
 
-Each one is its own repository, its own process, and its own container. weft supervises
-them as black boxes, and it reaches them only through the data plane. A plane is opaque to
-the BEAM in every other way.
+Each one is its own repository, its own process, and its own container. weft does not
+supervise them. The platform does, and today that is a Fly app. weft reaches them only
+through the data plane, and a plane is opaque to the BEAM in every other way.
 
 | plane or edge | repository |
 | --- | --- |
@@ -40,3 +40,22 @@ one plane's vendored dependencies and build output. It is 40 kB now.
 
 The rule that follows: a new plane is a new repository. If it needs the bus, it takes
 `fabric-harness` as a subtree.
+
+## Which transport a plane uses
+
+It follows from where the plane lands, and not from how the repositories are split.
+
+| the two ends are | path | cost |
+| --- | --- | --- |
+| in one machine | iceoryx2, zero copy | a pointer handoff |
+| in different machines | the store plane, to FoundationDB | a global transaction |
+
+iceoryx2 is shared memory: `/dev/shm` for the segments and `/tmp/iceoryx2` for the service
+registry. Two machines share neither, so it is the same-machine path and only that.
+
+There is no direct path between two machines. A plane that needs something another machine
+holds reads it from the store. That is a global transaction, and it is slow. The 10 GiB
+limit for one actor is sized for it.
+
+HTTP/3 and WebTransport is not an internal path. It is the client transport, and an edge
+terminates it.
