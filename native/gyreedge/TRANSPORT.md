@@ -22,6 +22,7 @@ The move is a move and not a rewrite. The bytes are the same.
 | `thirdparty/picotls` | `zone-server-h2o` `thirdparty/picotls` |
 | `thirdparty/picoquic-godot-patches` | `zone-server-h2o` `thirdparty/` |
 | `cmake/picoquic.cmake` | `zone-server-h2o` `cmake/` |
+| `scripts/generate-tls-cert.sh` | `zone-server-h2o` `scripts/` |
 
 ## What did not move
 
@@ -34,6 +35,15 @@ commit for `native/gyreplane`. Recover it when the edge gains its own entry poin
 
 There is no `CMakeLists.txt` here yet. The transport had no `main` of its own. It was
 called from the plane, and the edge that will call it does not exist yet.
+
+## The build dependency that came with it
+
+The plane README used to say the build needs `mbedtls`, built from source and not from the
+system package, because Apt's `libmbedtls-dev` does not carry `mbedtls_config.h`. That
+requirement belonged to picotls, and not to the zone tick. So it is recorded here.
+
+`ci-local` records a later switch from mbedtls to OpenSSL. Check which one picotls builds
+against before you trust either note.
 
 ## Two facts the plane learned the hard way
 

@@ -4,7 +4,7 @@ name: real build (stock clang, full link)
 # this repo so far was verified by clang -fsyntax-only against real
 # vendored headers, or by standalone unit tests compiled without the
 # full dependency set. NONE of it has gone through a real cmake --build
-# linking the actual h2o, libfdb_c, picoquic, picotls, mujoco together --
+# linking the actual h2o and libfdb_c together --
 # that is a real, open risk (ODR clashes, symbol collisions, FDB API
 # version mismatches), not a formality. This job closes that gap.
 #
@@ -15,7 +15,7 @@ name: real build (stock clang, full link)
 # separately.
 #
 # Scope: build + link + run test/unit/*.c for real. Does NOT stand up a
-# live FDB cluster or run a live WebTransport client against the
+# live FDB cluster or drive the plane from a live edge against the
 # binary -- that is plan steps 3/4 (deployment + verification), a
 # separate, larger piece of work.
 
@@ -78,7 +78,7 @@ jobs:
 
       # This is the real link this whole workflow exists to prove out --
       # expect and fix whatever surfaces here, per the plan's own risk
-      # list: picotls/FDB transitive symbol collisions, FDB API version
+      # list: FDB transitive symbol collisions, FDB API version
       # mismatches.
       - name: Build zone-server-h2o
         run: cmake --build build -j
