@@ -73,6 +73,23 @@ If durability sat on the write path, every actor write would pay that millisecon
 it does not. A write acks locally, and replication to FoundationDB happens afterwards,
 off the path.
 
+That is the Elixir prototype. The plane arrives at the same place by a different road, and
+the difference is worth being precise about, because on a first read it looks like the
+opposite.
+
+The plane has no local file. SQLite runs over a VFS whose pages live in FoundationDB, so a
+commit is a FoundationDB transaction and it costs about 1080 microseconds. That sounds like
+durability back on the write path.
+
+It is not, because the unit changed. A write inside a transaction touches the page cache
+and costs nothing. Only `COMMIT` crosses the network. So the millisecond is paid once for
+each transaction rather than once for each write, and an actor that batches its work pays
+it once for all of it.
+
+What that does put on the path is the page miss. A read of a page that is not cached is a
+round trip, at the same 1080 microseconds. That is why read-ahead is the engineering in a
+VFS over a network, and `../logbook/store_plane.md` records the measurements.
+
 The honest cost is that a crash can lose the last few unreplicated writes. We take
 that trade deliberately, and it is worth stating plainly rather than burying: weft
 prefers to lose a few milliseconds of the newest state over making every write 14
