@@ -1,0 +1,37 @@
+# Local, systemd-native stand-in for .github/workflows/real-build.yml,
+# for use when GitHub Actions itself is unavailable (it was in a
+# platform-wide major outage on 2026-08-06 when this was first written,
+# confirmed via githubstatus.com) or simply to check a change before
+# pushing it.
+#
+# Install: copy this file to ~/.config/containers/systemd/zone-server-h2o-ci.build
+# (or /etc/containers/systemd/ for a system-wide unit) and replace
+# REPO_PATH below with the absolute path to your checkout of this repo.
+# Then:
+#   systemctl --user daemon-reload
+#   systemctl --user start zone-server-h2o-ci-build.service
+#   journalctl --user -u zone-server-h2o-ci-build.service -f
+#
+# This is a Type=oneshot unit (set automatically by podman's quadlet
+# generator for .build files, confirmed by reading the generated
+# service file) -- it builds the image once and exits, it does not
+# linger as a persistent daemon. `systemctl --user status` after it
+# finishes shows success/failure the same way a CI job's own
+# pass/fail does. A non-zero exit and Failed status mean the same
+# thing a red real-build.yml run would.
+#
+# `podman run --rm localhost/zone-server-h2o-ci:latest true` after a
+# successful build is a cheap way to confirm the image (and therefore
+# the full build + every test/unit/*.c it ran during `podman build`)
+# is real and intact.
+
+[Build]
+ImageTag=localhost/zone-server-h2o-ci:latest
+File=REPO_PATH/ci-local/Containerfile
+SetWorkingDirectory=REPO_PATH
+
+[Service]
+# h2o's own build alone runs several minutes; systemd's default 90s
+# service-start timeout would kill this long before the image
+# finishes, per quadlet(5)'s own documented gotcha for Build units.
+TimeoutStartSec=900

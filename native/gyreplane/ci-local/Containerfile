@@ -1,0 +1,124 @@
+# Local stand-in for .github/workflows/real-build.yml, run via podman +
+# systemd quadlet instead of GitHub Actions. Built 2026-08-06 because
+# GitHub Actions itself was in a platform-wide major outage (confirmed
+# via githubstatus.com, "Workflow runs are failing or delayed in
+# starting, and some queued jobs may time out") and task #18 (reverify
+# the real build after the mbedtls-to-OpenSSL switch) could not wait on
+# it. Mirrors real-build.yml's steps as closely as possible so a pass
+# here means the same thing a green real-build.yml run means -- see
+# that file for the reasoning behind each dependency.
+#
+# Deliberately NOT a cache-optimized multi-stage build: each RUN step
+# below is a straight transcription of a real-build.yml step, in the
+# same order, so a failure here points at the same step name a CI log
+# would. `podman build` failing at any RUN is the same signal a red CI
+# job step is.
+FROM docker.io/library/ubuntu:24.04
+
+# clang, make, and zlib1g-dev are not listed explicitly in
+# real-build.yml's own "Install build deps" step because GitHub's
+# ubuntu-latest runner image ships all three preinstalled (make via
+# build-essential, zlib1g-dev as part of the image's base dev tooling)
+# -- confirmed here by two real errors the first local build attempts
+# hit without them: "CMAKE_MAKE_PROGRAM is not set" / "Unix Makefiles"
+# without make, then h2o's own CMakeLists.txt's "Could NOT find ZLIB"
+# without zlib1g-dev. A plain ubuntu:24.04 base has none of the three,
+# so all are added here to make this image self contained; everything
+# else in this RUN matches real-build.yml's list verbatim.
+# adduser is not in real-build.yml's list either, for the same "ships
+# preinstalled on the GitHub runner" reason as clang/make/zlib1g-dev
+# above -- confirmed by the real error here: foundationdb-server's
+# postinst needs it, and a bare ubuntu:24.04 container image (unlike
+# the fuller GitHub runner base image) does not have it, so `dpkg -i`
+# on the FDB debs failed and the `apt-get install -f -qqy` fallback
+# could not pull it in either, since apt's package lists get removed
+# below for image size and were not available by the time that later
+# RUN step needed them.
+# bubblewrap runs engine-class guests (rfd/0095): a whole Godot build
+# is an ordinary process under Linux namespaces, not an in-process
+# libriscv guest. xz-utils unpacks the riscv64 cross toolchain below.
+RUN apt-get update -qq && \
+    apt-get install --no-install-recommends -qqy \
+      cmake make gcc g++ clang libssl-dev pkg-config curl ca-certificates \
+      libbrotli-dev git libyajl-dev zlib1g-dev adduser bubblewrap xz-utils && \
+    rm -rf /var/lib/apt/lists/*
+
+# riscv64-glibc cross toolchain, a real Bootlin build. Needed to build
+# script-class guests (test/guest/*.c against src/sandbox/zone_abi.h)
+# for the sandbox's own tests, not assembled ad hoc.
+#
+# glibc, not musl. zone-guest-godot's FINDINGS.md documents a glibc
+# tcache crash under rvlinux and moved that spike to musl -- that
+# finding is about an entire Godot build running a full Linux
+# userland, which is exactly the workload that no longer runs in
+# libriscv at all (rfd/0095: engine guests moved to bubblewrap).
+# Script-class guests are small and stay on the toolchain the rest of
+# the fabric uses.
+ARG BOOTLIN_TOOLCHAIN=riscv64-lp64d--glibc--stable-2025.08-1
+RUN mkdir -p /opt/riscv64-toolchain && \
+    curl -LSs "https://toolchains.bootlin.com/downloads/releases/toolchains/riscv64-lp64d/tarballs/${BOOTLIN_TOOLCHAIN}.tar.xz" | \
+      tar -xJ -C /opt/riscv64-toolchain --strip-components=1
+
+ARG H2O_VERSION=ccea64b17ade832753db933658047ede9f31a380
+RUN mkdir -p /tmp/h2o-build && cd /tmp/h2o-build && \
+    curl -LSs "https://github.com/h2o/h2o/archive/${H2O_VERSION}.tar.gz" | \
+      tar --strip-components=1 -xz && \
+    cmake -B build -DCMAKE_BUILD_TYPE=Release -DWITH_MRUBY=off \
+      -DCMAKE_INSTALL_PREFIX=/opt/h2o -S . && \
+    cmake --build build -j && \
+    cmake --install build && \
+    rm -rf /tmp/h2o-build
+
+ARG FDB_VERSION=7.3.79
+RUN curl -LSs "https://github.com/apple/foundationdb/releases/download/${FDB_VERSION}/foundationdb-clients_${FDB_VERSION}-1_amd64.deb" -o /tmp/fdb-client.deb && \
+    curl -LSs "https://github.com/apple/foundationdb/releases/download/${FDB_VERSION}/foundationdb-server_${FDB_VERSION}-1_amd64.deb" -o /tmp/fdb-server.deb && \
+    (dpkg -i /tmp/fdb-client.deb /tmp/fdb-server.deb || apt-get install -f -qqy) && \
+    rm -f /tmp/fdb-*.deb
+
+WORKDIR /work
+# Build context is the checked-out repo working tree. thirdparty/
+# deps (picoquic, picotls, QCBOR) are real git subtree content
+# checked directly into this repo, not submodules -- nothing to
+# initialize or fetch separately before this COPY.
+COPY . /work
+
+RUN cmake -B build -DCMAKE_PREFIX_PATH="/opt/h2o" -DCMAKE_BUILD_TYPE=RelWithDebInfo
+
+# The real link this whole image exists to prove out, same as
+# real-build.yml's own comment on this step.
+RUN cmake --build build -j
+
+# Same per-test recipes as real-build.yml's own step, verbatim,
+# including the "no recipe -> fail, don't skip silently" rule.
+RUN set -e; \
+    for t in test/unit/test_*.c; do \
+      name=$(basename "$t" .c); \
+      echo "=== $name ==="; \
+      case "$name" in \
+        test_xr_grid_entity_packet) \
+          clang -Wall -Wextra -std=c11 -Isrc/gen \
+            src/gen/xr_grid_entity_packet.c "$t" -o "/tmp/$name" ;; \
+        test_vel_to_um_per_tick) \
+          clang -Wall -Wextra -std=c11 "$t" -o "/tmp/$name" ;; \
+        test_rebac) \
+          clang -Wall -Wextra -std=c11 -Isrc/gen src/gen/rebac.c "$t" -o "/tmp/$name" ;; \
+        test_zf_kv_multi_zone) \
+          clang -Wall -Wextra -std=c11 -Isrc -Isrc/gen \
+            src/zf_kv.c src/gen/xr_grid_entity_packet.c "$t" -o "/tmp/$name" ;; \
+        test_sinew_align) \
+          clang -Wall -Wextra -std=c11 -Isrc/gen -lm src/gen/sinew_align.c "$t" -o "/tmp/$name" ;; \
+        *) \
+          echo "no build recipe for $name -- add one rather than skip silently"; \
+          exit 1 ;; \
+      esac; \
+      LD_LIBRARY_PATH="$PWD/build/lib:$LD_LIBRARY_PATH" "/tmp/$name"; \
+    done
+
+# ENTRYPOINT/CMD only take effect at `podman run`, not during this
+# image's own build above -- this image doubles as both the CI
+# artifact (a `podman build` pass here means everything above passed)
+# and the deploy image (task #20), rather than rebuilding the same
+# binary a second time in a separate image.
+COPY ci-local/zone-server-h2o-entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+ENTRYPOINT ["/entrypoint.sh"]

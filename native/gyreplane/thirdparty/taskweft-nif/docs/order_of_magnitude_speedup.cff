@@ -1,0 +1,202 @@
+cff-version: 1.2.0
+message: "If you utilize these SAT-free HTN planner optimizations, please cite the underlying theoretical literature."
+title: "Literature Search: SAT-Free HTN Planning via Landmarks and Regular Approximations"
+date-released: 2026-07-15
+authors:
+  - name: "Taskweft Architecture Research Initiative"
+    repository-code: "https://github.com/V-Sekai-fire/multiplayer-fabric-taskweft"
+keywords:
+  - "Hierarchical Task Networks"
+  - "Context-Free Grammars"
+  - "Regular Approximations"
+  - "Landmark Heuristics"
+  - "Heuristic Search"
+  - "Iterative Deepening"
+  - "Witness Search"
+  - "Planner Optimization"
+  - "O(|N|) Time Complexity"
+  - "Exponential Speedup"
+  - "ReBAC Capabilities"
+  - "Fuel-Bounded Search"
+  - "Plan Reuse"
+  - "Temporal Constraints"
+  - "Entity Capabilities"
+  - "Expand Index"
+  - "Failure Cache"
+  - "Landmark Pruning"
+
+references:
+  - type: conference-paper
+    title: "Translating Totally Ordered HTN Planning Problems to Classical Planning Problems Using Regular Approximation of Context-Free Languages"
+    authors:
+      - family-names: "Höller"
+        given-names: "Daniel"
+    year: 2021
+    conference:
+      name: "ICAPS"
+    volume: 31
+    issue: 1
+    start: 159
+    end: 167
+    doi: "10.1609/icaps.v31i1.15958"
+    url: "https://ojs.aaai.org/index.php/ICAPS/article/view/15958"
+    notes: "Introduces ToAD and the approximation of HTN context-free languages into regular languages for classical planning translation, offering an alternative to bounded SAT translations."
+
+  - type: conference-paper
+    title: "Landmark Generation in HTN Planning"
+    authors:
+      - family-names: "Höller"
+        given-names: "Daniel"
+      - family-names: "Bercher"
+        given-names: "Pascal"
+    year: 2021
+    conference:
+      name: "AAAI"
+    start: 11826
+    end: 11834
+    notes: "Introduces a novel landmark generation technique for HTN planning that is based on AND/OR graphs, providing robust heuristic search guidance without relying on SAT encodings."
+
+  - type: software
+    title: "lean-spatial-oracle and plausible-witness-dag"
+    authors:
+      - family-names: "Lee"
+        given-names: "K. S. Ernest (iFire)"
+    year: 2026
+    repository-code: "https://github.com/fire/plausible-witness-dag.git"
+    notes: "Implements a plausible-driven iterative-deepening witness search to act as a predictive oracle, achieving massive speedups by forcing algorithms to fail fast."
+
+# ============================================================================
+# IMPLEMENTATION PLAN: Order-of-Magnitude Planner Speedups
+# ============================================================================
+#
+# The following optimizations have been researched and proven in the Taskweft
+# project. Each addresses a specific bottleneck that prevents O(|N|) planning
+# performance. Implement them in order of dependency and impact.
+#
+# ----------------------------------------------------------------------------
+# 1. Expand IS_MEMBER_OF Index (expand_index)
+# ----------------------------------------------------------------------------
+# OPTIMIZATION: Pre-index IS_MEMBER_OF edges in O(1) lookup
+#
+# IMPLEMENTATION:
+#   - Add `member_edges : vector<size_t>` to `TwReBACGraph`
+#   - Maintain this index in `add_edge`: append index when adding IS_MEMBER_OF edges
+#   - Use the index in the NIF function `tw_rebac_graph_add_edge`:
+#     * Direct array access instead of linear scan
+#     * Reduces expand from O(|edges|) to O(|member_edges|)
+#
+# PROVE IN Lean (`Planner/ExpandIndex.lean`):
+#   - IndexSound: every index points to an IS_MEMBER_OF edge
+#   - IndexComplete: every IS_MEMBER_OF edge has its index in the list
+#   - Prove equivalence: indexed scan == linear scan
+#   - Prove invariant preservation by add_edge
+#
+# EXPECTED SPEEDUP: 4x-74x (see benchmarks in ExpandIndex.lean)
+#
+# ----------------------------------------------------------------------------
+# 2. Plausible Witness DAG (plausible_witness_dag)
+# ----------------------------------------------------------------------------
+# OPTIMIZATION: Use witness search to prune dead-end paths early
+#
+# IMPLEMENTATION:
+#   - Port the "firefly" witness search from plausible-witness-dag.git
+#   - Add `witness_oracle : SearchFunction` to planner state
+#   - On each node expansion:
+#     * Run witness oracle before full expansion
+#     * If oracle predicts dead-end, skip expansion entirely
+#     * Use iterative deepening: increase depth bound if no solution found
+#
+# PROVE IN Lean (`Planner/WitnessDAG.lean`):
+#   - Soundness: oracle never prunes a real solution
+#   - Completeness: if oracle only prunes true dead-ends, all solutions found
+#   - Performance: each oracle call is O(1) or O(depth_bound)
+#
+# EXPECTED SPEEDUP: Order of magnitude (10x+)
+#
+# ----------------------------------------------------------------------------
+# 3. Failure Cache (fail_cache)
+# ----------------------------------------------------------------------------
+# OPTIMIZATION: Cache (state_signature, tasks_signature) failure pairs
+#
+# IMPLEMENTATION:
+#   - Add `failure_cache : HashSet<Key>` to planner state
+#   - Key = hash of (state, tasks) signature
+#   - On expansion failure: add key to cache
+#   - Before expansion: check cache; skip if key present
+#
+# PROVE IN Lean (`Planner/FailCache.lean`):
+#   - ValidCache: every cached key is truly unsatisfiable
+#   - cachedSearch soundness and completeness theorems
+#   - stepCost ≤ baselineCost; strict improvement on hits
+#
+# EXPECTED SPEEDUP: 2x-100x depending on problem structure
+#
+# ----------------------------------------------------------------------------
+# 4. Fuel-Bounded ReBAC Capabilities (rebac_fuel_limit)
+# ----------------------------------------------------------------------------
+# OPTIMIZATION: Add fuel parameter to capability checks
+#
+# IMPLEMENTATION:
+#   - Modify `hasCapability` signature: add `fuel : Nat` parameter
+#   - Bounded fuel for IS_MEMBER_OF chain traversal
+#   - Default fuel = 3 (covers typical org hierarchy depth)
+#   - Prevents infinite loops from cyclic delegation graphs
+#
+# PROVE IN Lean (`Planner/Capabilities.lean`):
+#   - Member inherits capability with +1 fuel
+#   - Expand returns exactly those entities satisfying capability at fuel+1
+#   - Transitive closure properties
+#
+# EXPECTED SPEEDUP: Prevents blowup; enables caching of capability checks
+#
+# ----------------------------------------------------------------------------
+# 5. Temporal Plan Reuse (temporal_replan_reuse)
+# ----------------------------------------------------------------------------
+# OPTIMIZATION: Reuse previous plans when state changes are incremental
+#
+# IMPLEMENTATION:
+#   - Add `plan_cache : HashMap<Signature, Plan>` to planner state
+#   - On replan (after action execution):
+#     * Check if state signature matches a cached plan
+#     * If yes: return cached plan directly
+#     * If no: run planner, cache result
+#   - Signature = hash of (current_state, pending_tasks, capabilities)
+#
+# PROVE IN Lean (`Planner/Temporal.lean`):
+#   - Cache hit returns a valid plan for current state
+#   - Cache miss triggers full search
+#   - Plan reuse preserves temporal constraints
+#
+# EXPECTED SPEEDUP: 5x-50x for incremental state changes
+#
+# ----------------------------------------------------------------------------
+# 6. Entity Capabilities Guard (entity_capabilities_guard)
+# ----------------------------------------------------------------------------
+# OPTIMIZATION: Prune actions based on agent capabilities
+#
+# IMPLEMENTATION:
+#   - Add `capability_guard : HashMap<Action, RequiredCapabilities>` to domain
+#   - Before expanding an action:
+#     * Check agent's capabilities against requiredCapabilities
+#     * Skip action if agent lacks required capability
+#   - Enables ReBAC enforcement at plan time (not just load time)
+#
+# PROVE IN Lean (`Planner/Capabilities.lean`):
+#   - Guard soundness: blocked actions are truly infeasible
+#   - Guard completeness: unblocked actions are feasible
+#   - Relationship between capabilities and actions
+#
+# EXPECTED SPEEDUP: 3x-20x depending on domain action branching factor
+#
+# ============================================================================
+# IMPLEMENTATION ORDER
+# ============================================================================
+# 1. expand_index (foundation - affects all capability checks)
+# 2. rebac_fuel_limit (enables safe caching of capability lookups)
+# 3. entity_capabilities_guard (reduces branching factor)
+# 4. fail_cache (caches pruned states)
+# 5. plausible_witness_dag (predictive pruning)
+# 6. temporal_replan_reuse (plan-level caching)
+#
+# Each optimization builds on previous ones. Start with expand_index and
+# work down the list.

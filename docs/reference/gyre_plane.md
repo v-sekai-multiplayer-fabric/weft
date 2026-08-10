@@ -1,85 +1,122 @@
 # The Gyre plane and its edge
 
-Goal: host The Gyre in weft, and let a browser play it. The Gyre is a MUD domain, and its
-client is the web client in `zone-guest-gyre`, which is three.js and SlugHorn.
+Goal: host The Gyre in weft, and let a browser play it.
 
-State: the source is here and nothing runs.
+State: two subtrees are here. Neither one holds the game.
 
-- **Here.** `native/gyreplane` is a subtree of `zone-guest-gyre`, which holds the client
-  and its deployment.
+- **Here.** `native/gyreplane` is a subtree of `zone-server-h2o`. It is the zone server:
+  QUIC and WebTransport transport, an FDB zone tick, and a libriscv guest sandbox.
+- **Here.** `native/gyreedge` is a subtree of `zone-guest-gyre`. It is the browser client,
+  three.js and SlugHorn, and its deployment.
 - **Specified.** `../spec/Gyre.lean` proves the properties of the room graph and the
   objective that any port must keep.
-- **Not built.** The plane. `Weft` says it plainly: there is no iceoryx code at all.
-- **Not built.** The edge. `native/h3edge` holds its contract and no code.
+- **Missing.** The domain itself. Read the section below.
+- **Not built.** The iceoryx link. `Weft` says it plainly: there is no iceoryx code at all.
 
 The domain does not run in the BEAM, and it must not. The BEAM runs the control plane
 only, and every heavy plane is a native process outside it.
 
-## Why it is a plane, and not a zone
+## Which side is which
 
-A zone simulates. The Gyre does not. It answers a command from one player at the rate a
-person types, so it is not on the hot path and it is not packet rate work.
+The plane is the server, and the edge is what faces the browser. This is the split the two
+directories record.
 
-It is a plane because of where the code runs, and not because of how fast it runs. The
-BEAM runs the control plane only. A domain that holds game logic is not control plane
-work, whatever its rate.
+`zone-server-h2o` holds authority. It runs one zone for each process, it ticks against
+FoundationDB, and it runs guest code under libriscv. That is plane work.
 
-The logic already exists in C++, in `zone-server-h2o`, and it runs under libriscv. weft
-hosts it rather than ports it, so the logic that a differential test already covers stays
-the logic that runs. `../spec/Gyre.lean` states what that logic must do, so a port has
-something to fail against.
+`zone-guest-gyre` holds the client and the transport that serves it. The edge terminates
+that transport. So the client repository sits on the edge side, because the edge exists to
+serve it.
 
-## The binaries the subtree brought
+## The domain is in neither subtree
 
-`native/gyreplane/web` holds `slughorn.wasm` at 188 kB and a vendored bundle at 672 kB.
-weft does not commit a binary to git, and it uploads one as a CI artifact instead.
+`../spec/Gyre.lean` specifies two rooms, `decanting_floor` and `splicers_den`. That logic
+is not in `native/gyreplane` and it is not in `native/gyreedge`.
 
-Upstream commits them on purpose, and it gives a reason: h2o serves that directory
-straight from the docroot, and the image carries no Emscripten toolchain. Adding a
-download of about 300 MB to regenerate two small files costs more than it buys there.
+`zone-server-h2o` deleted it. The commit is `f96d5b2`, "Remove the MUD subsystem (phase 2
+of the CDN-guest move)". It removed `mud/`, `src/mud/`, and the QCBOR, libriscv, and
+SlugHorn vendored copies that only the MUD used.
 
-That reason belongs to the deployment upstream has, and not to the one weft has. So this
-is a conflict to settle before the subtree is more than a copy. Either the build gains
-Emscripten and the artifacts leave git, or weft records why this directory is an
-exception.
+The logic moved to a third repository, `zone-guest-middleham`. The client repository kept
+the design record, `../../native/gyreedge/docs/0003-the-gyre-mud-domain-and-mode-selector.md`,
+and the renderer. It did not keep the rules.
 
-## What the plane needs
+So the earlier plan step, "move the domain behind the harness", has nothing to move yet.
+Either `zone-guest-middleham` becomes a third subtree, or the domain is written against
+`../spec/Gyre.lean`, which is why that file exists.
 
-The plane is a C++ process outside the BEAM. It has no networking, and it reaches the
-control plane over Eclipse iceoryx v1.
+## What the subtrees changed about the blockers
 
-Neither dependency is present. Both must be built and put in the container image before
-any of this compiles.
+An earlier version of this page said picoquic and picotls were absent. That was true of
+weft and it is no longer true.
 
-- **Eclipse iceoryx v1.** It needs the RouDi daemon beside each plane, so the image gains
-  a process as well as a library. `Weft` gives the two patterns a plane may use.
-- **A thread-per-core harness.** One runtime model for every plane. `Weft` says which.
+`native/gyreplane/thirdparty` vendors picoquic, picotls, and libriscv, and
+`native/gyreplane/src/transport` already terminates QUIC and negotiates WebTransport. The
+transport work is not a green field. It exists, and it needs to move.
+
+iceoryx is still absent. It is the one blocker that did not move.
+
+## The rule the server breaks
+
+A plane has no networking. `zone-server-h2o` opens a UDP socket and terminates QUIC in the
+same process that holds authority.
+
+That is not a plane under the weft definition, and it is not an edge either, because an
+edge holds no authority. It is both at once, which is the shape weft splits.
+
+So the work is a split and not a port. The transport in `src/transport` becomes the edge.
+The zone tick in `src/zf_zonetick.c` stays the plane. What runs between them today is a
+function call, and it becomes iceoryx.
+
+That split is the cost of the rule. One process is simpler and it has one less hop.
 
 ## What the edge needs
 
-An edge is a plane with networking. It terminates the transport and gives the decoded
-result to a plane over iceoryx. It holds no authority, runs no simulation, and keeps no
+An edge is a plane with networking. It terminates a transport and gives the decoded result
+to a plane over iceoryx. It holds no authority, it runs no simulation, and it keeps no
 durable state.
 
 The client transport is HTTP/3 and WebTransport, and never HTTP/1.1. Firefox speaks both.
 
-- **picoquic**, for QUIC and HTTP/3. It needs picotls, which needs a TLS library.
-- The edge maps a request to a command and a command to a reply. The web client posts a
-  command and reads narration, so the shape is small.
+- **picoquic**, for QUIC and HTTP/3. It is vendored in the plane subtree, and it has to
+  build from the edge instead.
+- **iceoryx v1**, to reach the plane. It needs the RouDi daemon beside it.
+
+The server has no TLS certificate wired. Its own README says the certificate and the key
+are `NULL`. A browser will not connect without one, so this blocks the Firefox proof.
+
+## The binaries the subtrees brought
+
+weft does not commit a binary to git, and it uploads one as a CI artifact instead. Four
+files now break that rule.
+
+- `native/gyreedge/web/slughorn.wasm`, 188 kB, and a vendored bundle at 672 kB. Upstream
+  commits them on purpose. Its web server serves that directory from the docroot, and its
+  image carries no Emscripten toolchain.
+- `native/gyreplane/thirdparty/picoquic` carries two documentation images and two test
+  fixtures. They belong to picoquic and not to weft.
+
+The reason upstream gives belongs to the deployment upstream has, and not to the one weft
+has. This is a conflict to settle. Either the build gains the toolchain and the artifacts
+leave git, or weft records the two directories as exceptions.
+
+`native/gyreplane` adds 22 MB to a checkout. Almost all of it is `thirdparty`.
 
 ## The order to build it
 
-1. Put iceoryx v1 and RouDi in the container image, and prove a publisher and a
-   subscriber pass a message. Nothing else can start before this.
+1. Put iceoryx v1 and RouDi in the container image, and prove a publisher and a subscriber
+   pass a message. Nothing else can start before this.
 2. Build the thread-per-core harness once, because every plane uses it.
-3. Move `Weft.Gyre` behind the harness as the first plane, and keep the tests. The domain
-   is already specified, so a port has something to fail against.
-4. Build the edge on picoquic. Prove it with Firefox, and not with a command line client
-   alone, because the client is a browser.
+3. Split `zone-server-h2o`. The transport goes to the edge, the zone tick stays the plane,
+   and iceoryx replaces the call between them.
+4. Find the domain. Subtree `zone-guest-middleham`, or write it against `../spec/Gyre.lean`.
+5. Wire a TLS certificate, and prove the result with Firefox. A command line client proves
+   the transport and not the product, because the client is a browser.
 
 ## What blocks what
 
 Step 1 blocks every other step. A plane that cannot talk to the control plane is a
 program, and not a plane.
 
-The domain does not block anything. It is built, and it is where a browser will land.
+Step 4 does not block step 3. The split is about where the transport runs, and it does not
+need the rules of the game.

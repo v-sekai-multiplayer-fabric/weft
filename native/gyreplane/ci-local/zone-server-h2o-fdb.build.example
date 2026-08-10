@@ -1,0 +1,17 @@
+# Builds the single-process FoundationDB image zone-server-h2o's local
+# deployment (task #20) connects to. See ci-local/fdb-local.Containerfile
+# in the repo for why this runs fdbserver directly rather than through
+# the .deb's own fdbmonitor/systemd path (this container has no
+# systemd-in-container setup, and does not need one).
+#
+# Install: copy to ~/.config/containers/systemd/zone-server-h2o-fdb.build,
+# replace REPO_PATH with your checkout's absolute path (see
+# ci-local/README.md's "Local deployment" section).
+
+[Build]
+ImageTag=localhost/zone-server-h2o-fdb:latest
+File=REPO_PATH/ci-local/fdb-local.Containerfile
+SetWorkingDirectory=REPO_PATH/ci-local
+
+[Service]
+TimeoutStartSec=300

@@ -244,22 +244,8 @@ BASE_ZONE_PORT=${ZONE_PORT:-7443}
 z=0
 while [ "$z" -lt "$ZONE_COUNT" ]; do
   port=$((BASE_ZONE_PORT + z))
-  if [ "$z" -eq 0 ] && [ -n "$MUD_HTTP_PORT" ]; then
-    # MUD prototype HTTP surface: only zone 0's process binds it --
-    # every zone process here shares one host, so a second process
-    # trying the same TCP port would just fail to bind. Real paths to
-    # the artifacts fly/Containerfile just built, matching
-    # src/main.c's own three-env-var opt-in gate exactly.
-    env LD_LIBRARY_PATH="/opt/h2o/lib:/work/build/lib" \
-      MUD_HTTP_PORT="$MUD_HTTP_PORT" \
-      MUD_WEB_DOCROOT="/work/mud/web" \
-      MUD_ORCHESTRATOR_PATH="/work/mud/orchestrator/mud-sandbox-orchestrator" \
-      MUD_GUEST_ELF_PATH="/work/mud/guest/mud_guest.rv64.elf" \
-      /work/build/zone-server-h2o -a1 -c "$CLUSTER_FILE" -z "$z" -p "$port" &
-  else
-    env LD_LIBRARY_PATH="/opt/h2o/lib:/work/build/lib" \
-      /work/build/zone-server-h2o -a1 -c "$CLUSTER_FILE" -z "$z" -p "$port" &
-  fi
+  env LD_LIBRARY_PATH="/opt/h2o/lib:/work/build/lib" \
+    /work/build/zone-server-h2o -a1 -c "$CLUSTER_FILE" -z "$z" -p "$port" &
   z=$((z + 1))
 done
 wait

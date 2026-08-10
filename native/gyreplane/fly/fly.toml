@@ -17,7 +17,6 @@ primary_region = "iad"
   ZONE_PORT         = "7443"
   FDB_PROCESS_COUNT = "1"
   ZONE_COUNT        = "1"
-  MUD_HTTP_PORT     = "8080"
   # BACKUP_SLOTS / BACKUP_INTERVAL_SECONDS: real defaults live in
   # fly/entrypoint.sh (4 slots, 21600s = 4x/day), overridable here.
   # TIGRIS_ACCESS_KEY_ID / TIGRIS_SECRET_ACCESS_KEY are secrets, not
@@ -34,20 +33,6 @@ primary_region = "iad"
   min_machines_running = 1
   [[services.ports]]
     port = 7443
-
-[[services]]
-  internal_port        = 8080
-  protocol             = "tcp"
-  auto_stop_machines   = false
-  auto_start_machines  = true
-  min_machines_running = 1
-  # MUD website + JSON API + SSE stream. No TLS cert is provided in
-  # this throwaway test's env (TLS_CERT/TLS_KEY unset), so
-  # mud_http_listen() serves plain HTTP -- fine for this test, real
-  # per src/mud/mud_http.c's own documented smoke-test-mode fallback.
-  [[services.ports]]
-    port = 80
-    handlers = ["http"]
 
 [[vm]]
   memory   = "256mb"

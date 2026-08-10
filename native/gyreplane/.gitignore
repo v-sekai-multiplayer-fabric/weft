@@ -1,0 +1,8 @@
+certs/
+build_tools/
+
+# root-level fly.toml is a deploy-time copy of fly/fly.toml (flyctl
+# resolves the Containerfile path relative to -c's own directory,
+# so a deploy from repo root needs a root-level copy) -- never committed.
+/fly.toml
+test/guest/kv_smoke.elf

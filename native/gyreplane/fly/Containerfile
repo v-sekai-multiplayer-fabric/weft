@@ -18,15 +18,6 @@ RUN apt-get update -qq && \
       libbrotli-dev git libyajl-dev zlib1g-dev adduser openssl xz-utils && \
     rm -rf /var/lib/apt/lists/*
 
-# riscv64-musl cross toolchain, the same real Bootlin build
-# godot-riscv-spike's own spike.sh uses and FINDINGS.md confirms works
-# for a full statically-linked riscv64 guest -- needed to build
-# mud/guest/mud_guest.rv64.elf inside this image, not assembled ad hoc.
-ARG BOOTLIN_TOOLCHAIN=riscv64-lp64d--musl--stable-2025.08-1
-RUN mkdir -p /opt/riscv64-musl-toolchain && \
-    curl -LSs "https://toolchains.bootlin.com/downloads/releases/toolchains/riscv64-lp64d/tarballs/${BOOTLIN_TOOLCHAIN}.tar.xz" | \
-      tar -xJ -C /opt/riscv64-musl-toolchain --strip-components=1
-
 ARG H2O_VERSION=ccea64b17ade832753db933658047ede9f31a380
 RUN mkdir -p /tmp/h2o-build && cd /tmp/h2o-build && \
     curl -LSs "https://github.com/h2o/h2o/archive/${H2O_VERSION}.tar.gz" | \
@@ -48,60 +39,6 @@ COPY . /work
 
 RUN cmake -B build -DCMAKE_PREFIX_PATH="/opt/h2o" -DCMAKE_BUILD_TYPE=RelWithDebInfo && \
     cmake --build build -j
-
-# libriscv's own standalone build (thirdparty/libriscv/emulator), the
-# real static lib + generated settings header
-# mud/orchestrator/README.md's own build recipe needs -- built once
-# here, not per-request at runtime.
-#
-# RISCV_BINARY_TRANSLATION=OFF: a real fix for a real problem, not a
-# preemptive guess. The first deploy of this exact image OOM-killed
-# mud-sandbox-orchestrator on a 256mb machine (anon-rss ~121MB for
-# that one process, confirmed via `flyctl logs`'s own kernel OOM
-# line). libriscv's default build (lib/CMakeLists.txt's own
-# RISCV_BINARY_TRANSLATION option, ON by default) links libtcc, a
-# full embedded C compiler, to JIT-compile guest code -- real
-# overhead this small MUD guest's own game logic does not need
-# (mud_guest.cpp is no hot physics loop, matching the plan's own
-# note that this guest is "smaller than the Godot guest"). Disabling
-# it drops that dependency entirely.
-RUN cmake -S thirdparty/libriscv/emulator -B thirdparty/libriscv/emulator/build \
-      -DCMAKE_BUILD_TYPE=Release -DRISCV_BINARY_TRANSLATION=OFF && \
-    cmake --build thirdparty/libriscv/emulator/build -j
-
-# The MUD guest, cross-compiled static riscv64-musl, and the host-side
-# mud-sandbox-orchestrator that drives it via raw libriscv -- real
-# builds, matching mud/guest/mud_guest.cpp's and
-# mud/orchestrator/README.md's own build recipes exactly, run here
-# instead of assumed pre-built.
-#
-# QCBOR's own .c files must be compiled with the cross gcc, not g++ --
-# a real bug found while first building this exact recipe: g++
-# compiles .c input as C++ by default, and QCBOR's C-specific
-# designated-initializer/enum-typedef usage (ieee754.c's
-# IEEE754_UNION_IS_* constants, qcbor_decode.c's goto-label patterns)
-# does not compile as C++. Confirmed the same root cause the host-side
-# build already hit and fixed (see mud/orchestrator/README.md's own
-# build recipe note) -- object files compiled separately with the
-# cross gcc, then linked with the cross g++.
-RUN CROSS=/opt/riscv64-musl-toolchain/bin/riscv64-buildroot-linux-musl && \
-    mkdir -p /tmp/qcbor-rv64-obj && \
-    for src in thirdparty/QCBOR/src/*.c; do \
-      f=$(basename "$src" .c); \
-      "${CROSS}-gcc" -c -O2 -I thirdparty/QCBOR/inc \
-        -o "/tmp/qcbor-rv64-obj/$f.o" "$src"; \
-    done && \
-    "${CROSS}-g++" -std=c++17 -O2 -static \
-      -I thirdparty/QCBOR/inc \
-      -o mud/guest/mud_guest.rv64.elf \
-      mud/guest/mud_guest.cpp \
-      /tmp/qcbor-rv64-obj/*.o -lm
-
-RUN g++ -std=c++20 -O2 \
-      -I thirdparty/libriscv/lib -I thirdparty/libriscv/emulator/build/lib \
-      -o mud/orchestrator/mud-sandbox-orchestrator \
-      mud/orchestrator/main.cpp \
-      thirdparty/libriscv/emulator/build/lib/libriscv.a -lpthread -ldl
 
 COPY fly/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh

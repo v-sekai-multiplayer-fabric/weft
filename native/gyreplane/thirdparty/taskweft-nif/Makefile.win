@@ -1,0 +1,21 @@
+# MSVC nmake build for taskweft_nif. Selected by mix.exs when VCINSTALLDIR is set.
+PRIV_DIR = priv
+NIF_DLL  = $(PRIV_DIR)\libtaskweft_nif.dll
+
+CXX       = cl
+CXXFLAGS  = /nologo /std:c++20 /O2 /EHsc /MD /D_USE_MATH_DEFINES /DWIN32 /D_WINDOWS
+INCLUDES  = /I"$(ERTS_INCLUDE_DIR)" /I"standalone"
+
+all: $(NIF_DLL)
+
+$(PRIV_DIR):
+	if not exist "$(PRIV_DIR)" mkdir "$(PRIV_DIR)"
+
+$(NIF_DLL): c_src\taskweft_nif.cpp $(PRIV_DIR)
+	$(CXX) $(CXXFLAGS) $(INCLUDES) /LD c_src\taskweft_nif.cpp /Fe:$(NIF_DLL) /Fo:$(PRIV_DIR)\
+
+clean:
+	if exist "$(NIF_DLL)" del /q "$(NIF_DLL)"
+	if exist "$(PRIV_DIR)\taskweft_nif.obj" del /q "$(PRIV_DIR)\taskweft_nif.obj"
+	if exist "$(PRIV_DIR)\libtaskweft_nif.exp" del /q "$(PRIV_DIR)\libtaskweft_nif.exp"
+	if exist "$(PRIV_DIR)\libtaskweft_nif.lib" del /q "$(PRIV_DIR)\libtaskweft_nif.lib"

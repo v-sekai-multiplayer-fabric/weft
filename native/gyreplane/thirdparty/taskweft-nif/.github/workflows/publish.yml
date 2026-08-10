@@ -1,0 +1,28 @@
+name: publish
+
+# Publishes to Hex on a version tag push (same trigger convention as
+# taskweft/taskweft's release.yml), or manually via workflow_dispatch.
+# HEX_API_KEY (org-level secret) lets `mix hex.publish` run non-interactively
+# — no OTP/2FA prompt, since API-key auth doesn't require one.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: "27"
+          elixir-version: "1.17"
+
+      - run: mix local.hex --force
+      - run: mix deps.get
+
+      - run: mix hex.publish package --yes
+        env:
+          HEX_API_KEY: ${{ secrets.HEX_API_KEY }}

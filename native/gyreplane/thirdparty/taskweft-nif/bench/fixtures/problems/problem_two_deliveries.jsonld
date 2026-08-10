@@ -1,0 +1,49 @@
+{
+  "@context": {
+    "vsekai": "https://v-sekai.org/",
+    "domain": "vsekai:planning/domain/"
+  },
+  "@type": "domain:Problem",
+  "name": "two_deliveries",
+  "variables": [
+    {
+      "name": "at",
+      "init": {
+        "robot_1": "shipping",
+        "package_1": "storage",
+        "package_2": "storage"
+      }
+    },
+    {
+      "name": "carrying",
+      "init": {
+        "robot_1": null
+      }
+    },
+    {
+      "name": "delivered",
+      "init": {
+        "package_1": false,
+        "package_2": false
+      }
+    },
+    {
+      "name": "charged",
+      "init": {
+        "robot_1": false
+      }
+    }
+  ],
+  "todo_list": [
+    [
+      "deliver_pkg",
+      "robot_1",
+      "package_1"
+    ],
+    [
+      "deliver_pkg",
+      "robot_1",
+      "package_2"
+    ]
+  ]
+}

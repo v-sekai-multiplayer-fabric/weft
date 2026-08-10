@@ -1,0 +1,38 @@
+# Single-process FoundationDB, local stand-in for a real cluster
+# (task #20). On-demand: no [Install] section, so it does not start at
+# boot and is not enabled -- start/stop it explicitly with systemctl,
+# same as the .build units. Not Type=oneshot: it is a real listener
+# (fdbserver, host network, port 4500), which would make `systemctl
+# start` block forever under oneshot semantics.
+#
+# Network=host, not a podman bridge network: matches how zone-server-h2o
+# itself reaches FDB at 127.0.0.1:4500, and how it is deployed for real
+# (Fly.io binds directly, no NAT, per zone-server/AGENTS.md's own
+# design notes).
+#
+# Volume=...:/var/fdb persists the datadir and cluster file across
+# restarts -- required for the crash-recovery test (task #21) to mean
+# anything: a fresh empty database on every restart would not test
+# recovery, it would test a false positive.
+#
+# :z (shared, lowercase), not :Z (private): this volume is also read
+# by zone-server-h2o.container (read-only, for the cluster file). A
+# private label ties the volume's SELinux category to whichever
+# container touched it last, so a different container identity gets
+# "Permission denied" even with correct container_file_t type and
+# correct POSIX bits -- confirmed by hitting exactly that when this
+# volume was first used under a different container name.
+#
+# Install: copy to ~/.config/containers/systemd/zone-server-h2o-fdb.container.
+# `podman volume create zone-server-h2o-fdb-data` first, if it does
+# not already exist.
+
+[Unit]
+Requires=zone-server-h2o-fdb-build.service
+After=zone-server-h2o-fdb-build.service
+
+[Container]
+Image=localhost/zone-server-h2o-fdb:latest
+ContainerName=zone-server-h2o-fdb
+Network=host
+Volume=zone-server-h2o-fdb-data:/var/fdb:z
