@@ -15,7 +15,7 @@ defmodule Weft.PlaneNetworkingTest do
   source of each plane and it fails if the plane gains a socket or a transport library
   again.
 
-  `native/gyreedge` is an edge, so it is not in the list below. It may do all of this.
+  `native/edge` is an edge, so it is not in the list below. It may do all of this.
   """
 
   @planes ["native/dataplane", "native/storeplane", "native/nif", "native/gyreplane"]
@@ -114,10 +114,10 @@ defmodule Weft.PlaneNetworkingTest do
     test "the edge holds the transport the plane gave up" do
       # This is the other half of the rule. If the transport is in neither directory, then
       # the split above deleted working code rather than moving it.
-      assert File.dir?("native/gyreedge/transport"),
+      assert File.dir?("native/edge/transport"),
              "the QUIC transport is gone from the plane and it is not in the edge either"
 
-      assert File.dir?("native/gyreedge/thirdparty/picoquic"),
+      assert File.dir?("native/edge/thirdparty/picoquic"),
              "picoquic is gone from the plane and it is not in the edge either"
     end
   end

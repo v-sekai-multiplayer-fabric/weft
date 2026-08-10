@@ -11,7 +11,7 @@ authoritative zone server moves.
 
 **weft fork.** A plane has no networking, so the QUIC transport and
 H3/WebTransport session negotiation moved out of this directory to
-`../gyreedge/transport`, together with `picoquic` and `picotls`. This
+`../edge/transport`, together with `picoquic` and `picotls`. This
 process now opens no socket. `h2o` stays for its event loop only.
 Nothing drives the `ZoneTick` until iceoryx carries the decoded input
 from the edge. See `../../docs/reference/gyre_plane.md`.
@@ -91,7 +91,7 @@ not inline here:
 - `rfd/0087`: avatar IK uses `sinew-mocap/solve`'s `Align.lean`, not
   `kevinzakka/mink`; also the MuJoCo-to-Jolt physics drop.
 - `rfd/0088`: transport is `picoquic` + `picotls`, not `h2o`'s own
-  (absent) QUIC stack. That transport lives in `../gyreedge` now.
+  (absent) QUIC stack. That transport lives in `../edge` now.
 - `rfd/0072`, `rfd/0073`: the actor-lite architecture and async FDB
   callback chain the event loop ports as-is from `h2o-bench-tpcc`'s
   `src/`. The worker pool and the SPSC ring went in the weft fork.
@@ -120,7 +120,7 @@ This build also requires OpenSSL and the FoundationDB C client
 (`libfdb_c`), both on the include/library path (see `CMakeLists.txt`).
 There is no `thirdparty/` any more, and no `cmake/` either. QCBOR lost
 its last caller upstream, `libriscv` went with the guest sandbox, and
-`picoquic` and `picotls` went to `../gyreedge`. This build links system
+`picoquic` and `picotls` went to `../edge`. This build links system
 libraries only.
 `.github/workflows/real-build.yml` runs this full build in CI. Check that
 workflow's latest run for current status before assuming this build is

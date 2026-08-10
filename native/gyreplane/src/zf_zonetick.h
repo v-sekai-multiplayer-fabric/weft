@@ -16,7 +16,7 @@
  * variable dt would scale. The correct update is integer and per-tick:
  *   pos_um += (int64_t)vel_i16 * V_MAX_PHYSICAL_DEFAULT_UM_PER_TICK / INT16_MAX
  * applied tick_count times (normally 1 -- the transport that fixed 30Hz
- * moved to native/gyreedge/transport, since a plane has no networking).
+ * moved to native/edge/transport, since a plane has no networking).
  *
  * On conflict, retries via fdb_handle_error the same way
  * src/handlers/tpcc_new_order.c's on_error_retry does -- not a new pattern.

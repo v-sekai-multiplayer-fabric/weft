@@ -1,5 +1,5 @@
-# Local, systemd-native stand-in for .github/workflows/real-build.yml,
-# for use when GitHub Actions itself is unavailable (it was in a
+# Local, systemd-native build of native/gyreplane, for use when GitHub
+# Actions itself is unavailable (it was in a
 # platform-wide major outage on 2026-08-06 when this was first written,
 # confirmed via githubstatus.com) or simply to check a change before
 # pushing it.
@@ -18,7 +18,7 @@
 # linger as a persistent daemon. `systemctl --user status` after it
 # finishes shows success/failure the same way a CI job's own
 # pass/fail does. A non-zero exit and Failed status mean the same
-# thing a red real-build.yml run would.
+# thing a red CI run would.
 #
 # `podman run --rm localhost/zone-server-h2o-ci:latest true` after a
 # successful build is a cheap way to confirm the image (and therefore
@@ -27,7 +27,7 @@
 
 [Build]
 ImageTag=localhost/zone-server-h2o-ci:latest
-File=REPO_PATH/ci-local/Containerfile
+File=REPO_PATH/deploy/gyre/Containerfile
 SetWorkingDirectory=REPO_PATH
 
 [Service]

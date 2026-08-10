@@ -1,5 +1,5 @@
 # zone-server-h2o itself (task #20's actual deployment target),
-# running the same image ci-local/Containerfile builds and tests
+# running the same image deploy/gyre/Containerfile builds and tests
 # (task #18's real build, reused as the runtime image too -- see that
 # Containerfile's own comment on why). On-demand, like
 # zone-server-h2o-fdb.container: no [Install] section, not enabled at
@@ -7,7 +7,7 @@
 #
 # weft note: this process is a plane, so it has no networking and it
 # needs no TLS material. The certs mount and the -p/-t/-k flags are
-# gone with the transport, which moved to native/gyreedge. The SELinux
+# gone with the transport, which moved to native/edge. The SELinux
 # :Z note that used to live here belongs with that mount, so it moved
 # too. See ../../docs/reference/gyre_plane.md.
 #

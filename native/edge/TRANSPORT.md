@@ -1,7 +1,7 @@
 # The transport
 
-This directory holds the browser client. It now also holds the transport that serves the
-client. This page records what moved here, and why.
+`transport/` holds the QUIC and WebTransport termination that both edges share. This page
+records where it came from, and what the move cost.
 
 ## Why it moved
 
@@ -34,7 +34,7 @@ That code is not lost. It is in the history of this repository, in the squashed 
 commit for `native/gyreplane`. Recover it when the edge gains its own entry point.
 
 There is no `CMakeLists.txt` here yet. The transport had no `main` of its own. It was
-called from the plane, and the edge that will call it does not exist yet.
+called from the plane, and neither `../ingest` nor `../gateway` exists yet.
 
 ## The build dependency that came with it
 
@@ -67,3 +67,6 @@ picoquic, by Christian Huitema. <https://github.com/private-octopus/picoquic>
 
 It terminates QUIC and WebTransport. The citation entry moved out of
 `../gyreplane/CITATION.cff` with the code, because that plane no longer uses it.
+
+The browser client that arrived in the same subtree is gone. A client is not an edge, and
+`zone-guest-gyre` maintains it.
