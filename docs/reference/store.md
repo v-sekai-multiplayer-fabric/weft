@@ -30,6 +30,12 @@ weaker durability to get fast writes.
 
 ## weft's design
 
+> **What is built.** `Weft.Actor.Store.Replicated` and `.Replicator` run in the BEAM
+> and pass their tests against a live FoundationDB. They do **not** implement the
+> design below: they replicate logical key and value rows, not WAL frames, and
+> compaction folds in place. That difference is a live bug, and `../spec/Store.lean`
+> proves why. The store plane is not native and does not use iceoryx yet.
+
 One store design for every actor:
 
 - **Local SQLite file per actor, in WAL mode.** Commits are local and fast (about a

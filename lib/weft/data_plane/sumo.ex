@@ -6,7 +6,7 @@ defmodule Weft.DataPlane.Sumo do
   nothing is copied per snapshot.
 
   This is the Elixir producer for the ring. The production plane is a native process
-  (Seastar) writing the same ring through a NIF over iceoryx2, faster than the BEAM,
+  (Seastar) writing the same ring through a NIF over iceoryx v1, faster than the BEAM,
   so the raw packet flood never enters the VM. Here the frames come from a decoded
   SUMO trace (see `test/bench/sumo/extract_frames.py`) rather than a live socket.
   """

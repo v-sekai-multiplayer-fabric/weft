@@ -46,13 +46,13 @@ They are not competing for the hot path — they are **stage-tier** choices (wor
 representation and authoring, at Hz). For the _server-side_ stage runtime,
 **fabric-stage-runtime (OpenUSD) fits better than embedding Godot**: it is a headless
 library (no renderer/input/VM baggage), composition- and interchange-oriented. It
-runs as a plane over iceoryx2 (a separate native process), not as an in-BEAM NIF,
+runs as a plane over iceoryx v1 (a separate native process), not as an in-BEAM NIF,
 because `../reference/architecture.md` forbids heavy C++ in the BEAM. Godot stays on the client.
 
 So the layering the benchmark points to:
 
 1. **Hot path (>15M/s):** the native game data plane and the ingest edge → `Weft.DataPlane.Ring`.
-2. **Stage/world representation:** OpenUSD (fabric-stage-runtime), server-side, as a plane over iceoryx2.
+2. **Stage/world representation:** OpenUSD (fabric-stage-runtime), server-side, as a plane over iceoryx v1.
 3. **Control plane:** weft (placement, single-writer, lifecycle, durable state).
 4. **Client:** Godot (`fabric-godot-core`, tagged by `fabric-godot-assembly`), including the VR client via OpenXR/SteamVR over WebTransport.
 
@@ -81,10 +81,15 @@ stage tier together form weft's **asset CDN**:
   because the transport is H3/WebTransport. So the asset CDN and the actor store share
   one durable substrate.
 
-Both run as planes over iceoryx2, not in-BEAM NIFs, since `../reference/architecture.md` forbids heavy
+Both run as planes over iceoryx v1, not in-BEAM NIFs, since `../reference/architecture.md` forbids heavy
 C++ in the BEAM. Baking is off the game hot path; the >15M path stays native.
 
 ## Seastar or iceoryx2 with a thin harness (Windows support)
+
+**Outcome: weft uses iceoryx v1.** The comparison below is kept because it is the
+reasoning, not because iceoryx2 is still a candidate. The version is not a detail: v1
+needs the RouDi daemon beside every plane, and iceoryx2 does not, so the choice changes
+what a machine runs.
 
 Seastar is Linux-only. It builds on epoll, io_uring, Linux AIO, and DPDK. A native
 Windows plane cannot use it. iceoryx2 runs on Windows. So we asked one question. Can
