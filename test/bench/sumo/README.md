@@ -64,3 +64,93 @@ python encode_compare.py
 per second target, matching the synthetic `../pps_native.c`. Cheap CBOR JSON-LD is
 2.3 times the raw bytes of nasty and 1.4 times after last-frame zstd. Full numbers in
 `../../Weft.Gateway`.
+
+## Coupling the dense case with JuPedSim
+
+SUMO models a pedestrian as a position on a stripe. That is the wrong model for a crowd,
+so SUMO can hand the pedestrians inside a marked area to JuPedSim, which models them as
+bodies in continuous space with contact forces.
+
+`../../../docs/essays/sumo-traffic-sim.md` explains why weft cares and what it costs. This
+section is the configuration.
+
+Nothing here runs yet. The trace in this directory is vehicles only.
+
+### The area
+
+JuPedSim takes over inside a polygon, and the polygon is drawn by hand.
+
+1. Open the network in `netedit`.
+2. Network mode, then Polygons and Shapes.
+3. Draw a polygon and set its type to `walkableArea`.
+4. Stitch entry and exit edges along its boundary, so an agent can cross between the road
+   network and the continuous area.
+
+### The simulation
+
+```xml
+<configuration>
+  <input>
+    <net-file value="network.net.xml"/>
+    <route-files value="demographics.rou.xml"/>
+  </input>
+
+  <processing>
+    <pedestrian.model value="jupedsim"/>
+    <pedestrian.jupedsim.steplen value="0.05"/>
+    <pedestrian.jupedsim.strength-neighbor-repulsion value="2.5"/>
+    <pedestrian.jupedsim.strength-geometry-repulsion value="5.0"/>
+  </processing>
+
+  <time>
+    <begin value="0"/>
+    <end value="3600"/>
+    <!-- Contact forces need a short step. This is twenty steps for each simulated
+         second, against one for the vehicle trace. -->
+    <step-length value="0.05"/>
+  </time>
+</configuration>
+```
+
+### The people
+
+```xml
+<routes>
+  <vType id="crowd" vClass="pedestrian"
+         width="0.48" length="0.32" minGap="0.20" maxSpeed="1.35"/>
+
+  <personFlow id="ingress" begin="0" end="1800" personsPerSecond="10">
+    <walk edges="street_entry plaza_walkable_edge venue_exit"/>
+  </personFlow>
+</routes>
+```
+
+### Extracting frames
+
+`extract_frames.py` reads the vehicle trace. A pedestrian carries a heading as well as a
+position, because a body in continuous space has a facing and a vehicle on a lane does not.
+
+```python
+import traci
+
+traci.start(["sumo", "-c", "sumo.cfg"])
+
+while traci.simulation.getMinExpectedNumber() > 0:
+    traci.simulationStep()
+
+    frame = [
+        {
+            "id": pid,
+            "x": round(x, 3),
+            "y": round(y, 3),
+            "angle": round(traci.person.getAngle(pid), 1),
+            "speed": round(traci.person.getSpeed(pid), 2),
+        }
+        for pid in traci.person.getIDList()
+        for (x, y) in [traci.person.getPosition(pid)]
+    ]
+
+    # One frame, the same shape replay.c reads.
+
+traci.close()
+```
