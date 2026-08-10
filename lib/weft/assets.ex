@@ -7,15 +7,21 @@ defmodule Weft.Assets do
   transport with no binary type. The core takes raw binaries, and a transport adapter
   handles any encoding.
 
-  ## Any type, and not one
+  ## The converter is a plane
 
   `convert/2` takes a converter function, and the default is identity. It copies the bytes
   and reports the magic of the input.
 
-  That default is the design and not a placeholder. weft does not know what an asset is.
-  A client asks for a hash and gets the bytes back, so a mesh, a texture, a sound, and a
-  save file all move the same way. A converter is what an environment supplies when it
-  wants one.
+  The real converter is the **asset baker plane**. `Weft` lists it: OpenUSD with the Adobe
+  glTF plugin, request-response over iceoryx, out of the BEAM and crash isolated. It bakes
+  a source glb into an OpenUSD stage.
+
+  It is a plane and not a library for one reason. The baker parses a file from a person
+  weft does not trust, so it must not have the network and it must not take the BEAM down
+  when it crashes. That is the plane contract exactly.
+
+  This module holds the protocol, and the plane holds the parse. The function argument is
+  the seam between them.
 
   ## What is built, and what is not
 
@@ -23,12 +29,11 @@ defmodule Weft.Assets do
   chunks go into SQLite and then into FoundationDB. An on-demand HTTP/3 and WebTransport
   endpoint serves them.
 
-  **Not built.** A baker plane. An earlier plan had one that turned glb into an OpenUSD
-  stage, which needs a native OpenUSD toolchain that is not here. That plan also assumed
-  one asset type, which the identity converter above says weft does not.
+  **Not built.** The baker plane. It needs a native OpenUSD toolchain, which is not here
+  yet, and the thread-per-core harness that every plane uses. See
+  `../../native/harness/README.md`.
 
-  So a baker is an environment's job, and the CDN is weft's. Nothing here waits on a
-  toolchain.
+  **Next.** Build the baker on fabric-stage-runtime with the Adobe glTF plugin.
   """
 
   # 4 MiB for each chunk. This is rivet's max actor input, in `Weft.Limits` as
