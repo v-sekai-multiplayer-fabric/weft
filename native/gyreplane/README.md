@@ -44,6 +44,13 @@ repo's TPC-C benchmark work is unrelated and stays there. Only the reusable
 infrastructure, and the unimplemented `zonefabric` scenario design, carried
 forward here.
 
+The worker pool went in the weft fork. It dispatched `h2o_req_t` over an
+`h2o_multithread` queue, and a plane answers no request. `src/utility.c`,
+`src/thread.c`, `src/event_loop.h`, and the HTTP half of `src/error.h`
+went with it, for the same reason. The SPSC ring stays: it has a CBMC
+proof and a Lean proof, and the thread-per-core harness is what will
+need it.
+
 ### Concurrency and scaling
 
 Each zone-server-h2o process runs its own FDB transaction per tick
@@ -84,8 +91,8 @@ not inline here:
 - `rfd/0088`: transport is `picoquic` + `picotls`, not `h2o`'s own
   (absent) QUIC stack. That transport lives in `../gyreedge` now.
 - `rfd/0072`, `rfd/0073`: the actor-lite architecture and async FDB
-  callback chain the event loop, worker pool, and SPSC ring port as-is
-  from `h2o-bench-tpcc`'s `src/`.
+  callback chain the event loop and SPSC ring port as-is from
+  `h2o-bench-tpcc`'s `src/`. The worker pool went in the weft fork.
 
 Entity and ReBAC types generate from `lean-entity-packet` and
 `lean-rebac-core`, not hand-duplicated per language
@@ -109,9 +116,10 @@ finding Brotli.
 
 This build also requires OpenSSL and the FoundationDB C client
 (`libfdb_c`), both on the include/library path (see `CMakeLists.txt`).
-It also requires the vendored `thirdparty/` content (`QCBOR`,
-`libriscv`), checked in directly (no separate init/fetch step), built
-via `cmake/qcbor.cmake`.
+There is no `thirdparty/` any more, and no `cmake/` either. QCBOR lost
+its last caller upstream, `libriscv` went with the guest sandbox, and
+`picoquic` and `picotls` went to `../gyreedge`. This build links system
+libraries only.
 `.github/workflows/real-build.yml` runs this full build in CI. Check that
 workflow's latest run for current status before assuming this build is
 green.

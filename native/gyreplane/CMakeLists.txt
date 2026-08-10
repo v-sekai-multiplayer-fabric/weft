@@ -10,16 +10,14 @@ find_library(Z_LIB z REQUIRED)
 find_library(SSL_LIB ssl REQUIRED)
 find_library(CRYPTO_LIB crypto REQUIRED)
 find_library(FDB_C_LIB fdb_c REQUIRED)
-# src/utility.c (ported as-is from h2o-bench-tpcc) genuinely uses yajl
-# for JSON generation -- this was wrongly assumed TFB-only and dropped
-# when this CMakeLists.txt was first written; the real CI build (task
-# #17) caught the missing dependency.
-find_library(YAJL_LIB yajl REQUIRED)
+# yajl is gone with src/utility.c. It generated JSON response bodies for
+# h2o_req_t, and a plane answers no request. h2o itself is down to
+# h2o_evloop_create/run, so that fdb_future_set_callback has a loop. The
+# thread-per-core harness over iceoryx takes that job, and h2o leaves.
 
 find_path(H2O_INCLUDE h2o.h REQUIRED)
 find_path(OPENSSL_INCLUDE openssl/ssl.h REQUIRED)
 find_path(FDB_INCLUDE foundationdb/fdb_c.h REQUIRED)
-find_path(YAJL_INCLUDE yajl/yajl_gen.h REQUIRED)
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
@@ -40,45 +38,32 @@ set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -D_FORTIFY_SOURCE=2")
 set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -O3")
 set(CMAKE_C_FLAGS_RELWITHDEBINFO "${CMAKE_C_FLAGS_RELWITHDEBINFO} -O3")
 
-list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
-
 # A plane has no networking. The QUIC transport and its libraries moved to
 # native/gyreedge, which is the edge. This build must not gain picoquic,
 # picotls, or any HTTP/3 code again. See ../../docs/reference/gyre_plane.md.
-include(cmake/qcbor.cmake)
+#
+# thirdparty/ is empty and gone. QCBOR had no caller left once upstream
+# removed src/mud/mud_cbor.c, and thirdparty/taskweft-nif had none at
+# all. libriscv went with the sandbox. picoquic and picotls went to the
+# edge. What remains links against system libraries only.
 
-# The guest sandbox (src/sandbox/, RFD 0092/0094): libriscv built
-# in-tree, C++20 (libriscv's own floor). RISCV_BINARY_TRANSLATION off
-# for the same reason fly/Containerfile documented before the MUD
-# removal: the default links libtcc, a full embedded C compiler, whose
-# memory cost OOM-killed a 256 MB Fly machine -- and RFD 0092 gates
-# execution budgets via ReBAC, not via a JIT racing them.
-enable_language(CXX)
-set(CMAKE_CXX_STANDARD 20)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(RISCV_BINARY_TRANSLATION OFF CACHE BOOL "" FORCE)
-# libriscv's syscall handler table defaults to 512 entries, which is
-# below src/sandbox/zone_abi.h's 600 block. Found by the kv_smoke
-# guest, not predicted: the ecall threw
-# "array::at: __n (which is 600) >= _Nm (which is 512)". 1024 keeps
-# 600 valid and leaves godot-sandbox's own 500 block untouched, so a
-# guest can speak both ABIs.
-add_compile_definitions(RISCV_SYSCALLS_MAX=1024)
-add_subdirectory(thirdparty/libriscv/lib)
+# The libriscv guest sandbox (src/sandbox/, RFD 0092/0094) is gone, and
+# with it enable_language(CXX). A plane runs one runtime model, the
+# thread-per-core harness, and a second sandbox inside it is not that
+# model. This build is C only again.
 
 file(GLOB_RECURSE HANDLER_SOURCES "src/handlers/*.c")
 file(GLOB SOURCES "src/*.c")
 file(GLOB GEN_SOURCES "src/gen/*.c")
 file(GLOB PHYSICS_SOURCES "src/physics/*.c")
-file(GLOB SANDBOX_SOURCES "src/sandbox/*.c" "src/sandbox/*.cpp")
 
-add_executable(${PROJECT_NAME} ${HANDLER_SOURCES} ${SOURCES} ${GEN_SOURCES} ${PHYSICS_SOURCES} ${SANDBOX_SOURCES})
+add_executable(${PROJECT_NAME} ${HANDLER_SOURCES} ${SOURCES} ${GEN_SOURCES} ${PHYSICS_SOURCES})
 target_include_directories(${PROJECT_NAME} PRIVATE
-    src ${CMAKE_BINARY_DIR} ${H2O_INCLUDE} ${OPENSSL_INCLUDE} ${FDB_INCLUDE} ${YAJL_INCLUDE})
+    src ${CMAKE_BINARY_DIR} ${H2O_INCLUDE} ${OPENSSL_INCLUDE} ${FDB_INCLUDE})
 target_compile_definitions(${PROJECT_NAME} PRIVATE H2O_USE_LIBUV=0)
 target_compile_options(${PROJECT_NAME} PRIVATE ${COMMON_OPTIONS} ${WARNING_OPTIONS})
 target_link_libraries(${PROJECT_NAME} PRIVATE ${COMMON_OPTIONS})
 target_link_libraries(${PROJECT_NAME} PRIVATE
-    ${H2O_LIB} ${FDB_C_LIB} ${SSL_LIB} ${CRYPTO_LIB} ${Z_LIB} ${YAJL_LIB} qcbor_vendored riscv m)
+    ${H2O_LIB} ${FDB_C_LIB} ${SSL_LIB} ${CRYPTO_LIB} ${Z_LIB} m)
 
 install(TARGETS ${PROJECT_NAME} RUNTIME DESTINATION bin)

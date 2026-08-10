@@ -43,7 +43,7 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install --no-install-recommends -qqy \
-            cmake gcc g++ libssl-dev pkg-config curl libbrotli-dev git libyajl-dev
+            cmake gcc g++ libssl-dev pkg-config curl libbrotli-dev git
 
       - name: Cache built h2o
         id: cache-h2o

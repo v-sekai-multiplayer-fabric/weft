@@ -3,10 +3,11 @@ name: build (Fil-C)
 # Builds zone-server-h2o with Fil-C (https://github.com/pizlonator/fil-c)
 # instead of stock clang/gcc, per the zone-server-h2o consolidation plan
 # (task #3): memory safety is load-bearing, not optional. The reason
-# changed with the weft fork and it did not go away. This process no
-# longer parses client input, because a plane has no networking. It
-# still runs untrusted guest programs under libriscv, and it still
-# parses whatever the edge hands it over iceoryx.
+# changed twice with the weft fork, and it did not go away. This
+# process no longer parses client input, because a plane has no
+# networking, and it no longer runs guest programs, because the
+# libriscv sandbox is gone. What is left is the input the edge hands
+# it over iceoryx, which arrives from the network by way of one hop.
 
 on:
   push:

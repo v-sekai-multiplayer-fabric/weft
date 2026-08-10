@@ -10,7 +10,7 @@ native process outside the BEAM.
 | `dataplane` | The seqlock ring. C++, built with CMake. | weft |
 | `nif` | The NIF that the control plane loads. | weft |
 | `storeplane` | The SQLite VFS over FoundationDB. | weft |
-| `gyreplane` | The zone server. An FDB zone tick and a guest sandbox. | fork of `zone-server-h2o` |
+| `gyreplane` | The zone server. An FDB zone tick, and nothing else. | fork of `zone-server-h2o` |
 | `gyreedge` | The browser client, and the transport that serves it. | fork of `zone-guest-gyre` |
 
 ## The two forks
@@ -21,8 +21,12 @@ A plane has no networking. `zone-server-h2o` terminated QUIC in the process that
 authority, so the transport and its libraries moved to `gyreedge`. That edit is inside the
 subtree, which makes it a fork.
 
-The cost is real. `git subtree pull` conflicts on every file that moved, and there are
-many. Read `gyreedge/TRANSPORT.md` for the list.
+The plane lost more than the transport. It lost the h2o request half, the libriscv guest
+sandbox, and every vendored dependency, because none of them had a caller. It is 328 kB,
+down from 22 MB.
+
+The cost is real. `git subtree pull` conflicts on every file that moved or went, and there
+are many. Read `gyreedge/TRANSPORT.md` and `../docs/reference/gyre_plane.md` for the list.
 
 `README.md` inside each fork belongs to its upstream, except for a note at the top of
 `gyreplane/README.md` that records the change. Read `../docs/reference/gyre_plane.md` for
