@@ -54,6 +54,17 @@ Both kinds: use one name for one concept. Terms are in `Weft` and
 - HTTP/3 and WebTransport is the client transport, terminated at an edge. It is not an
   internal path between planes.
 - So a plane may be its own Fly app, and what it can reach follows from where it lands.
+- **A machine is a packing of planes and edges, and not one plane.** Put several on one
+  machine when it suits, and the packing is a deployment choice and not an architecture.
+- **A ring forces co-location.** Two planes that exchange per-tick data run on one machine.
+  iceoryx2 is shared memory, so this is a property and not a preference. There is no
+  configuration that relaxes it.
+- Everything else may split. A plane that tolerates one FoundationDB round trip, about 1 ms,
+  may be a machine of its own.
+- So the deployment follows the data flow. Ask which planes share a ring, put those together,
+  and the rest is free.
+- An edge may share a machine with the planes it feeds. It still holds no authority, runs no
+  simulation, and keeps no durable state, because those follow from what an edge is.
 - A plane reaches the data plane over iceoryx2. The BEAM reaches the data plane through the
   NIF. So the BEAM never links iceoryx2, and a plane is a black box to it except for what
   that plane writes to the ring.

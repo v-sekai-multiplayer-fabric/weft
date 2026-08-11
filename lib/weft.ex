@@ -86,6 +86,18 @@ defmodule Weft do
      Two planes on one machine talk over iceoryx2, zero copy. Two planes on different
      machines do not talk directly. They go through the store plane to FoundationDB, which
      is a global transaction and is slow. See `../native/README.md`.
+
+     **A machine is a packing of planes and edges, and not one plane.** Several may share
+     one machine, and which ones may is decided by one question rather than by taste.
+
+     **A ring forces co-location.** Two planes that exchange per-tick data run on one
+     machine. iceoryx2 is shared memory, so that is a property of the transport and not a
+     setting. Everything else may split, because a plane that tolerates one FoundationDB
+     round trip, about 1 ms, may be a machine of its own.
+
+     So the deployment follows the data flow. Ask which planes share a ring, put those
+     together, and the rest is free. An edge may share a machine with the planes it feeds,
+     and it still holds no authority, runs no simulation, and keeps no durable state.
   2. **It is sandboxed and crash-isolated.** Each plane runs in a
      [bubblewrap](https://github.com/containers/bubblewrap) sandbox: restricted
      filesystem, namespaces, and seccomp. It can reach only what it is given — the
