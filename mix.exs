@@ -18,7 +18,7 @@ defmodule Weft.MixProject do
       # every machine.
       make_precompiler: {:nif, CCPrecompiler},
       make_precompiler_url:
-        "https://github.com/v-sekai-multiplayer-fabric/weft/releases/download/@{tag}/@{artefact_filename}",
+        "https://github.com/v-sekai-multiplayer-fabric/fabric-weft-plane/releases/download/@{tag}/@{artefact_filename}",
       make_precompiler_filename: "weft_dataplane_nif",
       make_precompiler_nif_versions: [versions: ["2.16", "2.17", "2.18"]],
       deps: deps(),

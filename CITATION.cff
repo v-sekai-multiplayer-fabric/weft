@@ -8,7 +8,7 @@ type: software
 authors:
   - family-names: Lee
     given-names: "K. S. Ernest (iFire)"
-repository-code: "https://github.com/v-sekai-multiplayer-fabric/weft"
+repository-code: "https://github.com/v-sekai-multiplayer-fabric/fabric-weft-plane"
 keywords:
   - actors
   - control-plane
