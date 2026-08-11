@@ -165,9 +165,12 @@ defmodule Weft.Gateway do
     end
   end
 
-  # An avatar named without a controller and an epoch cannot be authoritative, so it is
-  # refused rather than passed through unchecked.
-  defp authorised(%Request{}), do: {:error, :fenced}
+  # An avatar named without a controller and an epoch cannot be authoritative. The guard
+  # names the case rather than leaving a bare catch-all arm: the avatar is present, and
+  # the clause above already took every request that carries both a controller and an
+  # epoch. A malformed request from the network is refused and it does not crash the node,
+  # because the network is not a caller weft trusts.
+  defp authorised(%Request{avatar: avatar}) when not is_nil(avatar), do: {:error, :fenced}
 
   defp do_dispatch(%Request{reliable: false, op: op}) when op in [:put, :add_entity] do
     {:error, {:requires_reliable, op}}
