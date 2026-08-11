@@ -62,7 +62,17 @@ defmodule Weft.Gateway.Request do
   """
 
   @enforce_keys [:target, :op]
-  defstruct [:target, :op, args: [], reliable: true, seq: nil, from: nil]
+  defstruct [
+    :target,
+    :op,
+    args: [],
+    reliable: true,
+    seq: nil,
+    from: nil,
+    avatar: nil,
+    controller: nil,
+    epoch: nil
+  ]
 
   @type target :: {:actor, name :: String.t(), key :: String.t()} | {:zone, zone_id :: term()}
   @type t :: %__MODULE__{
@@ -70,6 +80,13 @@ defmodule Weft.Gateway.Request do
           op: atom(),
           args: [term()],
           reliable: boolean(),
+          # The avatar this request drives, and the controller that claims to drive it.
+          # `Weft.Authority` holds the rule that one avatar takes one controller. A request
+          # that names an avatar is checked against it, and a fenced controller is refused.
+          # A request that names no avatar drives no avatar and is not checked.
+          avatar: term() | nil,
+          controller: term() | nil,
+          epoch: non_neg_integer() | nil,
           # App-level sequence for unreliable datagrams: the gateway drops any
           # request whose seq is not newer than the last seen for its target
           # (last-write-wins), so stale/out-of-order packets are discarded.
@@ -129,7 +146,31 @@ defmodule Weft.Gateway do
     end
   end
 
-  defp routed(%Request{} = req), do: do_dispatch(req)
+  defp routed(%Request{} = req), do: authorised(req)
+
+  # One controller drives one avatar, and the gateway does not decide that.
+  #
+  # An earlier version called `Weft.Authority.check/3` here, and it was wrong twice. It read
+  # FoundationDB on every request, including unreliable datagrams, which is a cross-machine
+  # transaction at packet rate against a rule that says to keep durability off the write
+  # path. And it did not fence anything: the read returned, the write happened afterwards,
+  # and a controller seized from in between passed the check and still wrote.
+  #
+  # So the epoch travels with the request and `Weft.Zone.drive/4` enforces it, because the
+  # zone is the single writer and can compare and write in one step. The gateway only
+  # refuses a request that cannot be authoritative at all.
+  defp authorised(%Request{avatar: nil} = req), do: do_dispatch(req)
+
+  defp authorised(%Request{avatar: _avatar, controller: controller, epoch: epoch} = req)
+       when not is_nil(controller) and is_integer(epoch),
+       do: do_dispatch(req)
+
+  # An avatar named without a controller and an epoch cannot be authoritative. The guard
+  # names the case rather than leaving a bare catch-all arm: the avatar is present, and the
+  # clause above already took every request that carries both a controller and an epoch. A
+  # malformed request from the network is refused and it does not crash the node, because
+  # the network is not a caller weft trusts.
+  defp authorised(%Request{avatar: avatar}) when not is_nil(avatar), do: {:error, :fenced}
 
   defp do_dispatch(%Request{reliable: false, op: op}) when op in [:put, :add_entity] do
     {:error, {:requires_reliable, op}}
