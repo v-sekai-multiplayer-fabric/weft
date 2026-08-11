@@ -11,6 +11,15 @@ defmodule Weft.AuthorityTest do
   across a transaction, which is what makes the rule hold between machines.
   """
 
+  # A fresh id for every test, across runs and not only within one.
+  #
+  # `System.unique_integer/1` is unique inside one VM, and the database outlives the VM.
+  # So a second run mints `avatar-1` again, finds the first run still holding it, and fails
+  # with `{:held_by, ...}` on a line that looks like it is testing something else. Running
+  # the file five times is what made it visible: three passes and two failures, each in a
+  # different test.
+  defp fresh(kind), do: "#{kind}-" <> Base.encode16(:crypto.strong_rand_bytes(8))
+
   describe "decide_claim/2" do
     test "a free avatar is claimed at epoch 1" do
       assert {:ok, {"ada", 1}} = Authority.decide_claim(:not_found, "ada")
@@ -100,7 +109,7 @@ defmodule Weft.AuthorityTest do
 
     setup do
       # A distinct avatar per test, so the tests stay async and share one database.
-      {:ok, avatar: "avatar-#{System.unique_integer([:positive])}"}
+      {:ok, avatar: fresh("avatar")}
     end
 
     test "one controller claims, and a second is refused", %{avatar: avatar} do
@@ -148,18 +157,21 @@ defmodule Weft.AuthorityTest do
     end
   end
 
-  describe "the gateway refuses a fenced controller" do
+  describe "the gateway carries the epoch and does not read the database" do
     @describetag :fdb
 
     alias Weft.Gateway.Request
 
-    test "a seized controller cannot reach a zone" do
-      avatar = "avatar-#{System.unique_integer([:positive])}"
+    test "a request naming an avatar is routed, and authority is not decided here" do
+      avatar = fresh("avatar")
       {:ok, first} = Authority.claim(avatar, "ada")
+      {:ok, second} = Authority.seize(avatar, "grace")
+      assert second > first
 
-      # Ada holds the avatar, so her request is authorised and reaches routing. It fails
-      # for a routing reason and not an authority one, which is the distinction that
-      # matters here.
+      # Ada is superseded. The gateway still routes her request, and that is deliberate:
+      # a FoundationDB read here would be a cross-machine transaction at packet rate, and
+      # it would not fence anything anyway, because the write happens afterwards. The zone
+      # refuses her, and `Weft.ZoneTest` covers that.
       ada = %Request{
         target: {:zone, "no-such-zone"},
         op: :entities,
@@ -169,22 +181,60 @@ defmodule Weft.AuthorityTest do
       }
 
       assert {:error, :no_zone} = Weft.Gateway.dispatch(ada)
-
-      # Grace seizes the avatar. Ada is fenced from that moment, and her request is
-      # refused before it is routed at all.
-      {:ok, second} = Authority.seize(avatar, "grace")
-      assert {:error, :fenced} = Weft.Gateway.dispatch(ada)
-
-      grace = %{ada | controller: "grace", epoch: second}
-      assert {:error, :no_zone} = Weft.Gateway.dispatch(grace)
     end
 
-    test "an avatar named without a controller is refused" do
-      avatar = "avatar-#{System.unique_integer([:positive])}"
+    test "an avatar named without a controller and an epoch is refused" do
+      avatar = fresh("avatar")
       {:ok, _epoch} = Authority.claim(avatar, "ada")
 
+      # This one the gateway does refuse, and it needs no database to do it: a request that
+      # carries no epoch cannot be authoritative under any epoch.
       req = %Request{target: {:zone, "no-such-zone"}, op: :entities, avatar: avatar}
       assert {:error, :fenced} = Weft.Gateway.dispatch(req)
+    end
+  end
+
+  describe "the fence is in the zone, not in the check" do
+    alias Weft.Zone
+
+    setup do
+      id = fresh("zone")
+      start_supervised!({Zone, zone_id: id})
+      # Horde materialises a name behind one mailbox, so synchronise rather than sleep.
+      _ = :sys.get_state(Weft.Registry)
+      {:ok, zone: id, avatar: fresh("avatar")}
+    end
+
+    test "a superseded epoch is refused at the write", %{zone: zone, avatar: avatar} do
+      assert :ok = Zone.drive(zone, avatar, 1, %{pose: :standing})
+      assert :ok = Zone.drive(zone, avatar, 2, %{pose: :walking})
+      # Ada held epoch 1 and Grace seized to 2. Ada's next packet is refused by the writer
+      # itself, whether or not Ada has heard about the seizure.
+      assert {:error, :fenced} = Zone.drive(zone, avatar, 1, %{pose: :stale})
+    end
+
+    test "the state a fenced write carried is not applied", %{zone: zone, avatar: avatar} do
+      :ok = Zone.drive(zone, avatar, 2, %{pose: :walking})
+      {:error, :fenced} = Zone.drive(zone, avatar, 1, %{pose: :stale})
+      # The refusal has to mean the write did not land, not only that the call returned an
+      # error. This is the assertion the previous design could not make.
+      assert %{pose: :walking} = Map.get(Zone.entities(zone), avatar)
+    end
+
+    test "the same epoch is accepted, so a retry is not a fence violation",
+         %{zone: zone, avatar: avatar} do
+      assert :ok = Zone.drive(zone, avatar, 3, %{pose: :a})
+      assert :ok = Zone.drive(zone, avatar, 3, %{pose: :b})
+      assert %{pose: :b} = Map.get(Zone.entities(zone), avatar)
+    end
+
+    test "each avatar is fenced on its own epoch", %{zone: zone} do
+      a = fresh("avatar-a")
+      b = fresh("avatar-b")
+      assert :ok = Zone.drive(zone, a, 5, %{})
+      assert :ok = Zone.drive(zone, b, 1, %{})
+      assert {:error, :fenced} = Zone.drive(zone, a, 4, %{})
+      assert :ok = Zone.drive(zone, b, 2, %{})
     end
   end
 end

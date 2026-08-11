@@ -17,16 +17,34 @@ defmodule Weft.Authority do
 
     * `("weft", "authority", avatar_id)` -> term `{controller_id, epoch}`
 
-  ## The epoch is a fence, and there is no lease
+  ## The epoch is a token. The fence is in `Weft.Zone`
 
   A dead controller cannot release an avatar. A machine that loses power releases nothing.
   The usual answer is a lease with an expiry, and weft does not use one. An expiry is a
   guess about a workload nobody measured, and `CLAUDE.md` forbids a tuning constant.
 
-  Each claim carries an epoch instead. The epoch rises and it never falls, and it never
-  repeats for one avatar. Every write names the epoch it was made under. `check/3` accepts
-  a write only under the current epoch, so a superseded controller is fenced at once. Its
-  packets are refused whether it knows it lost the avatar or not.
+  Each claim carries an epoch instead. The epoch rises, it never falls, and it never repeats
+  for one avatar. **That makes the epoch a token and not a fence.** A token only fences if
+  the thing being written compares it and applies the write in one step, and this module
+  cannot do that, because it is a database and the write happens elsewhere.
+
+  `check/3` reads the record and returns. Whatever the caller does next is a second
+  operation, so a controller that is seized from between the two passes the check and still
+  writes. The window is small and it is real, and a test of `decide_check/3` cannot see it,
+  because the comparison was never the doubtful part.
+
+  So `Weft.Zone.drive/4` holds the fence. The zone is the single writer for its entities and
+  a GenServer handles one message at a time, so it compares the epoch and applies the write
+  in one step, with no gap for a seizure to arrive in. It keeps the highest epoch it has
+  accepted for each avatar, in memory, and touches no database at packet rate.
+
+  This module holds the claim, which is the part that must be global: two connections may
+  land on two machines that never talk to each other. `claim/2`, `seize/2` and `release/3`
+  are rare, and each is one FoundationDB transaction.
+
+  `check/3` remains for a caller that wants to read authority without writing, such as an
+  admission decision when a connection opens. **It is not a fence, and it must not be used
+  as one on a write path.**
 
   So a takeover is explicit and immediate. `claim/2` refuses an avatar that another
   controller holds. `seize/2` takes it and fences the previous holder. There is no interval

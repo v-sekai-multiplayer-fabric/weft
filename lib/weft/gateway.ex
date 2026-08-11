@@ -148,28 +148,28 @@ defmodule Weft.Gateway do
 
   defp routed(%Request{} = req), do: authorised(req)
 
-  # One controller drives one avatar. A request that names an avatar passes through
-  # `Weft.Authority` first, so a controller that was seized from is refused here and
-  # never reaches a zone. The check is a FoundationDB read, which is why it guards the
-  # request and not each entity write: authority changes when a controller connects or
-  # is seized from, and that is rare, while entity writes run at packet rate.
+  # One controller drives one avatar, and the gateway does not decide that.
   #
-  # A request that names no avatar drives no avatar, so there is nothing to check.
+  # An earlier version called `Weft.Authority.check/3` here, and it was wrong twice. It read
+  # FoundationDB on every request, including unreliable datagrams, which is a cross-machine
+  # transaction at packet rate against a rule that says to keep durability off the write
+  # path. And it did not fence anything: the read returned, the write happened afterwards,
+  # and a controller seized from in between passed the check and still wrote.
+  #
+  # So the epoch travels with the request and `Weft.Zone.drive/4` enforces it, because the
+  # zone is the single writer and can compare and write in one step. The gateway only
+  # refuses a request that cannot be authoritative at all.
   defp authorised(%Request{avatar: nil} = req), do: do_dispatch(req)
 
-  defp authorised(%Request{avatar: avatar, controller: controller, epoch: epoch} = req)
-       when not is_nil(controller) and is_integer(epoch) do
-    case Weft.Authority.check(avatar, controller, epoch) do
-      :ok -> do_dispatch(req)
-      {:error, :fenced} -> {:error, :fenced}
-    end
-  end
+  defp authorised(%Request{avatar: _avatar, controller: controller, epoch: epoch} = req)
+       when not is_nil(controller) and is_integer(epoch),
+       do: do_dispatch(req)
 
   # An avatar named without a controller and an epoch cannot be authoritative. The guard
-  # names the case rather than leaving a bare catch-all arm: the avatar is present, and
-  # the clause above already took every request that carries both a controller and an
-  # epoch. A malformed request from the network is refused and it does not crash the node,
-  # because the network is not a caller weft trusts.
+  # names the case rather than leaving a bare catch-all arm: the avatar is present, and the
+  # clause above already took every request that carries both a controller and an epoch. A
+  # malformed request from the network is refused and it does not crash the node, because
+  # the network is not a caller weft trusts.
   defp authorised(%Request{avatar: avatar}) when not is_nil(avatar), do: {:error, :fenced}
 
   defp do_dispatch(%Request{reliable: false, op: op}) when op in [:put, :add_entity] do

@@ -56,6 +56,29 @@ defmodule Weft.Zone do
     end)
   end
 
+  @doc """
+  Write an avatar's state under `epoch`, and refuse it if the epoch is superseded.
+
+  **This is the fence, and it is the only place one exists.** The zone is the single writer
+  for its entities, so it is the only process that can compare an epoch and apply a write
+  without a gap between them. It keeps the highest epoch it has accepted for each avatar and
+  refuses anything lower.
+
+  A check somewhere else cannot do this. `Weft.Authority.check/3` reads FoundationDB and
+  returns, and the write happens afterwards, so a controller seized from in between passes
+  the check and still writes. The gap is small and it is real. Here there is no gap: a
+  GenServer handles one message at a time, so the comparison and the write are one step, and
+  a seizure arrives as another message rather than during this one.
+
+  The epoch comes from `Weft.Authority.claim/2` or `seize/2`, which hold the claim in
+  FoundationDB because two connections may land on two machines that never talk. That is a
+  rare operation. This is the packet-rate one, and it touches no database.
+  """
+  @spec drive(term(), term(), non_neg_integer(), term()) :: :ok | {:error, :fenced}
+  def drive(zone_id, avatar, epoch, data) when is_integer(epoch) do
+    GenServer.call(via(zone_id), {:drive, avatar, epoch, data})
+  end
+
   @doc "Remove an entity from this zone."
   @spec remove_entity(term(), term()) :: :ok
   def remove_entity(zone_id, entity_id),
@@ -117,7 +140,10 @@ defmodule Weft.Zone do
        worker: worker,
        latest: nil,
        entities: %{},
-       subscribers: MapSet.new()
+       subscribers: MapSet.new(),
+       # The highest epoch this zone has accepted for each avatar. This is the fence.
+       # See `drive/4`.
+       epochs: %{}
      }}
   end
 
@@ -151,6 +177,25 @@ defmodule Weft.Zone do
 
   def handle_call({:add_entity, id, data}, _from, state) do
     {:reply, :ok, %{state | entities: Map.put(state.entities, id, data)}}
+  end
+
+  def handle_call({:drive, avatar, epoch, data}, _from, state) do
+    # The fence. The comparison and the write are one operation, because this process is
+    # the single writer and a GenServer handles one message at a time. Nothing can seize
+    # the avatar between the test and the write, since a seizure reaches this zone as
+    # another message and messages do not interleave.
+    seen = Map.get(state.epochs, avatar, 0)
+
+    if epoch < seen do
+      {:reply, {:error, :fenced}, state}
+    else
+      {:reply, :ok,
+       %{
+         state
+         | entities: Map.put(state.entities, avatar, data),
+           epochs: Map.put(state.epochs, avatar, epoch)
+       }}
+    end
   end
 
   def handle_call({:remove_entity, id}, _from, state) do
