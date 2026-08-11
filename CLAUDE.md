@@ -54,6 +54,17 @@ Both kinds: use one name for one concept. Terms are in `Weft` and
 - HTTP/3 and WebTransport is the client transport, terminated at an edge. It is not an
   internal path between planes.
 - So a plane may be its own Fly app, and what it can reach follows from where it lands.
+- **A domain is a packing of planes and edge planes, and a ring forces co-location.** Two
+  planes that exchange per-tick data are one domain. iceoryx2 is shared memory, so this is a
+  property and not a preference, and no configuration relaxes it.
+- A domain is the set of processes that have to be together. A machine is where one runs
+  today. So the word for the unit is domain, and Fly is an implementation detail of it.
+- Everything else may split. A plane that tolerates one FoundationDB round trip, about 1 ms,
+  may be a domain of its own.
+- So the deployment follows the data flow. Ask which planes share a ring, put those in one
+  domain, and the rest is free.
+- An edge plane is a plane, so it packs like one. It still holds no authority, runs no
+  simulation, and keeps no durable state, because those follow from what an edge plane is.
 - A plane reaches the data plane over iceoryx2. The BEAM reaches the data plane through the
   NIF. So the BEAM never links iceoryx2, and a plane is a black box to it except for what
   that plane writes to the ring.

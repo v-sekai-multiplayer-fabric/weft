@@ -86,6 +86,20 @@ defmodule Weft do
      Two planes on one machine talk over iceoryx2, zero copy. Two planes on different
      machines do not talk directly. They go through the store plane to FoundationDB, which
      is a global transaction and is slow. See `../native/README.md`.
+
+     **A domain is a packing of planes and edge planes, and a ring forces co-location.** Two
+     planes that exchange per-tick data are one domain. iceoryx2 is shared memory, so that
+     is a property of the transport and not a setting, and no configuration relaxes it.
+
+     A domain is the set of processes that have to be together. A machine is where one runs
+     today. The unit is therefore the domain, and Fly is an implementation detail of it.
+
+     Everything else may split, because a plane that tolerates one FoundationDB round trip,
+     about 1 ms, may be a domain of its own. So the deployment follows the data flow: ask
+     which planes share a ring, put those in one domain, and the rest is free.
+
+     An edge plane is a plane, so it packs like one. It still holds no authority, runs no
+     simulation, and keeps no durable state, because those follow from what it is.
   2. **It is sandboxed and crash-isolated.** Each plane runs in a
      [bubblewrap](https://github.com/containers/bubblewrap) sandbox: restricted
      filesystem, namespaces, and seccomp. It can reach only what it is given — the
