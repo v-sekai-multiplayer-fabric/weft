@@ -62,7 +62,17 @@ defmodule Weft.Gateway.Request do
   """
 
   @enforce_keys [:target, :op]
-  defstruct [:target, :op, args: [], reliable: true, seq: nil, from: nil]
+  defstruct [
+    :target,
+    :op,
+    args: [],
+    reliable: true,
+    seq: nil,
+    from: nil,
+    avatar: nil,
+    controller: nil,
+    epoch: nil
+  ]
 
   @type target :: {:actor, name :: String.t(), key :: String.t()} | {:zone, zone_id :: term()}
   @type t :: %__MODULE__{
@@ -70,6 +80,13 @@ defmodule Weft.Gateway.Request do
           op: atom(),
           args: [term()],
           reliable: boolean(),
+          # The avatar this request drives, and the controller that claims to drive it.
+          # `Weft.Authority` holds the rule that one avatar takes one controller. A request
+          # that names an avatar is checked against it, and a fenced controller is refused.
+          # A request that names no avatar drives no avatar and is not checked.
+          avatar: term() | nil,
+          controller: term() | nil,
+          epoch: non_neg_integer() | nil,
           # App-level sequence for unreliable datagrams: the gateway drops any
           # request whose seq is not newer than the last seen for its target
           # (last-write-wins), so stale/out-of-order packets are discarded.
@@ -129,7 +146,28 @@ defmodule Weft.Gateway do
     end
   end
 
-  defp routed(%Request{} = req), do: do_dispatch(req)
+  defp routed(%Request{} = req), do: authorised(req)
+
+  # One controller drives one avatar. A request that names an avatar passes through
+  # `Weft.Authority` first, so a controller that was seized from is refused here and
+  # never reaches a zone. The check is a FoundationDB read, which is why it guards the
+  # request and not each entity write: authority changes when a controller connects or
+  # is seized from, and that is rare, while entity writes run at packet rate.
+  #
+  # A request that names no avatar drives no avatar, so there is nothing to check.
+  defp authorised(%Request{avatar: nil} = req), do: do_dispatch(req)
+
+  defp authorised(%Request{avatar: avatar, controller: controller, epoch: epoch} = req)
+       when not is_nil(controller) and is_integer(epoch) do
+    case Weft.Authority.check(avatar, controller, epoch) do
+      :ok -> do_dispatch(req)
+      {:error, :fenced} -> {:error, :fenced}
+    end
+  end
+
+  # An avatar named without a controller and an epoch cannot be authoritative, so it is
+  # refused rather than passed through unchecked.
+  defp authorised(%Request{}), do: {:error, :fenced}
 
   defp do_dispatch(%Request{reliable: false, op: op}) when op in [:put, :add_entity] do
     {:error, {:requires_reliable, op}}

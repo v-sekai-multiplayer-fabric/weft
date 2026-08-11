@@ -122,6 +122,13 @@ Both kinds: use one name for one concept. Terms are in `Weft` and
 
 - Tests run against real infrastructure, not mocks.
 - FoundationDB tests are tagged `:fdb`. They skip when no cluster is present.
+- A skipped test proves nothing. Run a local FoundationDB so the `:fdb` tests run. The
+  machine is one large Fly VM, so a service is a systemd user unit inside bubblewrap, and
+  it is not a quadlet. `weft-fdb.service` runs one `fdbserver` on 127.0.0.1:4500 against
+  its own data directory. Create the database once with `fdbcli --exec "configure new
+  single ssd"`. Point the tests at it with `WEFT_FDB_CLUSTER_FILE`.
+- weft keeps its own test database. Do not point the tests at another stack's cluster,
+  because `configure new` destroys the data of the cluster that receives it.
 
 ## Layout
 
