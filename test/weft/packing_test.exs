@@ -2,9 +2,9 @@ defmodule Weft.PackingTest do
   use ExUnit.Case, async: true
 
   @moduledoc """
-  A machine is a packing of planes and edges, and a ring forces co-location.
+  A domain is a packing of planes and edge planes, and a ring forces co-location.
 
-  iceoryx2 is shared memory. So two planes that exchange per-tick data are on one machine,
+  iceoryx2 is shared memory. So two planes that exchange per-tick data are one domain,
   and that is a property of the transport rather than a setting somebody can relax. A
   document that offers to relax it is describing a system weft does not have, and the reader
   cannot tell that from the page alone.
@@ -63,11 +63,14 @@ defmodule Weft.PackingTest do
     for path <- ["CLAUDE.md", "lib/weft.ex"] do
       body = File.read!(path)
 
-      assert String.contains?(body, "A ring forces co-location"),
+      # Matched in lower case, because the sentence reads "and a ring forces co-location"
+      # in one place and starts a sentence in the other. The claim is what must not drift,
+      # not its capitalisation.
+      assert String.contains?(String.downcase(body), "a ring forces co-location"),
              "#{path} does not state that a ring forces co-location"
 
-      assert String.contains?(body, "packing of planes and edges"),
-             "#{path} does not say a machine is a packing of planes and edges"
+      assert String.contains?(body, "packing of planes and edge planes"),
+             "#{path} does not say a domain is a packing of planes and edge planes"
     end
   end
 end
